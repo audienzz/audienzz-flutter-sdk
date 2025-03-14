@@ -1,0 +1,15 @@
+name: audienzz_sdk_flutter_example
+description: "Demonstrates how to use the audienzz_sdk_flutter plugin."
+publish_to: 'none'
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  audienzz_sdk_flutter:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: 5.0.0
