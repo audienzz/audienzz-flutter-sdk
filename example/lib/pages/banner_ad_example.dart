@@ -22,15 +22,15 @@ class _BannerAdExampleState extends State<BannerAdExample> {
   bool _isBanner300x250LoadFailed = false;
   AdSize? _banner300x250AdSize;
 
-  BannerAd? _widthMultisizedBanner;
-  bool _isWidthMultisizedBannerLoaded = false;
-  bool _isWidthMultisizedBannerLoadFailed = false;
-  AdSize? _widthMultisizedBannerAdSize;
+  BannerAd? _widthAdaptiveBanner;
+  bool _isWidthAdaptiveBannerLoaded = false;
+  bool _isWidthAdaptiveBannerLoadFailed = false;
+  AdSize? _widthAdaptiveBannerAdSize;
 
-  BannerAd? _heightMultisizedBanner;
-  bool _isHeightMultisizedBannerLoaded = false;
-  bool _isHeightMultisizedBannerLoadFailed = false;
-  AdSize? _heightMultisizedBannerAdSize;
+  BannerAd? _heightAdaptiveBanner;
+  bool _isHeightAdaptiveBannerLoaded = false;
+  bool _isHeightAdaptiveBannerLoadFailed = false;
+  AdSize? _heightAdaptiveBannerAdSize;
 
   @override
   void didChangeDependencies() {
@@ -42,8 +42,8 @@ class _BannerAdExampleState extends State<BannerAdExample> {
   void dispose() {
     _banner320x50?.dispose();
     _banner300x250?.dispose();
-    _widthMultisizedBanner?.dispose();
-    _heightMultisizedBanner?.dispose();
+    _widthAdaptiveBanner?.dispose();
+    _heightAdaptiveBanner?.dispose();
     super.dispose();
   }
 
@@ -126,19 +126,19 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     await _banner300x250?.load();
   }
 
-  Future<void> _loadWidthMultisizedBannerAd() async {
-    _widthMultisizedBanner?.dispose();
+  Future<void> _loadWidthAdaptiveBannerAd() async {
+    _widthAdaptiveBanner?.dispose();
 
     setState(() {
-      _widthMultisizedBanner = null;
-      _isWidthMultisizedBannerLoaded = false;
+      _widthAdaptiveBanner = null;
+      _isWidthAdaptiveBannerLoaded = false;
     });
 
     final width = MediaQuery.sizeOf(context).width;
     final padding = MediaQuery.paddingOf(context);
     final safeWidth = width - padding.left - padding.right;
 
-    _widthMultisizedBanner = BannerAd(
+    _widthAdaptiveBanner = BannerAd(
       adUnitId: 'ca-app-pub-3940256099942544/2435281174',
       auConfigId: '33994718',
       size: AdSize(height: 50, width: safeWidth.toInt()),
@@ -148,17 +148,17 @@ class _BannerAdExampleState extends State<BannerAdExample> {
         log('Ad size: ${ad.size.width} : ${ad.size.height}');
         setState(
           () {
-            _widthMultisizedBanner = ad;
-            _isWidthMultisizedBannerLoadFailed = false;
-            _isWidthMultisizedBannerLoaded = true;
-            _widthMultisizedBannerAdSize = ad.size;
+            _widthAdaptiveBanner = ad;
+            _isWidthAdaptiveBannerLoadFailed = false;
+            _isWidthAdaptiveBannerLoaded = true;
+            _widthAdaptiveBannerAdSize = ad.size;
           },
         );
       },
       onAdFailedToLoad: (ad, error) {
         log('Banner failed to load: ${error?.message}');
         setState(() {
-          _isWidthMultisizedBannerLoadFailed = true;
+          _isWidthAdaptiveBannerLoadFailed = true;
           ad.dispose();
         });
       },
@@ -168,22 +168,22 @@ class _BannerAdExampleState extends State<BannerAdExample> {
       onAdImpression: (ad) => log('Ad impression: ${ad.adUnitId}'),
     );
 
-    await _widthMultisizedBanner?.load();
+    await _widthAdaptiveBanner?.load();
   }
 
-  Future<void> _loadHeightMultisizedBannerAd() async {
-    _heightMultisizedBanner?.dispose();
+  Future<void> _loadHeightAdaptiveBannerAd() async {
+    _heightAdaptiveBanner?.dispose();
 
     setState(() {
-      _heightMultisizedBanner = null;
-      _isHeightMultisizedBannerLoaded = false;
+      _heightAdaptiveBanner = null;
+      _isHeightAdaptiveBannerLoaded = false;
     });
 
     final height = MediaQuery.sizeOf(context).height;
     final padding = MediaQuery.paddingOf(context);
     final safeHeight = height - padding.top - padding.bottom;
 
-    _heightMultisizedBanner = BannerAd(
+    _heightAdaptiveBanner = BannerAd(
       adUnitId: 'ca-app-pub-3940256099942544/2435281174',
       auConfigId: '33994718',
       size: AdSize(height: safeHeight.toInt(), width: 320),
@@ -193,17 +193,17 @@ class _BannerAdExampleState extends State<BannerAdExample> {
         log('Ad size: ${ad.size.width} : ${ad.size.height}');
         setState(
           () {
-            _heightMultisizedBanner = ad;
-            _isHeightMultisizedBannerLoadFailed = false;
-            _isHeightMultisizedBannerLoaded = true;
-            _heightMultisizedBannerAdSize = ad.size;
+            _heightAdaptiveBanner = ad;
+            _isHeightAdaptiveBannerLoadFailed = false;
+            _isHeightAdaptiveBannerLoaded = true;
+            _heightAdaptiveBannerAdSize = ad.size;
           },
         );
       },
       onAdFailedToLoad: (ad, error) {
         log('Banner failed to load: ${error?.message}');
         setState(() {
-          _isHeightMultisizedBannerLoadFailed = true;
+          _isHeightAdaptiveBannerLoadFailed = true;
           ad.dispose();
         });
       },
@@ -213,14 +213,14 @@ class _BannerAdExampleState extends State<BannerAdExample> {
       onAdImpression: (ad) => log('Ad impression: ${ad.adUnitId}'),
     );
 
-    await _heightMultisizedBanner?.load();
+    await _heightAdaptiveBanner?.load();
   }
 
   Future<void> _loadBannerAds() async {
     _load320x50BannerAd();
     _load300x250BannerAd();
-    _loadWidthMultisizedBannerAd();
-    _loadHeightMultisizedBannerAd();
+    _loadWidthAdaptiveBannerAd();
+    _loadHeightAdaptiveBannerAd();
   }
 
   Widget _getBanner320x50AdWidget() {
@@ -273,20 +273,20 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     );
   }
 
-  Widget _getBannerMultisizeWidthWidget() {
-    if (_widthMultisizedBanner != null &&
-        _isWidthMultisizedBannerLoaded &&
-        _widthMultisizedBannerAdSize != null) {
+  Widget _getBannerAdaptiveWidthWidget() {
+    if (_widthAdaptiveBanner != null &&
+        _isWidthAdaptiveBannerLoaded &&
+        _widthAdaptiveBannerAdSize != null) {
       return SizedBox(
-        width: _widthMultisizedBannerAdSize?.width.toDouble(),
-        height: _widthMultisizedBannerAdSize?.height.toDouble(),
-        child: AdWidget(ad: _widthMultisizedBanner!),
+        width: _widthAdaptiveBannerAdSize?.width.toDouble(),
+        height: _widthAdaptiveBannerAdSize?.height.toDouble(),
+        child: AdWidget(ad: _widthAdaptiveBanner!),
       );
     }
 
-    if (_isWidthMultisizedBannerLoadFailed) {
+    if (_isWidthAdaptiveBannerLoadFailed) {
       return TextButton(
-        onPressed: _loadWidthMultisizedBannerAd,
+        onPressed: _loadWidthAdaptiveBannerAd,
         child: Text('Retry'),
       );
     }
@@ -298,20 +298,20 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     );
   }
 
-  Widget _getBannerMultisizeHeightWidget() {
-    if (_heightMultisizedBanner != null &&
-        _isHeightMultisizedBannerLoaded &&
-        _heightMultisizedBannerAdSize != null) {
+  Widget _getBannerAdaptiveHeightWidget() {
+    if (_heightAdaptiveBanner != null &&
+        _isHeightAdaptiveBannerLoaded &&
+        _heightAdaptiveBannerAdSize != null) {
       return SizedBox(
-        width: _heightMultisizedBannerAdSize?.width.toDouble(),
-        height: _heightMultisizedBannerAdSize?.height.toDouble(),
-        child: AdWidget(ad: _heightMultisizedBanner!),
+        width: _heightAdaptiveBannerAdSize?.width.toDouble(),
+        height: _heightAdaptiveBannerAdSize?.height.toDouble(),
+        child: AdWidget(ad: _heightAdaptiveBanner!),
       );
     }
 
-    if (_isHeightMultisizedBannerLoadFailed) {
+    if (_isHeightAdaptiveBannerLoadFailed) {
       return TextButton(
-        onPressed: _loadHeightMultisizedBannerAd,
+        onPressed: _loadHeightAdaptiveBannerAd,
         child: Text('Retry'),
       );
     }
@@ -328,9 +328,9 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     return Center(
       child: Column(
         children: [
-          _getBannerMultisizeWidthWidget(),
+          _getBannerAdaptiveWidthWidget(),
           const SizedBox(height: 40),
-          _getBannerMultisizeHeightWidget(),
+          _getBannerAdaptiveHeightWidget(),
           const SizedBox(height: 40),
           _getBanner300x250Widget(),
           const SizedBox(height: 40),
