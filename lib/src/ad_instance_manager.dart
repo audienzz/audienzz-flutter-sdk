@@ -217,9 +217,6 @@ final class AdInstanceManager {
         'videoDuration': ad.videoDuration,
         if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
         if (ad.gpId != null) 'gpId': ad.gpId,
-        if (ad.keyword != null) 'keyword': ad.keyword,
-        if (ad.keywords.isNotEmpty) 'keywords': ad.keywords,
-        if (ad.appContent != null) 'appContent': ad.appContent,
       },
     );
   }
@@ -247,9 +244,6 @@ final class AdInstanceManager {
         'videoDuration': ad.videoDuration,
         if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
         if (ad.gpId != null) 'gpId': ad.gpId,
-        if (ad.keyword != null) 'keyword': ad.keyword,
-        if (ad.keywords.isNotEmpty) 'keywords': ad.keywords,
-        if (ad.appContent != null) 'appContent': ad.appContent,
       },
     );
   }
@@ -279,9 +273,6 @@ final class AdInstanceManager {
         'minSizePercentage': ad.minSizePercentage,
         if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
         if (ad.gpId != null) 'gpId': ad.gpId,
-        if (ad.keyword != null) 'keyword': ad.keyword,
-        if (ad.keywords.isNotEmpty) 'keywords': ad.keywords,
-        if (ad.appContent != null) 'appContent': ad.appContent,
       },
     );
   }
