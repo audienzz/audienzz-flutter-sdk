@@ -1,7 +1,6 @@
 import 'dart:developer';
 
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
-import 'package:audienzz_sdk_flutter_example/constants/constants.dart';
 import 'package:flutter/material.dart';
 
 class BannerAdExample extends StatefulWidget {
@@ -81,7 +80,6 @@ class _BannerAdExampleState extends State<BannerAdExample> {
       onAdOpened: (ad) => log('Ad opened: ${ad.adUnitId}'),
       onAdClosed: (ad) => log('Ad closed: ${ad.adUnitId}'),
       onAdImpression: (ad) => log('Ad impression: ${ad.adUnitId}'),
-      appContent: Constants.exampleAppContent,
     );
 
     await _banner320x50?.load();

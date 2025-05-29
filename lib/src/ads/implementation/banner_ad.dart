@@ -4,7 +4,6 @@ import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_format.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/api_parameter.dart';
-import 'package:audienzz_sdk_flutter/src/entities/app_content/app_content.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/placement.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/playback_method.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/protocol.dart';
@@ -28,9 +27,6 @@ final class BannerAd extends AdWithView {
     this.videoDuration = const VideoDuration(min: 1, max: 30),
     this.pbAdSlot,
     this.gpId,
-    this.keyword,
-    this.keywords = const [],
-    this.appContent,
     this.onAdClicked,
     this.onAdClosed,
     this.onAdOpened,
@@ -85,18 +81,6 @@ final class BannerAd extends AdWithView {
   /// a specific instance of an adUnit.
   final String? gpId;
 
-  /// This the context keyword for adUnit context targeting.
-  /// Inserts the given element in the set if it is not already present.
-  final String? keyword;
-
-  /// This the context keyword set for adUnit context targeting.
-  /// Adds the elements of the given set to the set.
-  final List<String> keywords;
-
-  /// Describes an [OpenRTB](https://www.iab.com/wp-content/uploads/2016/03/OpenRTB-API-Specification-Version-2-5-FINAL.pdf)
-  /// appContent object
-  final AppContent? appContent;
-
   /// A callback triggered when an ad is received.
   final void Function(BannerAd ad) onAdLoaded;
 
@@ -142,8 +126,5 @@ final class BannerAd extends AdWithView {
         videoDuration,
         pbAdSlot,
         gpId,
-        keyword,
-        keywords,
-        appContent,
       ];
 }

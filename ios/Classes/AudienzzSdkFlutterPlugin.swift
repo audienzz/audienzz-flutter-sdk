@@ -52,10 +52,10 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         case "initialize":
             if let args = call.arguments as? Dictionary<String, Any>,
                let companyId = args["companyId"] as? String {
-                Audienzz.shared.configureSDK(audienzzKey: companyId)
+                Audienzz.shared.configureSDK(companyId: companyId)
                 AudienzzGAMUtils.shared.initializeGAM()
                 
-                result(InitializationStatus.success)
+                result(AudienzzInitializationStatus.success)
             } else {
                 result(FlutterError.init(code: "SDK Initialize Error", message: "Initialization error: No company id provided", details: nil))
             }
@@ -80,9 +80,6 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             let refreshTimeInterval = args["refreshTimeInterval"] as? NSNumber
             let pbAdSlot = args["pbAdSlot"] as? String
             let gpId = args["gpId"] as? String
-            let keyword = args["keyword"] as? String
-            let keywords = args["keywords"] as? [String]
-            let appContent = args["appContent"] as? AUMORTBAppContent
             
             let bannerAd = FBannerAd(
                 adUnitId: adUnitId,
@@ -99,11 +96,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 videoDuration: videoDuration,
                 pbAdSlot: pbAdSlot,
                 gpId: gpId,
-                keyword: keyword,
-                keywords: keywords,
-                appContent: appContent,
                 rootViewController: rootViewController,
-                adId: adId, manager: manager)
+                adId: adId,
+                manager: manager)
             
             manager.loadAd(ad: bannerAd)
             result(nil)
@@ -126,9 +121,6 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             
             let pbAdSlot = args["pbAdSlot"] as? String
             let gpId = args["gpId"] as? String
-            let keyword = args["keyword"] as? String
-            let keywords = args["keywords"] as? [String]
-            let appContent = args["appContent"] as? AUMORTBAppContent
             
             let rewardedAd = FRewardedAd(
                 adUnitId: adUnitId,
@@ -141,9 +133,6 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 videoDuration: videoDuration,
                 pbAdSlot: pbAdSlot,
                 gpId: gpId,
-                keyword: keyword,
-                keywords: keywords,
-                appContent: appContent,
                 adId: adId,
                 rootViewController: rootViewController,
                 manager: manager)
@@ -171,10 +160,6 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             
             let pbAdSlot = args["pbAdSlot"] as? String
             let gpId = args["gpId"] as? String
-            let keyword = args["keyword"] as? String
-            let keywords = args["keywords"] as? [String]
-            let appContent = args["appContent"] as? AUMORTBAppContent
-            
             
             let interstitialAd = FInterstitialAd(
                 adUnitId: adUnitId,
@@ -189,9 +174,6 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 videoDuration: videoDuration,
                 pbAdSlot: pbAdSlot,
                 gpId: gpId,
-                keyword: keyword,
-                keywords: keywords,
-                appContent: appContent,
                 adId: adId,
                 rootViewController: rootViewController,
                 manager: manager)

@@ -19,7 +19,6 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.StandardMethodCodec
-import org.audienzz.mobile.AudienzzContentObject
 import org.audienzz.mobile.AudienzzSignals
 
 class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
@@ -82,9 +81,6 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<VideoDuration>("videoDuration")!!,
                     call.argument<String?>("pbAdSlot"),
                     call.argument<String?>("gpId"),
-                    call.argument<String?>("keyword"),
-                    call.argument<List<String>?>("keywords"),
-                    call.argument<AudienzzContentObject?>("appContent"),
                     adInstanceManager?.createBannerAdListener(adId),
                     context,
                 )
@@ -108,9 +104,6 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<VideoDuration>("videoDuration")!!,
                     call.argument<String?>("pbAdSlot"),
                     call.argument<String?>("gpId"),
-                    call.argument<String?>("keyword"),
-                    call.argument<List<String>?>("keywords"),
-                    call.argument<AudienzzContentObject?>("appContent"),
                     context,
                     adInstanceManager!!.createRewardedAdLoadedListener(adId),
                     adInstanceManager!!.createRewardedAdUserEarnedRewardListener(adId),
@@ -138,9 +131,6 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<VideoDuration>("videoDuration")!!,
                     call.argument<String?>("pbAdSlot"),
                     call.argument<String?>("gpId"),
-                    call.argument<String?>("keyword"),
-                    call.argument<List<String>?>("keywords"),
-                    call.argument<AudienzzContentObject?>("appContent"),
                     context,
                     adInstanceManager!!.createInterstitialAdLoadedListener(adId),
                     adInstanceManager!!.createOverlayAdFullscreenContentListener(adId),
@@ -154,7 +144,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
             "showAdWithoutView" -> {
                 val adId = call.argument<Int>("adId")!!
 
-                val adShown = adInstanceManager?.showAdWithId(adId) ?: false
+                val adShown = adInstanceManager?.showAdWithId(adId) == true
 
                 if (!adShown) {
                     result.error("Ad Show Error", "Ad with id $adId failed to show", null)

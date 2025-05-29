@@ -2,7 +2,7 @@ import Flutter
 import GoogleMobileAds
 import AudienzziOSSDK
 
-class FBannerAd: FBaseAd, FAd, FlutterPlatformView, GADBannerViewDelegate {
+class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
     private let adUnitId: String
     private let auConfigId: String
     private let size: FAdSize
@@ -17,9 +17,6 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, GADBannerViewDelegate {
     private let videoDuration: FVideoDuration
     private let pbAdSlot: String?
     private let gpId: String?
-    private let keyword: String?
-    private let keywords: [String]?
-    private let appContent: AUMORTBAppContent?
     private let rootViewController: UIViewController
     var auBannerView: AUBannerView?
     
@@ -40,9 +37,6 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, GADBannerViewDelegate {
         videoDuration: FVideoDuration,
         pbAdSlot: String?,
         gpId: String?,
-        keyword: String?,
-        keywords: [String]?,
-        appContent: AUMORTBAppContent?,
         rootViewController: UIViewController,
         adId: NSNumber,
         manager: AdInstanceManager
@@ -61,19 +55,16 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, GADBannerViewDelegate {
         self.videoDuration = videoDuration
         self.pbAdSlot = pbAdSlot
         self.gpId = gpId
-        self.keyword = keyword
-        self.keywords = keywords
-        self.appContent = appContent
         self.rootViewController = rootViewController
         self.manager = manager
         super.init(adId: adId)
     }
     
     func load() {
-        let bannerViewInstance = GAMBannerView(adSize: GADAdSizeFromCGSize(CGSize(width: size.width.intValue, height: size.height.intValue)))
+        let bannerViewInstance = AdManagerBannerView(adSize: adSizeFor(cgSize: CGSize(width: size.width.intValue, height: size.height.intValue)))
         bannerViewInstance.adUnitID = adUnitId
         bannerViewInstance.delegate = self
-        let request = GAMRequest()
+        let request = AdManagerRequest()
         
         let bannerAdFormat:  [AUAdFormat]
         
@@ -98,17 +89,6 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, GADBannerViewDelegate {
         auBannerView?.parameters?.maxDuration = videoDuration.max.intValue
         auBannerView?.adUnitConfiguration.adSlot = pbAdSlot
         auBannerView?.adUnitConfiguration?.setGPID(gpId)
-        if let keyword = keyword {
-            auBannerView?.adUnitConfiguration?.addExtKeyword(keyword)
-        }
-        if let keywords = keywords {
-            auBannerView?.adUnitConfiguration?.addExtKeywords(Set(keywords))
-        }
-        
-        if let appContent = appContent {
-            auBannerView?.adUnitConfiguration?.setAppContent(appContent)
-        }
-        
         
         if let refreshTimeInterval = refreshTimeInterval {
             auBannerView?.adUnitConfiguration.setAutoRefreshMillis(time: refreshTimeInterval * 1000)
@@ -118,7 +98,7 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, GADBannerViewDelegate {
                                eventHandler: AUBannerEventHandler(adUnitId: adUnitId, gamView: bannerViewInstance))
         
         auBannerView?.onLoadRequest = { gamRequest in
-            guard let request = gamRequest as? GADRequest else {
+            guard let request = gamRequest as? Request else {
                 return
             }
             
@@ -132,32 +112,32 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, GADBannerViewDelegate {
     }
     
     
-    func bannerViewDidReceiveAd(_ bannerView: GADBannerView) {
+    func bannerViewDidReceiveAd(_ bannerView: BannerView) {
         manager?.onAdLoaded(ad: self)
     }
     
-    func bannerView(_ bannerView: GADBannerView, didFailToReceiveAdWithError error: any Error) {
+    func bannerView(_ bannerView: BannerView, didFailToReceiveAdWithError error: any Error) {
         manager?.onAdFailedToLoad(ad: self, error: FAdError(code: 1, message: error.localizedDescription))
     }
     
-    func bannerViewDidRecordClick(_ bannerView: GADBannerView) {
+    func bannerViewDidRecordClick(_ bannerView: BannerView) {
         manager?.onAdClicked(ad: self)
     }
     
-    func bannerViewDidRecordImpression(_ bannerView: GADBannerView) {
+    func bannerViewDidRecordImpression(_ bannerView: BannerView) {
         manager?.onAdImpression(ad: self)
     }
     
-    func bannerViewWillPresentScreen(_ bannerView: GADBannerView) {
+    func bannerViewWillPresentScreen(_ bannerView: BannerView) {
         manager?.onAdOpened(ad: self)
     }
     
     
-    func bannerViewWillDismissScreen(_ bannerView: GADBannerView) {
+    func bannerViewWillDismissScreen(_ bannerView: BannerView) {
         manager?.onAdClosed(ad: self)
     }
     
-    func bannerViewDidDismissScreen(_ bannerView: GADBannerView) {
+    func bannerViewDidDismissScreen(_ bannerView: BannerView) {
         manager?.onAdClosed(ad: self)
     }
 }

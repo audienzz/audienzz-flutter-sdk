@@ -13,10 +13,6 @@ enum FAdField: UInt8 {
     case playbackMethod = 136
     case videoBitrate = 137
     case videoDuration = 138
-    case appContent = 139
-    case dataObject = 140
-    case dataObjectSegment = 141
-    case producerObject = 142
     case minSizePercentage = 143
 }
 
@@ -45,9 +41,9 @@ class AdReader : FlutterStandardReader {
             let code = readValue(ofType: readByte()) as? NSNumber?
             
             if code == 0 {
-                return InitializationStatus.success
+                return AudienzzInitializationStatus.success
             } else if code == 1 {
-                return InitializationStatus.fail
+                return AudienzzInitializationStatus.fail
             }
             
             return nil
@@ -187,60 +183,6 @@ class AdReader : FlutterStandardReader {
                 return nil
             }
             
-        case .appContent:
-            let appContent = AUMORTBAppContent()
-            appContent.id = readValue(ofType: readByte()) as? String
-            appContent.episode = readValue(ofType: readByte()) as? NSNumber
-            appContent.title = readValue(ofType: readByte()) as? String
-            appContent.series = readValue(ofType: readByte()) as? String
-            appContent.season = readValue(ofType: readByte()) as? String
-            appContent.artist = readValue(ofType: readByte()) as? String
-            appContent.genre = readValue(ofType: readByte()) as? String
-            appContent.album = readValue(ofType: readByte()) as? String
-            appContent.isrc = readValue(ofType: readByte()) as? String
-            appContent.url = readValue(ofType: readByte()) as? String
-            appContent.cat = readValue(ofType: readByte()) as? [String]
-            appContent.prodq = readValue(ofType: readByte()) as? NSNumber
-            appContent.context = readValue(ofType: readByte()) as? NSNumber
-            appContent.contentrating = readValue(ofType: readByte()) as? String
-            appContent.userrating = readValue(ofType: readByte()) as? String
-            appContent.qagmediarating = readValue(ofType: readByte()) as? NSNumber
-            appContent.keywords = readValue(ofType: readByte()) as? String
-            appContent.livestream = readValue(ofType: readByte()) as? NSNumber
-            appContent.sourcerelationship = readValue(ofType: readByte()) as? NSNumber
-            appContent.len = readValue(ofType: readByte()) as? NSNumber
-            appContent.language = readValue(ofType: readByte()) as? String
-            appContent.embeddable = readValue(ofType: readByte()) as? NSNumber
-            appContent.data = readValue(ofType: readByte()) as? [AUMORTBContentData]
-            appContent.producer = readValue(ofType: readByte()) as? AUMORTBContentProducer
-            
-            return appContent
-        case .dataObject:
-            let dataObject = AUMORTBContentData()
-            
-            dataObject.id = readValue(ofType: readByte()) as? String
-            dataObject.name = readValue(ofType: readByte()) as? String
-            dataObject.segment = readValue(ofType: readByte()) as? [AUMORTBContentSegment]
-            
-            return dataObject
-        case .dataObjectSegment:
-            let dataObjectSegment = AUMORTBContentSegment()
-            
-            dataObjectSegment.id = readValue(ofType: readByte()) as? String
-            dataObjectSegment.name = readValue(ofType: readByte()) as? String
-            dataObjectSegment.value = readValue(ofType: readByte()) as? String
-            
-            return dataObjectSegment
-        case .producerObject:
-            let producerObject = AUMORTBContentProducer()
-            
-            producerObject.id = readValue(ofType: readByte()) as? String
-            producerObject.name = readValue(ofType: readByte()) as? String
-            producerObject.domain = readValue(ofType: readByte()) as? String
-            producerObject.cat = readValue(ofType: readByte()) as? [String]
-            
-            return producerObject
-            
         case .minSizePercentage:
             let width = readValue(ofType: readByte()) as? NSNumber
             let height = readValue(ofType: readByte()) as? NSNumber
@@ -257,7 +199,7 @@ class AdReader : FlutterStandardReader {
 class AdWriter : FlutterStandardWriter {
     override func writeValue(_ value: Any) {
         switch value {
-        case let status as InitializationStatus:
+        case let status as AudienzzInitializationStatus:
             writeByte(FAdField.initializationStatus.rawValue)
             
             switch status {
@@ -339,48 +281,6 @@ class AdWriter : FlutterStandardWriter {
             writeByte(FAdField.videoDuration.rawValue)
             writeValue(videoDuration.min)
             writeValue(videoDuration.max)
-        case let appContent as AUMORTBAppContent:
-            writeByte(FAdField.appContent.rawValue)
-            writeValue(appContent.id)
-            writeValue(appContent.episode)
-            writeValue(appContent.title)
-            writeValue(appContent.series)
-            writeValue(appContent.season)
-            writeValue(appContent.artist)
-            writeValue(appContent.genre)
-            writeValue(appContent.album)
-            writeValue(appContent.isrc)
-            writeValue(appContent.url)
-            writeValue(appContent.cat)
-            writeValue(appContent.prodq)
-            writeValue(appContent.context)
-            writeValue(appContent.contentrating)
-            writeValue(appContent.userrating)
-            writeValue(appContent.qagmediarating)
-            writeValue(appContent.keywords)
-            writeValue(appContent.livestream)
-            writeValue(appContent.sourcerelationship)
-            writeValue(appContent.len)
-            writeValue(appContent.language)
-            writeValue(appContent.embeddable)
-            writeValue(appContent.data)
-            writeValue(appContent.producer)
-        case let dataObject as AUMORTBContentData:
-            writeByte(FAdField.dataObject.rawValue)
-            writeValue(dataObject.id)
-            writeValue(dataObject.name)
-            writeValue(dataObject.segment)
-        case let dataObjectSegment as AUMORTBContentSegment:
-            writeByte(FAdField.dataObjectSegment.rawValue)
-            writeValue(dataObjectSegment.id)
-            writeValue(dataObjectSegment.name)
-            writeValue(dataObjectSegment.value)
-        case let producerObject as AUMORTBContentProducer:
-            writeByte(FAdField.producerObject.rawValue)
-            writeValue(producerObject.id)
-            writeValue(producerObject.name)
-            writeValue(producerObject.domain)
-            writeValue(producerObject.cat)
         case let minSizePercentage as FMinSizePercentage:
             writeByte(FAdField.minSizePercentage.rawValue)
             writeValue(minSizePercentage.width)

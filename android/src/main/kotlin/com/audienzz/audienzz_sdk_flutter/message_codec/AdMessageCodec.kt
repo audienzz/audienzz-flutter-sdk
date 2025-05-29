@@ -10,9 +10,6 @@ import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdSize
 import io.flutter.plugin.common.StandardMessageCodec
-import org.audienzz.mobile.AudienzzContentObject
-import org.audienzz.mobile.AudienzzContentObject.AudienzzProducerObject
-import org.audienzz.mobile.AudienzzDataObject
 import org.audienzz.mobile.AudienzzSignals
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
@@ -136,56 +133,6 @@ class AdMessageCodec(private var context: Context) : StandardMessageCodec() {
                 stream.write(VALUE_VIDEO_DURATION.toInt())
                 writeValue(stream, value.minDuration)
                 writeValue(stream, value.maxDuration)
-            }
-
-            is AudienzzContentObject -> {
-                stream.write(VALUE_APP_CONTENT.toInt())
-                writeValue(stream, value.id)
-                writeValue(stream, value.episode)
-                writeValue(stream, value.title)
-                writeValue(stream, value.series)
-                writeValue(stream, value.season)
-                writeValue(stream, value.artist)
-                writeValue(stream, value.genre)
-                writeValue(stream, value.album)
-                writeValue(stream, value.isrc)
-                writeValue(stream, value.url)
-                writeValue(stream, value.categories)
-                writeValue(stream, value.productionQuality)
-                writeValue(stream, value.context)
-                writeValue(stream, value.contentRating)
-                writeValue(stream, value.userRating)
-                writeValue(stream, value.qaMediaRating)
-                writeValue(stream, value.keywords)
-                writeValue(stream, value.liveStream)
-                writeValue(stream, value.sourceRelationship)
-                writeValue(stream, value.length)
-                writeValue(stream, value.language)
-                writeValue(stream, value.embeddable)
-                writeValue(stream, value.getDataList())
-                writeValue(stream, value.producer)
-            }
-
-            is AudienzzDataObject -> {
-                stream.write(VALUE_DATA_OBJECT.toInt())
-                writeValue(stream, value.id)
-                writeValue(stream, value.name)
-                writeValue(stream, value.getSegments())
-            }
-
-            is AudienzzDataObject.AudienzzSegmentObject -> {
-                stream.write(VALUE_DATA_OBJECT_SEGMENT.toInt())
-                writeValue(stream, value.id)
-                writeValue(stream, value.name)
-                writeValue(stream, value.value)
-            }
-
-            is AudienzzProducerObject -> {
-                stream.write(VALUE_PRODUCER_OBJECT.toInt())
-                writeValue(stream, value.id)
-                writeValue(stream, value.name)
-                writeValue(stream, value.domain)
-                writeValue(stream, value.getCategories())
             }
 
             is MinSizePercentage -> {
@@ -344,91 +291,6 @@ class AdMessageCodec(private var context: Context) : StandardMessageCodec() {
                 }
             }
 
-            VALUE_APP_CONTENT -> {
-                val contentObject = AudienzzContentObject()
-                contentObject.id = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.episode = readValueOfType(buffer.get(), buffer) as Int?
-                contentObject.title = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.series = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.season = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.artist = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.genre = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.album = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.isrc = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.url = readValueOfType(buffer.get(), buffer) as String?
-
-                val categories = (readValueOfType(buffer.get(), buffer) as List<String>?)
-
-                if (categories != null) {
-                    contentObject.categories = categories
-                }
-                contentObject.productionQuality = readValueOfType(buffer.get(), buffer) as Int?
-                contentObject.context = readValueOfType(buffer.get(), buffer) as Int?
-                contentObject.contentRating = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.userRating = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.qaMediaRating = readValueOfType(buffer.get(), buffer) as Int?
-                contentObject.keywords = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.liveStream = readValueOfType(buffer.get(), buffer) as Int?
-                contentObject.sourceRelationship = readValueOfType(buffer.get(), buffer) as Int?
-                contentObject.length = readValueOfType(buffer.get(), buffer) as Int?
-                contentObject.language = readValueOfType(buffer.get(), buffer) as String?
-                contentObject.embeddable = readValueOfType(buffer.get(), buffer) as Int?
-
-                val dataList = readValueOfType(buffer.get(), buffer) as List<AudienzzDataObject>?
-                if (dataList != null) {
-                    contentObject.setDataList(
-                        dataList
-                    )
-                }
-                contentObject.producer =
-                    readValueOfType(buffer.get(), buffer) as AudienzzProducerObject?
-
-                return contentObject
-            }
-
-            VALUE_DATA_OBJECT -> {
-                val dataObject = AudienzzDataObject()
-                dataObject.id = readValueOfType(buffer.get(), buffer) as String?
-                dataObject.name = readValueOfType(buffer.get(), buffer) as String?
-                val segments = readValueOfType(
-                    buffer.get(),
-                    buffer
-                ) as List<AudienzzDataObject.AudienzzSegmentObject>?
-
-                if (segments != null) {
-                    for (segment in segments) {
-                        dataObject.addSegment(segment)
-                    }
-                }
-
-                return dataObject
-            }
-
-            VALUE_DATA_OBJECT_SEGMENT -> {
-                val segmentObject = AudienzzDataObject.AudienzzSegmentObject()
-
-                segmentObject.id = readValueOfType(buffer.get(), buffer) as String?
-                segmentObject.name = readValueOfType(buffer.get(), buffer) as String?
-                segmentObject.value = readValueOfType(buffer.get(), buffer) as String?
-
-                return segmentObject
-            }
-
-            VALUE_PRODUCER_OBJECT -> {
-                val producerObject = AudienzzProducerObject()
-                producerObject.id = readValueOfType(buffer.get(), buffer) as String?
-                producerObject.name = readValueOfType(buffer.get(), buffer) as String?
-                producerObject.domain = readValueOfType(buffer.get(), buffer) as String?
-                val categories = readValueOfType(buffer.get(), buffer) as List<String>?
-                if (categories != null) {
-                    for (category in categories) {
-                        producerObject.addCategory(category)
-                    }
-                }
-
-                return producerObject
-            }
-
             VALUE_MIN_SIZE_PERCENTAGE -> {
                 val width = readValueOfType(buffer.get(), buffer) as Int?
                 val height = readValueOfType(buffer.get(), buffer) as Int?
@@ -458,10 +320,6 @@ class AdMessageCodec(private var context: Context) : StandardMessageCodec() {
         private const val VALUE_PLAYBACK_METHOD: Byte = 136.toByte()
         private const val VALUE_VIDEO_BITRATE: Byte = 137.toByte()
         private const val VALUE_VIDEO_DURATION: Byte = 138.toByte()
-        private const val VALUE_APP_CONTENT: Byte = 139.toByte()
-        private const val VALUE_DATA_OBJECT: Byte = 140.toByte()
-        private const val VALUE_DATA_OBJECT_SEGMENT: Byte = 141.toByte()
-        private const val VALUE_PRODUCER_OBJECT: Byte = 142.toByte()
         private const val VALUE_MIN_SIZE_PERCENTAGE: Byte = 143.toByte()
     }
 }

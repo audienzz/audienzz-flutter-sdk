@@ -3,7 +3,6 @@ import 'dart:developer';
 import 'dart:math' show Random;
 
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
-import 'package:audienzz_sdk_flutter_example/constants/constants.dart';
 import 'package:flutter/material.dart';
 
 class InterstitialAdExample extends StatefulWidget {
@@ -63,7 +62,6 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
       onAdOpened: (ad) => log('Interstitial Ad opened: ${ad.adUnitId}'),
       onAdClosed: (ad) => log('Interstitial Ad closed: ${ad.adUnitId}'),
       onAdImpression: (ad) => log('Interstitial Ad impression: ${ad.adUnitId}'),
-      appContent: Constants.exampleAppContent,
     );
 
     await _interstitialBannerAd?.load();

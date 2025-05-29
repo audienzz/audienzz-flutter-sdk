@@ -13,7 +13,6 @@ import com.google.android.gms.ads.admanager.AdManagerAdView
 import io.flutter.plugin.platform.PlatformView
 import org.audienzz.mobile.AudienzzBannerAdUnit
 import org.audienzz.mobile.AudienzzBannerParameters
-import org.audienzz.mobile.AudienzzContentObject
 import org.audienzz.mobile.AudienzzSignals
 import org.audienzz.mobile.AudienzzVideoParameters
 import org.audienzz.mobile.api.data.AudienzzAdUnitFormat
@@ -36,9 +35,6 @@ class BannerAd(
     private val videoDuration: VideoDuration,
     private val bannerPbAdSlot: String?,
     private val gpId: String?,
-    private val keyword: String?,
-    private val keywords: List<String>?,
-    private val bannerAppContent: AudienzzContentObject?,
     private val adListener: AdListener?,
     private val context: Context,
 ) : Ad() {
@@ -89,14 +85,6 @@ class BannerAd(
             videoParameters = customVideoParameters
             pbAdSlot = bannerPbAdSlot
             gpid = gpId
-            appContent = bannerAppContent
-
-            keyword?.let(::addExtKeyword)
-
-            keywords?.let {
-                addExtKeywords(it.toSet())
-            }
-
             refreshTimeInterval?.let(::setAutoRefreshInterval)
         }
 
