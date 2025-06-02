@@ -48,8 +48,8 @@ class AdReader : FlutterStandardReader {
             
             return nil
         case .adSize:
-            let width = readValue(ofType: readByte()) as? NSNumber
-            let height = readValue(ofType: readByte()) as? NSNumber
+            let width = readValue(ofType: readByte()) as? Int
+            let height = readValue(ofType: readByte()) as? Int
             
             if let width = width, let height = height {
                 return FAdSize(width: width, height: height)

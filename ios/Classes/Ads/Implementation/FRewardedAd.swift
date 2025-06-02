@@ -13,6 +13,7 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
     private let videoDuration: FVideoDuration
     private let pbAdSlot: String?
     private let gpId: String?
+    private let customImpOrtbConfig: String?
     private let rootViewController: UIViewController
     
     weak var manager: AdInstanceManager?
@@ -31,6 +32,7 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
         videoDuration: FVideoDuration,
         pbAdSlot: String?,
         gpId: String?,
+        customImpOrtbConfig: String?,
         adId: NSNumber,
         rootViewController: UIViewController,
         manager: AdInstanceManager) {
@@ -45,6 +47,7 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
             self.videoDuration = videoDuration
             self.pbAdSlot = pbAdSlot
             self.gpId = gpId
+            self.customImpOrtbConfig = customImpOrtbConfig
             self.rootViewController = rootViewController
             self.manager = manager
             super.init(adId: adId)
@@ -66,7 +69,11 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
         rewardedView = AURewardedView(configId: auConfigId, isLazyLoad: false)
         rewardedView?.frame = CGRect(origin: CGPoint(x: 0, y: 0), size: CGSize(width: rootViewController.view.frame.size.width, height: rootViewController.view.frame.size.height))
         rewardedView?.backgroundColor = .magenta
-        rewardedView?.parameters = videoParameters
+        rewardedView?.videoParameters = videoParameters
+        
+        if let customImpOrtbConfig = customImpOrtbConfig {
+            rewardedView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
+        }
         
         rewardedView?.adUnitConfiguration.adSlot = pbAdSlot
         rewardedView?.adUnitConfiguration.setGPID(gpId)

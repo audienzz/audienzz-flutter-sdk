@@ -25,6 +25,7 @@ class RewardAd(
     private val videoDuration: VideoDuration,
     private val rewardPbAdSlot: String?,
     private val gpId: String?,
+    private val customImpOrtbConfig: String?,
     private val context: Context,
     private val rewardAdLoadedListener: RewardedAdLoadCallback,
     private val userEarnedRewardListener: OnUserEarnedRewardListener,
@@ -49,6 +50,7 @@ class RewardAd(
         adUnit.apply {
             pbAdSlot = rewardPbAdSlot
             gpid = gpId
+            customImpOrtbConfig?.let { impOrtbConfig = it }
         }
 
         AudienzzRewardedVideoAdHandler(adUnit, adUnitId).load(

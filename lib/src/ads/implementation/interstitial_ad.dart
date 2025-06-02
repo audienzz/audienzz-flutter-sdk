@@ -2,6 +2,7 @@ import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/ads/base/ad_without_view.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_format.dart';
+import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/api_parameter.dart';
 import 'package:audienzz_sdk_flutter/src/entities/min_size_percentage.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/placement.dart';
@@ -19,6 +20,7 @@ final class InterstitialAd extends AdWithoutView {
     required this.onAdLoaded,
     required this.onAdFailedToLoad,
     this.minSizePercentage = const MinSizePercentage(width: 80, height: 60),
+    this.sizes = const <AdSize>{},
     this.apiParameters = const {ApiParameter.mraid3, ApiParameter.omid1},
     this.protocols = const {},
     this.placement = Placement.inBanner,
@@ -27,6 +29,7 @@ final class InterstitialAd extends AdWithoutView {
     this.videoDuration = const VideoDuration(min: 1, max: 30),
     this.pbAdSlot,
     this.gpId,
+    this.impOrtbConfig,
     this.onAdOpened,
     this.onAdClosed,
     this.onAdClicked,
@@ -40,6 +43,9 @@ final class InterstitialAd extends AdWithoutView {
   /// Specify width and height of the ad unit in percents, will be used
   /// in a bid request
   final MinSizePercentage minSizePercentage;
+
+  /// Specify width and height of the ad unit, will be used in a bid request
+  final Set<AdSize> sizes;
 
   /// The property is dedicated to adding values for API Frameworks to a bid
   /// response according to the OpenRTB 2.5 spec.
@@ -73,6 +79,9 @@ final class InterstitialAd extends AdWithoutView {
   /// The Global Placement ID (GPID) is a key that uniquely identifies
   /// a specific instance of an adUnit.
   final String? gpId;
+
+  /// Custom ortb object to be added on impression level
+  final String? impOrtbConfig;
 
   /// A callback triggered when an ad is received.
   final void Function(InterstitialAd ad) onAdLoaded;
@@ -119,5 +128,6 @@ final class InterstitialAd extends AdWithoutView {
         videoDuration,
         pbAdSlot,
         gpId,
+        impOrtbConfig,
       ];
 }

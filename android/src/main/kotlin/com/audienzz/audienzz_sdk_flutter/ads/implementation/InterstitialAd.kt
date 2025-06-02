@@ -7,9 +7,11 @@ import com.audienzz.audienzz_sdk_flutter.entities.AdFormat
 import com.audienzz.audienzz_sdk_flutter.entities.MinSizePercentage
 import com.audienzz.audienzz_sdk_flutter.entities.VideoBitrate
 import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
+import com.google.android.gms.ads.AdSize
 import org.audienzz.mobile.api.data.AudienzzAdUnitFormat
 import com.google.android.gms.ads.admanager.AdManagerInterstitialAd
 import com.google.android.gms.ads.admanager.AdManagerInterstitialAdLoadCallback
+import org.audienzz.mobile.AudienzzAdSize
 import org.audienzz.mobile.AudienzzInterstitialAdUnit
 import org.audienzz.mobile.AudienzzSignals
 import org.audienzz.mobile.AudienzzVideoParameters
@@ -30,6 +32,8 @@ class InterstitialAd(
     private val videoDuration: VideoDuration,
     private val interstitialPbAdSlot: String?,
     private val gpId: String?,
+    private val adSizes: List<AdSize>,
+    private val customImpOrtbConfig: String?,
     private val context: Context,
     private val interstitialAdLoadedListener: AdManagerInterstitialAdLoadCallback,
     private val fullScreenContentListener: AudienzzFullScreenContentCallback,
@@ -56,6 +60,9 @@ class InterstitialAd(
         adUnit.apply {
             gpid = gpId
             pbAdSlot = interstitialPbAdSlot
+            bannerParameters?.adSizes =
+                adSizes.map { AudienzzAdSize(width = it.width, height = it.height) }.toSet()
+            customImpOrtbConfig?.let { impOrtbConfig = it }
         }
 
 

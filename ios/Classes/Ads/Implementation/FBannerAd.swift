@@ -5,7 +5,7 @@ import AudienzziOSSDK
 class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
     private let adUnitId: String
     private let auConfigId: String
-    private let size: FAdSize
+    private let sizes: [FAdSize]
     private let isAdaptiveSize: Bool
     private let refreshTimeInterval: Double?
     private let adFormat: FAdFormat
@@ -17,15 +17,18 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
     private let videoDuration: FVideoDuration
     private let pbAdSlot: String?
     private let gpId: String?
+    private let customImpOrtbConfig: String?
     private let rootViewController: UIViewController
     var auBannerView: AUBannerView?
     
     weak var manager: AdInstanceManager?
     
+    private var bannerViewInstance: AdManagerBannerView?
+    
     init(
         adUnitId: String,
         auConfigId: String,
-        size: FAdSize,
+        sizes: [FAdSize],
         isAdaptiveSize: Bool,
         refreshTimeInterval: Double?,
         adFormat: FAdFormat,
@@ -37,12 +40,13 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         videoDuration: FVideoDuration,
         pbAdSlot: String?,
         gpId: String?,
+        customImpOrtbConfig: String?,
         rootViewController: UIViewController,
         adId: NSNumber,
         manager: AdInstanceManager
     ) {
         self.adUnitId = adUnitId
-        self.size = size
+        self.sizes = sizes
         self.auConfigId = auConfigId
         self.isAdaptiveSize = isAdaptiveSize
         self.refreshTimeInterval = refreshTimeInterval
@@ -55,15 +59,19 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         self.videoDuration = videoDuration
         self.pbAdSlot = pbAdSlot
         self.gpId = gpId
+        self.customImpOrtbConfig = customImpOrtbConfig
         self.rootViewController = rootViewController
         self.manager = manager
         super.init(adId: adId)
     }
     
     func load() {
-        let bannerViewInstance = AdManagerBannerView(adSize: adSizeFor(cgSize: CGSize(width: size.width.intValue, height: size.height.intValue)))
-        bannerViewInstance.adUnitID = adUnitId
-        bannerViewInstance.delegate = self
+        let mainSize = sizes.first ?? FAdSize(width: 1, height: 1)
+        
+        bannerViewInstance = AdManagerBannerView(adSize: adSizeFor(cgSize: CGSize(width: mainSize.width, height: mainSize.height)))
+        bannerViewInstance!.adUnitID = adUnitId
+        bannerViewInstance!.delegate = self
+    
         let request = AdManagerRequest()
         
         let bannerAdFormat:  [AUAdFormat]
@@ -74,19 +82,26 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         case FAdFormat.bannerAndVideo: bannerAdFormat = [AUAdFormat.banner, AUAdFormat.video]
         }
         
-        auBannerView = AUBannerView(configId: auConfigId, adSize: CGSize(width: size.width.intValue, height: size.height.intValue), adFormats: bannerAdFormat, isLazyLoad: false)
-        auBannerView?.frame = CGRect(origin: CGPoint(x: 0, y: 0), size: CGSize(width:size.width.doubleValue, height: size.height.doubleValue))
+        auBannerView = AUBannerView(configId: auConfigId, adSize: CGSize(width: mainSize.width, height: mainSize.height), adFormats: bannerAdFormat, isLazyLoad: false)
+        auBannerView?.frame = CGRect(origin: CGPoint(x: 0, y: 0), size: CGSize(width:mainSize.width, height: mainSize.height))
         auBannerView?.backgroundColor = .clear
         
+        let cgSizes: [CGSize] = sizes.dropFirst().map {
+            CGSize(width: $0.width, height: $0.height)
+        }
+        if let customImpOrtbConfig = customImpOrtbConfig {
+            auBannerView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
+        }
         auBannerView?.bannerParameters?.api = apiParameters
-        auBannerView?.parameters?.api = apiParameters
-        auBannerView?.parameters?.protocols = videoProtocols
-        auBannerView?.parameters?.placement = videoPlacement
-        auBannerView?.parameters?.playbackMethod = videoPlaybackMethods
-        auBannerView?.parameters?.minBitrate = videoBitrate.min.intValue
-        auBannerView?.parameters?.maxBitrate = videoBitrate.max.intValue
-        auBannerView?.parameters?.minDuration = videoDuration.min.intValue
-        auBannerView?.parameters?.maxDuration = videoDuration.max.intValue
+        auBannerView?.addAdditionalSize(sizes: cgSizes)
+        auBannerView?.videoParameters?.api = apiParameters
+        auBannerView?.videoParameters?.protocols = videoProtocols
+        auBannerView?.videoParameters?.placement = videoPlacement
+        auBannerView?.videoParameters?.playbackMethod = videoPlaybackMethods
+        auBannerView?.videoParameters?.minBitrate = videoBitrate.min.intValue
+        auBannerView?.videoParameters?.maxBitrate = videoBitrate.max.intValue
+        auBannerView?.videoParameters?.minDuration = videoDuration.min.intValue
+        auBannerView?.videoParameters?.maxDuration = videoDuration.max.intValue
         auBannerView?.adUnitConfiguration.adSlot = pbAdSlot
         auBannerView?.adUnitConfiguration?.setGPID(gpId)
         
@@ -94,11 +109,12 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
             auBannerView?.adUnitConfiguration.setAutoRefreshMillis(time: refreshTimeInterval * 1000)
         }
         
-        auBannerView?.createAd(with: request, gamBanner: bannerViewInstance,
-                               eventHandler: AUBannerEventHandler(adUnitId: adUnitId, gamView: bannerViewInstance))
+        auBannerView?.createAd(with: request, gamBanner: bannerViewInstance!,
+                               eventHandler: AUBannerEventHandler(adUnitId: adUnitId, gamView: bannerViewInstance!))
         
         auBannerView?.onLoadRequest = { gamRequest in
-            guard let request = gamRequest as? Request else {
+            guard let request = gamRequest as? Request,
+                  let bannerViewInstance = self.bannerViewInstance else {
                 return
             }
             
@@ -109,6 +125,15 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
     
     func view() -> UIView {
         auBannerView!
+    }
+    
+    func getPlatformAdSize() -> FAdSize? {
+        let assignedSize = bannerViewInstance?.adSize
+        guard let assignedSize = assignedSize else {
+            return nil
+        }
+        
+        return FAdSize(width: Int(assignedSize.size.width), height: Int(assignedSize.size.height))
     }
     
     
