@@ -1,8 +1,8 @@
 import GoogleMobileAds
 
-enum InitializationStatus : uint {
+enum AudienzzInitializationStatus : uint {
     
-    init(status: GADInitializationStatus){
+    init(status: InitializationStatus){
         let adapterStatuses = status.adapterStatusesByClassName
         let allAdaptersReady = adapterStatuses.allSatisfy { $0.value.state == .ready }
         

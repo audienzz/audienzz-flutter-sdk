@@ -19,7 +19,6 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.StandardMethodCodec
-import org.audienzz.mobile.AudienzzContentObject
 import org.audienzz.mobile.AudienzzSignals
 
 class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
@@ -70,7 +69,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 val bannerAd = BannerAd(
                     call.argument<String>("adUnitId")!!,
                     call.argument<String>("auConfigId")!!,
-                    call.argument<AdSize>("adSize")!!,
+                    call.argument<List<AdSize>>("adSizes")!!,
                     call.argument<Boolean>("isAdaptiveSize")!!,
                     call.argument<Int?>("refreshTimeInterval"),
                     call.argument<AdFormat>("adFormat")!!,
@@ -82,9 +81,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<VideoDuration>("videoDuration")!!,
                     call.argument<String?>("pbAdSlot"),
                     call.argument<String?>("gpId"),
-                    call.argument<String?>("keyword"),
-                    call.argument<List<String>?>("keywords"),
-                    call.argument<AudienzzContentObject?>("appContent"),
+                    call.argument<String?>("impOrtbConfig"),
                     adInstanceManager?.createBannerAdListener(adId),
                     context,
                 )
@@ -108,9 +105,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<VideoDuration>("videoDuration")!!,
                     call.argument<String?>("pbAdSlot"),
                     call.argument<String?>("gpId"),
-                    call.argument<String?>("keyword"),
-                    call.argument<List<String>?>("keywords"),
-                    call.argument<AudienzzContentObject?>("appContent"),
+                    call.argument<String?>("impOrtbConfig"),
                     context,
                     adInstanceManager!!.createRewardedAdLoadedListener(adId),
                     adInstanceManager!!.createRewardedAdUserEarnedRewardListener(adId),
@@ -138,9 +133,8 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<VideoDuration>("videoDuration")!!,
                     call.argument<String?>("pbAdSlot"),
                     call.argument<String?>("gpId"),
-                    call.argument<String?>("keyword"),
-                    call.argument<List<String>?>("keywords"),
-                    call.argument<AudienzzContentObject?>("appContent"),
+                    call.argument<List<AdSize>>("adSizes")!!,
+                    call.argument<String?>("impOrtbConfig"),
                     context,
                     adInstanceManager!!.createInterstitialAdLoadedListener(adId),
                     adInstanceManager!!.createOverlayAdFullscreenContentListener(adId),
@@ -154,13 +148,24 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
             "showAdWithoutView" -> {
                 val adId = call.argument<Int>("adId")!!
 
-                val adShown = adInstanceManager?.showAdWithId(adId) ?: false
+                val adShown = adInstanceManager?.showAdWithId(adId) == true
 
                 if (!adShown) {
                     result.error("Ad Show Error", "Ad with id $adId failed to show", null)
                 }
 
                 result.success(null)
+            }
+
+            "getPlatformAdSize" -> {
+                val adId = call.argument<Int>("adId")!!
+                val ad = adInstanceManager?.adFor(adId)
+
+                if(ad is BannerAd) {
+                    result.success(ad.getPlatformAdSize())
+                } else {
+                    result.success(null)
+                }
             }
 
 

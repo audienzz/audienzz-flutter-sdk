@@ -5,17 +5,14 @@ import android.content.Context
 import com.audienzz.audienzz_sdk_flutter.ads.base.OverlayAd
 import com.audienzz.audienzz_sdk_flutter.entities.VideoBitrate
 import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
-import com.google.android.gms.ads.FullScreenContentCallback
-import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.OnUserEarnedRewardListener
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
-import org.audienzz.mobile.AudienzzContentObject
-import org.audienzz.mobile.AudienzzResultCode
 import org.audienzz.mobile.AudienzzRewardedVideoAdUnit
 import org.audienzz.mobile.AudienzzSignals
 import org.audienzz.mobile.AudienzzVideoParameters
 import org.audienzz.mobile.original.AudienzzRewardedVideoAdHandler
+import org.audienzz.mobile.util.AudienzzFullScreenContentCallback
 
 class RewardAd(
     private val adUnitId: String,
@@ -28,18 +25,15 @@ class RewardAd(
     private val videoDuration: VideoDuration,
     private val rewardPbAdSlot: String?,
     private val gpId: String?,
-    private val keyword: String?,
-    private val keywords: List<String>?,
-    private val rewardAppContent: AudienzzContentObject?,
+    private val customImpOrtbConfig: String?,
     private val context: Context,
     private val rewardAdLoadedListener: RewardedAdLoadCallback,
     private val userEarnedRewardListener: OnUserEarnedRewardListener,
-    private val fullScreenContentListener: FullScreenContentCallback,
+    private val fullScreenContentListener: AudienzzFullScreenContentCallback,
 ) : OverlayAd() {
     private var rewardedAd: RewardedAd? = null
 
-    fun setAdWithFullScreenContentListener(ad: RewardedAd){
-        ad.fullScreenContentCallback = fullScreenContentListener
+    fun setAd(ad: RewardedAd) {
         rewardedAd = ad
     }
 
@@ -56,20 +50,14 @@ class RewardAd(
         adUnit.apply {
             pbAdSlot = rewardPbAdSlot
             gpid = gpId
-            appContent = rewardAppContent
-            keyword?.let(::addExtKeyword)
-            keywords?.let {
-                addExtKeywords(it.toSet())
-            }
+            customImpOrtbConfig?.let { impOrtbConfig = it }
         }
 
         AudienzzRewardedVideoAdHandler(adUnit, adUnitId).load(
-            context,
-            listener = rewardAdLoadedListener,
-            resultCallback = {
-                if(it != AudienzzResultCode.SUCCESS){
-                    rewardAdLoadedListener.onAdFailedToLoad(LoadAdError(1, "Rewarded ad with adUnitId $adUnitId failed to load. Error code $it", "No domain", null, null))
-                }
+            adLoadCallback = rewardAdLoadedListener,
+            fullScreenContentCallback = fullScreenContentListener,
+            resultCallback = { resultCode, request, adLoadListener ->
+                RewardedAd.load(context, adUnitId, request, adLoadListener)
             },
         )
     }

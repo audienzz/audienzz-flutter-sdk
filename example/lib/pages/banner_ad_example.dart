@@ -1,7 +1,6 @@
 import 'dart:developer';
 
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
-import 'package:audienzz_sdk_flutter_example/constants/constants.dart';
 import 'package:flutter/material.dart';
 
 class BannerAdExample extends StatefulWidget {
@@ -58,15 +57,16 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     _banner320x50 = BannerAd(
       adUnitId: 'ca-app-pub-3940256099942544/2934735716',
       auConfigId: '33994718',
-      size: const AdSize(height: 50, width: 320),
+      sizes: {AdSize(height: 50, width: 320)},
       onAdLoaded: (ad) async {
         log('Ad is loaded: ${ad.adUnitId}');
+        final adSize = await ad.getPlatformAdSize();
         setState(
           () {
             _banner320x50 = ad;
             _isBanner320x50LoadFailed = false;
             _isBanner320x50Loaded = true;
-            _banner320x50AdSize = ad.size;
+            _banner320x50AdSize = adSize;
           },
         );
       },
@@ -81,7 +81,6 @@ class _BannerAdExampleState extends State<BannerAdExample> {
       onAdOpened: (ad) => log('Ad opened: ${ad.adUnitId}'),
       onAdClosed: (ad) => log('Ad closed: ${ad.adUnitId}'),
       onAdImpression: (ad) => log('Ad impression: ${ad.adUnitId}'),
-      appContent: Constants.exampleAppContent,
     );
 
     await _banner320x50?.load();
@@ -98,15 +97,19 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     _banner300x250 = BannerAd(
       adUnitId: 'ca-app-pub-3940256099942544/6300978111',
       auConfigId: '33994718',
-      size: const AdSize(height: 250, width: 300),
+      sizes: const {
+        AdSize(height: 250, width: 300),
+        AdSize(height: 50, width: 320)
+      },
       onAdLoaded: (ad) async {
         log('Ad is loaded: ${ad.adUnitId}');
+        final adSize = await ad.getPlatformAdSize();
         setState(
           () {
             _banner300x250 = ad;
             _isBanner300x250LoadFailed = false;
             _isBanner300x250Loaded = true;
-            _banner300x250AdSize = ad.size;
+            _banner300x250AdSize = adSize;
           },
         );
       },
@@ -141,17 +144,18 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     _widthAdaptiveBanner = BannerAd(
       adUnitId: 'ca-app-pub-3940256099942544/2435281174',
       auConfigId: '33994718',
-      size: AdSize(height: 50, width: safeWidth.toInt()),
+      sizes: {AdSize(height: 50, width: safeWidth.toInt())},
       isAdaptiveSize: true,
       onAdLoaded: (ad) async {
         log('Ad is loaded: ${ad.adUnitId}');
-        log('Ad size: ${ad.size.width} : ${ad.size.height}');
+        final adSize = await ad.getPlatformAdSize();
+        log('Ad size: ${adSize?.width} : ${adSize?.height}');
         setState(
           () {
             _widthAdaptiveBanner = ad;
             _isWidthAdaptiveBannerLoadFailed = false;
             _isWidthAdaptiveBannerLoaded = true;
-            _widthAdaptiveBannerAdSize = ad.size;
+            _widthAdaptiveBannerAdSize = adSize;
           },
         );
       },
@@ -186,17 +190,18 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     _heightAdaptiveBanner = BannerAd(
       adUnitId: 'ca-app-pub-3940256099942544/2435281174',
       auConfigId: '33994718',
-      size: AdSize(height: safeHeight.toInt(), width: 320),
+      sizes: {AdSize(height: safeHeight.toInt(), width: 320)},
       isAdaptiveSize: true,
       onAdLoaded: (ad) async {
         log('Ad is loaded: ${ad.adUnitId}');
-        log('Ad size: ${ad.size.width} : ${ad.size.height}');
+        final adSize = await ad.getPlatformAdSize();
+        log('Ad size: ${adSize?.width} : ${adSize?.height}');
         setState(
           () {
             _heightAdaptiveBanner = ad;
             _isHeightAdaptiveBannerLoadFailed = false;
             _isHeightAdaptiveBannerLoaded = true;
-            _heightAdaptiveBannerAdSize = ad.size;
+            _heightAdaptiveBannerAdSize = adSize;
           },
         );
       },

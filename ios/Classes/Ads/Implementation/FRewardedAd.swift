@@ -2,7 +2,7 @@ import Flutter
 import GoogleMobileAds
 import AudienzziOSSDK
 
-class FRewardedAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegate {
+class FRewardedAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
     private let adUnitId: String
     private let auConfigId: String
     private let apiParameters: [AUApi]
@@ -13,15 +13,13 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegate {
     private let videoDuration: FVideoDuration
     private let pbAdSlot: String?
     private let gpId: String?
-    private let keyword: String?
-    private let keywords: [String]?
-    private let appContent: AUMORTBAppContent?
+    private let customImpOrtbConfig: String?
     private let rootViewController: UIViewController
     
     weak var manager: AdInstanceManager?
     
     var rewardedView: AURewardedView?
-    var rewardedAd: GADRewardedAd?
+    var rewardedAd: RewardedAd?
     
     init(
         adUnitId: String,
@@ -34,9 +32,7 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegate {
         videoDuration: FVideoDuration,
         pbAdSlot: String?,
         gpId: String?,
-        keyword: String?,
-        keywords: [String]?,
-        appContent: AUMORTBAppContent?,
+        customImpOrtbConfig: String?,
         adId: NSNumber,
         rootViewController: UIViewController,
         manager: AdInstanceManager) {
@@ -51,16 +47,14 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegate {
             self.videoDuration = videoDuration
             self.pbAdSlot = pbAdSlot
             self.gpId = gpId
-            self.keyword = keyword
-            self.keywords = keywords
-            self.appContent = appContent
+            self.customImpOrtbConfig = customImpOrtbConfig
             self.rootViewController = rootViewController
             self.manager = manager
             super.init(adId: adId)
         }
     
     func load() {
-        let request = GAMRequest()
+        let request = AdManagerRequest()
         
         let videoParameters = AUVideoParameters(mimes: ["video/mp4"])
         videoParameters.api = apiParameters
@@ -75,22 +69,14 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegate {
         rewardedView = AURewardedView(configId: auConfigId, isLazyLoad: false)
         rewardedView?.frame = CGRect(origin: CGPoint(x: 0, y: 0), size: CGSize(width: rootViewController.view.frame.size.width, height: rootViewController.view.frame.size.height))
         rewardedView?.backgroundColor = .magenta
-        rewardedView?.parameters = videoParameters
+        rewardedView?.videoParameters = videoParameters
+        
+        if let customImpOrtbConfig = customImpOrtbConfig {
+            rewardedView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
+        }
         
         rewardedView?.adUnitConfiguration.adSlot = pbAdSlot
-        if let keyword = keyword {
-            rewardedView?.adUnitConfiguration.addExtKeyword(keyword)
-        }
-        if let keywords = keywords {
-            rewardedView?.adUnitConfiguration.addExtKeywords(Set(keywords))
-        }
-        if let appContent = appContent {
-            rewardedView?.adUnitConfiguration.setAppContent(appContent)
-        }
-        
         rewardedView?.adUnitConfiguration.setGPID(gpId)
-
-        
         
         rewardedView?.createAd(with: request, adUnitID: adUnitId)
         
@@ -99,7 +85,7 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegate {
                 return
             }
             
-            GADRewardedAd.load(withAdUnitID: self.adUnitId, request: gamRequest as? GADRequest) { [weak self] ad, error in
+            RewardedAd.load(with: self.adUnitId, request: gamRequest as? Request) { [weak self] ad, error in
                 guard let self = self else {
                     return
                 }
@@ -119,7 +105,7 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegate {
     
     func show() {
         if let rewardedAd = rewardedAd {
-            rewardedAd.present(fromRootViewController: nil) { [weak self] in
+            rewardedAd.present(from: nil) { [weak self] in
                 guard let self = self,
                       let reward = self.rewardedAd?.adReward else { return }
                 
@@ -134,19 +120,19 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegate {
         }
     }
     
-    func adDidRecordImpression(_ ad: any GADFullScreenPresentingAd){
+    func adDidRecordImpression(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdImpression(ad: self)
     }
     
-    func adDidRecordClick(_ ad: any GADFullScreenPresentingAd){
+    func adDidRecordClick(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdClicked(ad: self)
     }
     
-    func adWillPresentFullScreenContent(_ ad: any GADFullScreenPresentingAd){
+    func adWillPresentFullScreenContent(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdOpened(ad: self)
     }
     
-    func adWillDismissFullScreenContent(_ ad: any GADFullScreenPresentingAd){
+    func adWillDismissFullScreenContent(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdClosed(ad: self)
     }
 }

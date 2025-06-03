@@ -4,7 +4,6 @@ import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_format.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/api_parameter.dart';
-import 'package:audienzz_sdk_flutter/src/entities/app_content/app_content.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/placement.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/playback_method.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/protocol.dart';
@@ -14,7 +13,7 @@ import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_duratio
 /// Class for work with banner ads
 final class BannerAd extends AdWithView {
   const BannerAd({
-    required this.size,
+    required this.sizes,
     required super.adUnitId,
     required super.auConfigId,
     required this.onAdLoaded,
@@ -28,9 +27,7 @@ final class BannerAd extends AdWithView {
     this.videoDuration = const VideoDuration(min: 1, max: 30),
     this.pbAdSlot,
     this.gpId,
-    this.keyword,
-    this.keywords = const [],
-    this.appContent,
+    this.impOrtbConfig,
     this.onAdClicked,
     this.onAdClosed,
     this.onAdOpened,
@@ -40,7 +37,8 @@ final class BannerAd extends AdWithView {
   });
 
   /// Specify width and height of the ad unit, will be used in a bid request
-  final AdSize size;
+  /// at minimum one size is required
+  final Set<AdSize> sizes;
 
   /// Specify if the ad size should be adaptive, by default - false
   final bool isAdaptiveSize;
@@ -85,17 +83,8 @@ final class BannerAd extends AdWithView {
   /// a specific instance of an adUnit.
   final String? gpId;
 
-  /// This the context keyword for adUnit context targeting.
-  /// Inserts the given element in the set if it is not already present.
-  final String? keyword;
-
-  /// This the context keyword set for adUnit context targeting.
-  /// Adds the elements of the given set to the set.
-  final List<String> keywords;
-
-  /// Describes an [OpenRTB](https://www.iab.com/wp-content/uploads/2016/03/OpenRTB-API-Specification-Version-2-5-FINAL.pdf)
-  /// appContent object
-  final AppContent? appContent;
+  /// Custom ortb object to be added on impression level
+  final String? impOrtbConfig;
 
   /// A callback triggered when an ad is received.
   final void Function(BannerAd ad) onAdLoaded;
@@ -116,6 +105,10 @@ final class BannerAd extends AdWithView {
   /// the screen for a minimum of 1 sec duration
   final void Function(BannerAd ad)? onAdImpression;
 
+  /// Get ad size that was assigned on platform (ios/android)
+  Future<AdSize?> getPlatformAdSize() =>
+      adInstanceManager.getPlatformAdSize(this);
+
   /// Function to load this ad object
   @override
   Future<void> load() => adInstanceManager.loadBannerAd(this);
@@ -124,7 +117,7 @@ final class BannerAd extends AdWithView {
   List<Object?> get props => [
         adUnitId,
         auConfigId,
-        size,
+        sizes,
         onAdLoaded,
         onAdFailedToLoad,
         onAdImpression,
@@ -142,8 +135,6 @@ final class BannerAd extends AdWithView {
         videoDuration,
         pbAdSlot,
         gpId,
-        keyword,
-        keywords,
-        appContent,
+        impOrtbConfig,
       ];
 }

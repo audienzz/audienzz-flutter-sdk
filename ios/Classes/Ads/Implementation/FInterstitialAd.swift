@@ -2,7 +2,7 @@ import Flutter
 import GoogleMobileAds
 import AudienzziOSSDK
 
-class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegate {
+class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
     private let adUnitId: String
     private let auConfigId: String
     private let rootViewController: UIViewController
@@ -16,14 +16,13 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegat
     private let videoDuration: FVideoDuration
     private let pbAdSlot: String?
     private let gpId: String?
-    private let keyword: String?
-    private let keywords: [String]?
-    private let appContent: AUMORTBAppContent?
+    private let sizes: [FAdSize]?
+    private let customImpOrtbConfig: String?
     
     weak var manager: AdInstanceManager?
     
     var interstitialView: AUInterstitialView?
-    var interstitialAd: GADInterstitialAd?
+    var interstitialAd: InterstitialAd?
     
     init(adUnitId: String,
          auConfigId: String,
@@ -37,10 +36,9 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegat
          videoDuration: FVideoDuration,
          pbAdSlot: String?,
          gpId: String?,
-         keyword: String?,
-         keywords: [String]?,
-         appContent: AUMORTBAppContent?,
          adId: NSNumber,
+         sizes: [FAdSize]?,
+         customImpOrtbConfig: String?,
          rootViewController: UIViewController,
          manager: AdInstanceManager) {
         self.adUnitId = adUnitId
@@ -55,21 +53,37 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegat
         self.videoDuration = videoDuration
         self.pbAdSlot = pbAdSlot
         self.gpId = gpId
-        self.keyword = keyword
-        self.keywords = keywords
-        self.appContent = appContent
+        self.sizes = sizes
+        self.customImpOrtbConfig = customImpOrtbConfig
         self.rootViewController = rootViewController
         self.manager = manager
         super.init(adId: adId)
     }
     
     func load() {
-        let request = GAMRequest()
+        let request = AdManagerRequest()
         
         loadInterstitialAd(gamRequest: request,adFormat: adFormat)
     }
     
-    private func loadInterstitialAd(gamRequest: GAMRequest, adFormat: FAdFormat) {
+    //TODO: remove this hack when fixed https://github.com/prebid/prebid-mobile-ios/issues/1135
+    private func createInterstitialORTBConfig(sizes: [CGSize]) -> String {
+        let formatStrings = sizes.map { size in
+            return "{ \"w\": \(Int(size.width)), \"h\": \(Int(size.height)) }"
+        }
+        
+        let formatArrayString = formatStrings.joined(separator: ", ")
+        
+        return """
+        {
+          "banner": {
+            "format": [ \(formatArrayString) ]
+          }
+        }
+        """
+    }
+    
+    private func loadInterstitialAd(gamRequest: AdManagerRequest, adFormat: FAdFormat) {
         let adFormats: [AUAdFormat]
         let videoParameters: AUVideoParameters?
 
@@ -108,21 +122,32 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegat
         }
         
         interstitialView?.adUnitConfiguration.adSlot = pbAdSlot
-        if let keyword = keyword {
-            interstitialView?.adUnitConfiguration.addExtKeyword(keyword)
-        }
-        if let keywords = keywords {
-            interstitialView?.adUnitConfiguration.addExtKeywords(Set(keywords))
-        }
-        if let appContent = appContent {
-            interstitialView?.adUnitConfiguration.setAppContent(appContent)
-        }
-        
         interstitialView?.adUnitConfiguration.setGPID(gpId)
+        
 
         if let params = videoParameters {
-            interstitialView?.parameters = params
+            interstitialView?.videoParameters = params
         }
+        
+        if let customImpOrtbConfig = customImpOrtbConfig {
+            interstitialView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
+        }
+        
+        let bannerParameters = AUBannerParameters()
+        if let sizes = sizes {
+            let cgSizes: [CGSize] = sizes.map {
+                CGSize(width: $0.width, height: $0.height)
+            }
+            bannerParameters.adSizes = cgSizes
+            
+            //TODO: remove this hack when fixed https://github.com/prebid/prebid-mobile-ios/issues/1135
+            let customOrtb = createInterstitialORTBConfig(sizes: cgSizes)
+            
+            interstitialView?.setImpOrtbConfig(ortbConfig: customOrtb)
+            
+        }
+        
+        interstitialView?.bannerParameters = bannerParameters
 
         interstitialView?.createAd(with: gamRequest, adUnitID: adUnitId)
 
@@ -131,7 +156,7 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegat
                 return
             }
 
-            GAMInterstitialAd.load(withAdManagerAdUnitID: self.adUnitId, request: gamRequest as? GAMRequest) {[weak self] ad, error in
+            InterstitialAd.load(with: self.adUnitId, request: gamRequest as? AdManagerRequest) {[weak self] ad, error in
                 guard let self = self else {
                     return
                 }
@@ -151,25 +176,25 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, GADFullScreenContentDelegat
     
     func show() {
         if let interstitialAd = interstitialAd {
-            interstitialAd.present(fromRootViewController: nil)
+            interstitialAd.present(from: nil)
         } else {
             print("Interstitial Ad failed to show because the ad was not ready.")
         }
     }
     
-    func adDidRecordImpression(_ ad: any GADFullScreenPresentingAd){
+    func adDidRecordImpression(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdImpression(ad: self)
     }
     
-    func adDidRecordClick(_ ad: any GADFullScreenPresentingAd){
+    func adDidRecordClick(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdClicked(ad: self)
     }
     
-    func adWillPresentFullScreenContent(_ ad: any GADFullScreenPresentingAd){
+    func adWillPresentFullScreenContent(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdOpened(ad: self)
     }
     
-    func adWillDismissFullScreenContent(_ ad: any GADFullScreenPresentingAd){
+    func adWillDismissFullScreenContent(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdClosed(ad: self)
     }
 }

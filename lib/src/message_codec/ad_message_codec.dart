@@ -2,10 +2,6 @@ import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_format.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/api_parameter.dart';
-import 'package:audienzz_sdk_flutter/src/entities/app_content/app_content.dart';
-import 'package:audienzz_sdk_flutter/src/entities/app_content/data_object.dart';
-import 'package:audienzz_sdk_flutter/src/entities/app_content/data_object_segment.dart';
-import 'package:audienzz_sdk_flutter/src/entities/app_content/producer_object.dart';
 import 'package:audienzz_sdk_flutter/src/entities/exceptions/ad_message_codec_reading_exception.dart';
 import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
 import 'package:audienzz_sdk_flutter/src/entities/min_size_percentage.dart';
@@ -29,10 +25,6 @@ final class AdMessageCodec extends StandardMessageCodec {
   static const int _valuePlaybackMethod = 136;
   static const int _valueVideoBitrate = 137;
   static const int _valueVideoDuration = 138;
-  static const int _valueAppContent = 139;
-  static const int _valueDataObject = 140;
-  static const int _valueDataObjectSegment = 141;
-  static const int _valueProducerObject = 142;
   static const int _valueMinSizePercentage = 143;
 
   @override
@@ -75,48 +67,6 @@ final class AdMessageCodec extends StandardMessageCodec {
       buffer.putUint8(_valueVideoDuration);
       writeValue(buffer, value.min);
       writeValue(buffer, value.max);
-    } else if (value is AppContent) {
-      buffer.putUint8(_valueAppContent);
-      writeValue(buffer, value.id);
-      writeValue(buffer, value.episode);
-      writeValue(buffer, value.title);
-      writeValue(buffer, value.series);
-      writeValue(buffer, value.season);
-      writeValue(buffer, value.artist);
-      writeValue(buffer, value.genre);
-      writeValue(buffer, value.album);
-      writeValue(buffer, value.isrc);
-      writeValue(buffer, value.url);
-      writeValue(buffer, value.categories);
-      writeValue(buffer, value.productionQuality);
-      writeValue(buffer, value.context);
-      writeValue(buffer, value.contentRating);
-      writeValue(buffer, value.userRating);
-      writeValue(buffer, value.qaMediaRating);
-      writeValue(buffer, value.keywordsString);
-      writeValue(buffer, value.liveStream);
-      writeValue(buffer, value.sourceRelationship);
-      writeValue(buffer, value.length);
-      writeValue(buffer, value.language);
-      writeValue(buffer, value.embeddable);
-      writeValue(buffer, value.dataObjects);
-      writeValue(buffer, value.producerObject);
-    } else if (value is DataObject) {
-      buffer.putUint8(_valueDataObject);
-      writeValue(buffer, value.id);
-      writeValue(buffer, value.name);
-      writeValue(buffer, value.segments);
-    } else if (value is DataObjectSegment) {
-      buffer.putUint8(_valueDataObjectSegment);
-      writeValue(buffer, value.id);
-      writeValue(buffer, value.name);
-      writeValue(buffer, value.value);
-    } else if (value is ProducerObject) {
-      buffer.putUint8(_valueProducerObject);
-      writeValue(buffer, value.id);
-      writeValue(buffer, value.name);
-      writeValue(buffer, value.domain);
-      writeValue(buffer, value.categories);
     } else if (value is MinSizePercentage) {
       buffer.putUint8(_valueMinSizePercentage);
       writeValue(buffer, value.width);
@@ -258,58 +208,6 @@ final class AdMessageCodec extends StandardMessageCodec {
 
           throw const AdMessageCodecReadingException();
         }
-      case _valueAppContent:
-        return AppContent(
-          id: readValueOfType(buffer.getUint8(), buffer) as String?,
-          episode: readValueOfType(buffer.getUint8(), buffer) as int?,
-          title: readValueOfType(buffer.getUint8(), buffer) as String?,
-          series: readValueOfType(buffer.getUint8(), buffer) as String?,
-          season: readValueOfType(buffer.getUint8(), buffer) as String?,
-          artist: readValueOfType(buffer.getUint8(), buffer) as String?,
-          genre: readValueOfType(buffer.getUint8(), buffer) as String?,
-          album: readValueOfType(buffer.getUint8(), buffer) as String?,
-          isrc: readValueOfType(buffer.getUint8(), buffer) as String?,
-          url: readValueOfType(buffer.getUint8(), buffer) as String?,
-          categories:
-              readValueOfType(buffer.getUint8(), buffer) as List<String>?,
-          productionQuality: readValueOfType(buffer.getUint8(), buffer) as int?,
-          context: readValueOfType(buffer.getUint8(), buffer) as int?,
-          contentRating: readValueOfType(buffer.getUint8(), buffer) as String?,
-          userRating: readValueOfType(buffer.getUint8(), buffer) as String?,
-          qaMediaRating: readValueOfType(buffer.getUint8(), buffer) as int?,
-          keywordsString: readValueOfType(buffer.getUint8(), buffer) as String?,
-          liveStream: readValueOfType(buffer.getUint8(), buffer) as int?,
-          sourceRelationship:
-              readValueOfType(buffer.getUint8(), buffer) as int?,
-          length: readValueOfType(buffer.getUint8(), buffer) as int?,
-          language: readValueOfType(buffer.getUint8(), buffer) as String?,
-          embeddable: readValueOfType(buffer.getUint8(), buffer) as int?,
-          dataObjects:
-              readValueOfType(buffer.getUint8(), buffer) as List<DataObject>?,
-          producerObject:
-              readValueOfType(buffer.getUint8(), buffer) as ProducerObject?,
-        );
-      case _valueDataObject:
-        return DataObject(
-          id: readValueOfType(buffer.getUint8(), buffer) as String?,
-          name: readValueOfType(buffer.getUint8(), buffer) as String?,
-          segments: readValueOfType(buffer.getUint8(), buffer)
-              as List<DataObjectSegment>?,
-        );
-      case _valueDataObjectSegment:
-        return DataObjectSegment(
-          id: readValueOfType(buffer.getUint8(), buffer) as String?,
-          name: readValueOfType(buffer.getUint8(), buffer) as String?,
-          value: readValueOfType(buffer.getUint8(), buffer) as String?,
-        );
-      case _valueProducerObject:
-        return ProducerObject(
-          id: readValueOfType(buffer.getUint8(), buffer) as String?,
-          name: readValueOfType(buffer.getUint8(), buffer) as String?,
-          domain: readValueOfType(buffer.getUint8(), buffer) as String?,
-          categories:
-              readValueOfType(buffer.getUint8(), buffer) as List<String>?,
-        );
       case _valueMinSizePercentage:
         {
           final width = readValueOfType(buffer.getUint8(), buffer) as num?;

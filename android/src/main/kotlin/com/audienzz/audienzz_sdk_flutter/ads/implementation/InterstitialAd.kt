@@ -7,17 +7,16 @@ import com.audienzz.audienzz_sdk_flutter.entities.AdFormat
 import com.audienzz.audienzz_sdk_flutter.entities.MinSizePercentage
 import com.audienzz.audienzz_sdk_flutter.entities.VideoBitrate
 import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
-import com.google.android.gms.ads.FullScreenContentCallback
-import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.AdSize
 import org.audienzz.mobile.api.data.AudienzzAdUnitFormat
 import com.google.android.gms.ads.admanager.AdManagerInterstitialAd
 import com.google.android.gms.ads.admanager.AdManagerInterstitialAdLoadCallback
-import org.audienzz.mobile.AudienzzContentObject
+import org.audienzz.mobile.AudienzzAdSize
 import org.audienzz.mobile.AudienzzInterstitialAdUnit
-import org.audienzz.mobile.AudienzzResultCode
 import org.audienzz.mobile.AudienzzSignals
 import org.audienzz.mobile.AudienzzVideoParameters
 import org.audienzz.mobile.original.AudienzzInterstitialAdHandler
+import org.audienzz.mobile.util.AudienzzFullScreenContentCallback
 import java.util.EnumSet
 
 class InterstitialAd(
@@ -33,17 +32,15 @@ class InterstitialAd(
     private val videoDuration: VideoDuration,
     private val interstitialPbAdSlot: String?,
     private val gpId: String?,
-    private val keyword: String?,
-    private val keywords: List<String>?,
-    private val interstitialAppContent: AudienzzContentObject?,
+    private val adSizes: List<AdSize>,
+    private val customImpOrtbConfig: String?,
     private val context: Context,
     private val interstitialAdLoadedListener: AdManagerInterstitialAdLoadCallback,
-    private val fullScreenContentListener: FullScreenContentCallback,
+    private val fullScreenContentListener: AudienzzFullScreenContentCallback,
 ) : OverlayAd() {
     private var interstitialAd: AdManagerInterstitialAd? = null
 
-    fun setAdWithFullScreenContentListener(ad: AdManagerInterstitialAd){
-        ad.fullScreenContentCallback = fullScreenContentListener
+    fun setAd(ad: AdManagerInterstitialAd) {
         interstitialAd = ad
     }
 
@@ -56,37 +53,37 @@ class InterstitialAd(
     override fun load() {
         val adUnit = when (adFormat) {
             AdFormat.BANNER -> createInterstitialBannerAdUnit()
-            AdFormat.VIDEO ->  createInterstitialVideoAdUnit()
-            AdFormat.BANNER_AND_VIDEO ->  createInterstitialMultiformatAdUnit()
+            AdFormat.VIDEO -> createInterstitialVideoAdUnit()
+            AdFormat.BANNER_AND_VIDEO -> createInterstitialMultiformatAdUnit()
         }
 
         adUnit.apply {
             gpid = gpId
             pbAdSlot = interstitialPbAdSlot
-            appContent = interstitialAppContent
-            keyword?.let(::addExtKeyword)
-            keywords?.let {
-                addExtKeywords(it.toSet())
-            }
+            bannerParameters?.adSizes =
+                adSizes.map { AudienzzAdSize(width = it.width, height = it.height) }.toSet()
+            customImpOrtbConfig?.let { impOrtbConfig = it }
         }
 
 
         AudienzzInterstitialAdHandler(adUnit, adUnitId).load(
-            context,
-            listener = interstitialAdLoadedListener,
-            resultCallback = {
-                if(it != AudienzzResultCode.SUCCESS){
-                    interstitialAdLoadedListener.onAdFailedToLoad(LoadAdError(1, "Interstitial ad with adUnitId: $adUnitId failed to load. Error code $it", "No domain", null, null))
-                }
+            adLoadCallback = interstitialAdLoadedListener,
+            fullScreenContentCallback = fullScreenContentListener,
+            resultCallback = { resultCode, request, adLoadCallback ->
+                AdManagerInterstitialAd.load(context, adUnitId, request, adLoadCallback)
             },
         )
     }
 
-    private fun createInterstitialBannerAdUnit() : AudienzzInterstitialAdUnit {
-        return AudienzzInterstitialAdUnit(auConfigId, minSizePercentage.width, minSizePercentage.height)
+    private fun createInterstitialBannerAdUnit(): AudienzzInterstitialAdUnit {
+        return AudienzzInterstitialAdUnit(
+            auConfigId,
+            minSizePercentage.width,
+            minSizePercentage.height
+        )
     }
 
-    private fun createInterstitialVideoAdUnit() : AudienzzInterstitialAdUnit {
+    private fun createInterstitialVideoAdUnit(): AudienzzInterstitialAdUnit {
         val adUnit = AudienzzInterstitialAdUnit(
             auConfigId,
             EnumSet.of(AudienzzAdUnitFormat.VIDEO),
@@ -96,8 +93,8 @@ class InterstitialAd(
         return adUnit
     }
 
-    private fun createInterstitialMultiformatAdUnit() : AudienzzInterstitialAdUnit {
-        val adUnit =  AudienzzInterstitialAdUnit(
+    private fun createInterstitialMultiformatAdUnit(): AudienzzInterstitialAdUnit {
+        val adUnit = AudienzzInterstitialAdUnit(
             auConfigId,
             EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO),
         )

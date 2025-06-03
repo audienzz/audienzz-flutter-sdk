@@ -3,7 +3,6 @@ import 'dart:developer';
 import 'dart:math' show Random;
 
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
-import 'package:audienzz_sdk_flutter_example/constants/constants.dart';
 import 'package:flutter/material.dart';
 
 class InterstitialAdExample extends StatefulWidget {
@@ -42,6 +41,7 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
       adFormat: AdFormat.banner,
       adUnitId: 'ca-app-pub-3940256099942544/4411468910',
       auConfigId: '34400101',
+      sizes: {AdSize(height: 50, width: 320)},
       onAdLoaded: (ad) {
         log('Banner ${ad.adUnitId} loaded.');
         setState(() {
@@ -63,7 +63,6 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
       onAdOpened: (ad) => log('Interstitial Ad opened: ${ad.adUnitId}'),
       onAdClosed: (ad) => log('Interstitial Ad closed: ${ad.adUnitId}'),
       onAdImpression: (ad) => log('Interstitial Ad impression: ${ad.adUnitId}'),
-      appContent: Constants.exampleAppContent,
     );
 
     await _interstitialBannerAd?.load();
@@ -76,6 +75,7 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
       adFormat: AdFormat.video,
       adUnitId: 'ca-app-pub-3940256099942544/5135589807',
       auConfigId: '34400101',
+      sizes: {AdSize(height: 50, width: 320)},
       onAdLoaded: (ad) {
         log('Video ${ad.adUnitId} loaded.');
         setState(() {
@@ -107,6 +107,10 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
     _isInterstitialMultiformatAdLoaded = false;
     _interstitialMultiformatAd = InterstitialAd(
       adFormat: AdFormat.bannerAndVideo,
+      sizes: const {
+        AdSize(height: 50, width: 319),
+        AdSize(height: 250, width: 300)
+      },
       adUnitId: Random().nextInt(2) == 0
           ? 'ca-app-pub-3940256099942544/4411468910'
           : 'ca-app-pub-3940256099942544/5135589807',

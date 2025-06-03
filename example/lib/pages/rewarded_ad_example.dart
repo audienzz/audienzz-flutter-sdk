@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:developer';
 
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
-import 'package:audienzz_sdk_flutter_example/constants/constants.dart';
 import 'package:flutter/material.dart';
 
 class RewardedAdExample extends StatefulWidget {
@@ -56,7 +55,6 @@ class _RewardAdExampleState extends State<RewardedAdExample> {
       onUserEarnedRewardCallback: (_, reward) {
         log('Earned reward: ${reward.type} : ${reward.amount}');
       },
-      appContent: Constants.exampleAppContent,
     );
 
     await _rewardedAd?.load();
