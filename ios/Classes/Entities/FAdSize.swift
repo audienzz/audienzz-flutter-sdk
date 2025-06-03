@@ -1,9 +1,9 @@
 class FAdSize : NSObject {
-    init(width: NSNumber, height: NSNumber) {
+    init(width: Int, height: Int) {
         self.width = width
         self.height = height
     }
     
-    let width: NSNumber
-    let height: NSNumber
+    let width: Int
+    let height: Int
 }

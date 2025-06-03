@@ -16,6 +16,8 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
     private let videoDuration: FVideoDuration
     private let pbAdSlot: String?
     private let gpId: String?
+    private let sizes: [FAdSize]?
+    private let customImpOrtbConfig: String?
     
     weak var manager: AdInstanceManager?
     
@@ -35,6 +37,8 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
          pbAdSlot: String?,
          gpId: String?,
          adId: NSNumber,
+         sizes: [FAdSize]?,
+         customImpOrtbConfig: String?,
          rootViewController: UIViewController,
          manager: AdInstanceManager) {
         self.adUnitId = adUnitId
@@ -49,6 +53,8 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
         self.videoDuration = videoDuration
         self.pbAdSlot = pbAdSlot
         self.gpId = gpId
+        self.sizes = sizes
+        self.customImpOrtbConfig = customImpOrtbConfig
         self.rootViewController = rootViewController
         self.manager = manager
         super.init(adId: adId)
@@ -58,6 +64,23 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
         let request = AdManagerRequest()
         
         loadInterstitialAd(gamRequest: request,adFormat: adFormat)
+    }
+    
+    //TODO: remove this hack when fixed https://github.com/prebid/prebid-mobile-ios/issues/1135
+    private func createInterstitialORTBConfig(sizes: [CGSize]) -> String {
+        let formatStrings = sizes.map { size in
+            return "{ \"w\": \(Int(size.width)), \"h\": \(Int(size.height)) }"
+        }
+        
+        let formatArrayString = formatStrings.joined(separator: ", ")
+        
+        return """
+        {
+          "banner": {
+            "format": [ \(formatArrayString) ]
+          }
+        }
+        """
     }
     
     private func loadInterstitialAd(gamRequest: AdManagerRequest, adFormat: FAdFormat) {
@@ -100,10 +123,31 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
         
         interstitialView?.adUnitConfiguration.adSlot = pbAdSlot
         interstitialView?.adUnitConfiguration.setGPID(gpId)
+        
 
         if let params = videoParameters {
-            interstitialView?.parameters = params
+            interstitialView?.videoParameters = params
         }
+        
+        if let customImpOrtbConfig = customImpOrtbConfig {
+            interstitialView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
+        }
+        
+        let bannerParameters = AUBannerParameters()
+        if let sizes = sizes {
+            let cgSizes: [CGSize] = sizes.map {
+                CGSize(width: $0.width, height: $0.height)
+            }
+            bannerParameters.adSizes = cgSizes
+            
+            //TODO: remove this hack when fixed https://github.com/prebid/prebid-mobile-ios/issues/1135
+            let customOrtb = createInterstitialORTBConfig(sizes: cgSizes)
+            
+            interstitialView?.setImpOrtbConfig(ortbConfig: customOrtb)
+            
+        }
+        
+        interstitialView?.bannerParameters = bannerParameters
 
         interstitialView?.createAd(with: gamRequest, adUnitID: adUnitId)
 

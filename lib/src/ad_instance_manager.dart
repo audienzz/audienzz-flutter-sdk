@@ -7,6 +7,8 @@ import 'package:audienzz_sdk_flutter/src/ads/implementation/interstitial_ad.dart
 import 'package:audienzz_sdk_flutter/src/ads/implementation/rewarded_ad.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
+import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
+import 'package:audienzz_sdk_flutter/src/entities/exceptions/ad_size_required_exception.dart';
 import 'package:audienzz_sdk_flutter/src/entities/exceptions/reward_item_missing_exception.dart';
 import 'package:audienzz_sdk_flutter/src/entities/exceptions/sdk_initialization_failed_exception.dart';
 import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
@@ -194,6 +196,10 @@ final class AdInstanceManager {
       return Future<void>.value();
     }
 
+    if (ad.sizes.isEmpty) {
+      throw const AdSizeRequiredException();
+    }
+
     final adId = _nextAdId++;
 
     _loadedAds[adId] = ad;
@@ -204,7 +210,7 @@ final class AdInstanceManager {
         'adId': adId,
         'adUnitId': ad.adUnitId,
         'auConfigId': ad.auConfigId,
-        'adSize': ad.size,
+        'adSizes': ad.sizes.toList(),
         'isAdaptiveSize': ad.isAdaptiveSize,
         if (ad.refreshTimeInterval != null)
           'refreshTimeInterval': ad.refreshTimeInterval,
@@ -217,6 +223,7 @@ final class AdInstanceManager {
         'videoDuration': ad.videoDuration,
         if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
         if (ad.gpId != null) 'gpId': ad.gpId,
+        if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
       },
     );
   }
@@ -244,6 +251,7 @@ final class AdInstanceManager {
         'videoDuration': ad.videoDuration,
         if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
         if (ad.gpId != null) 'gpId': ad.gpId,
+        if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
       },
     );
   }
@@ -271,8 +279,10 @@ final class AdInstanceManager {
         'videoBitrate': ad.videoBitrate,
         'videoDuration': ad.videoDuration,
         'minSizePercentage': ad.minSizePercentage,
+        if (ad.sizes.isNotEmpty) 'adSizes': ad.sizes.toList(),
         if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
         if (ad.gpId != null) 'gpId': ad.gpId,
+        if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
       },
     );
   }
@@ -287,6 +297,20 @@ final class AdInstanceManager {
 
     return methodChannel.invokeMethod<void>(
       'showAdWithoutView',
+      {'adId': adId},
+    );
+  }
+
+  Future<AdSize?> getPlatformAdSize(BannerAd ad) async {
+    final adId = adIdFor(ad);
+
+    assert(
+      adId != null,
+      '$Ad has not been loaded or has already been disposed.',
+    );
+
+    return methodChannel.invokeMethod<AdSize?>(
+      'getPlatformAdSize',
       {'adId': adId},
     );
   }

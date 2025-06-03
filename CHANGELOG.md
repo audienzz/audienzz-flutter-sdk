@@ -1,3 +1,9 @@
+## 0.0.3 
+
+* Update Audienzz native dependencies to latest version
+* Add support for imp level ORTB config
+* Add support for multiple ad sizes configuration
+
 ## 0.0.2
 
 * Update Audienzz native dependencies to latest version

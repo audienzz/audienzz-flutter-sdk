@@ -23,7 +23,7 @@ import java.util.EnumSet
 class BannerAd(
     private val adUnitId: String,
     private val auConfigId: String,
-    private val adSize: AdSize,
+    private val adSizes: List<AdSize>,
     private val isAdaptiveSize: Boolean,
     private val refreshTimeInterval: Int?,
     private val adFormat: AdFormat,
@@ -35,10 +35,15 @@ class BannerAd(
     private val videoDuration: VideoDuration,
     private val bannerPbAdSlot: String?,
     private val gpId: String?,
+    private val customImpOrtbConfig: String?,
     private val adListener: AdListener?,
     private val context: Context,
 ) : Ad() {
     private var adView: AdManagerAdView? = null
+
+    fun getPlatformAdSize(): AdSize? {
+        return adView?.adSize
+    }
 
     override fun load() {
         adView = AdManagerAdView(context)
@@ -56,7 +61,7 @@ class BannerAd(
             }
         }
 
-        currentAdView?.setAdSize(adSize)
+        currentAdView?.setAdSizes(*adSizes.toTypedArray())
         currentAdView?.adUnitId = adUnitId
         adListener?.let { currentAdView?.adListener = it }
 
@@ -75,9 +80,9 @@ class BannerAd(
         }
 
         val adUnit = when (adFormat) {
-            AdFormat.BANNER -> AudienzzBannerAdUnit(auConfigId, adSize.width, adSize.height, EnumSet.of(AudienzzAdUnitFormat.BANNER))
-            AdFormat.VIDEO ->  AudienzzBannerAdUnit(auConfigId, adSize.width, adSize.height, EnumSet.of(AudienzzAdUnitFormat.VIDEO))
-            AdFormat.BANNER_AND_VIDEO ->  AudienzzBannerAdUnit(auConfigId, adSize.width, adSize.height, EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO))
+            AdFormat.BANNER -> AudienzzBannerAdUnit(auConfigId, adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.BANNER))
+            AdFormat.VIDEO ->  AudienzzBannerAdUnit(auConfigId, adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.VIDEO))
+            AdFormat.BANNER_AND_VIDEO ->  AudienzzBannerAdUnit(auConfigId,adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO))
         }
 
         adUnit.apply {
@@ -85,7 +90,11 @@ class BannerAd(
             videoParameters = customVideoParameters
             pbAdSlot = bannerPbAdSlot
             gpid = gpId
+            adSizes.forEach { size ->
+                addAdditionalSize(size.width, size.height)
+            }
             refreshTimeInterval?.let(::setAutoRefreshInterval)
+            customImpOrtbConfig?.let { impOrtbConfig = it }
         }
 
         currentAdView?.let { adView ->

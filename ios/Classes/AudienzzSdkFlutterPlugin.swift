@@ -64,7 +64,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                   let adId = args["adId"] as? NSNumber,
                   let adUnitId = args["adUnitId"] as? String,
                   let auConfigId = args["auConfigId"] as? String,
-                  let adSize = args["adSize"] as? FAdSize,
+                  let adSizes = args["adSizes"] as? [FAdSize],
                   let isAdaptiveSize = args["isAdaptiveSize"] as? Bool,
                   let adFormat = args["adFormat"] as? FAdFormat,
                   let apiParameters = args["apiParameters"] as? [AUApi],
@@ -80,11 +80,12 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             let refreshTimeInterval = args["refreshTimeInterval"] as? NSNumber
             let pbAdSlot = args["pbAdSlot"] as? String
             let gpId = args["gpId"] as? String
+            let customImpOrtbConfig = args["impOrtbConfig"] as? String
             
             let bannerAd = FBannerAd(
                 adUnitId: adUnitId,
                 auConfigId: auConfigId,
-                size: adSize,
+                sizes: adSizes,
                 isAdaptiveSize: isAdaptiveSize,
                 refreshTimeInterval: refreshTimeInterval?.doubleValue,
                 adFormat: adFormat,
@@ -96,6 +97,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 videoDuration: videoDuration,
                 pbAdSlot: pbAdSlot,
                 gpId: gpId,
+                customImpOrtbConfig: customImpOrtbConfig,
                 rootViewController: rootViewController,
                 adId: adId,
                 manager: manager)
@@ -121,6 +123,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             
             let pbAdSlot = args["pbAdSlot"] as? String
             let gpId = args["gpId"] as? String
+            let customImpOrtbConfig = args["impOrtbConfig"] as? String
             
             let rewardedAd = FRewardedAd(
                 adUnitId: adUnitId,
@@ -133,6 +136,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 videoDuration: videoDuration,
                 pbAdSlot: pbAdSlot,
                 gpId: gpId,
+                customImpOrtbConfig: customImpOrtbConfig,
                 adId: adId,
                 rootViewController: rootViewController,
                 manager: manager)
@@ -160,6 +164,8 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             
             let pbAdSlot = args["pbAdSlot"] as? String
             let gpId = args["gpId"] as? String
+            let adSizes = args["adSizes"] as? [FAdSize]
+            let customImpOrtbConfig = args["impOrtbConfig"] as? String
             
             let interstitialAd = FInterstitialAd(
                 adUnitId: adUnitId,
@@ -175,6 +181,8 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 pbAdSlot: pbAdSlot,
                 gpId: gpId,
                 adId: adId,
+                sizes: adSizes,
+                customImpOrtbConfig: customImpOrtbConfig,
                 rootViewController: rootViewController,
                 manager: manager)
             
@@ -191,6 +199,23 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             } else {
                 result(FlutterError.init(code: "Show Ad Without View Error", message: "Missing or unexpected call parameters", details: nil))
             }
+        case "getPlatformAdSize":
+            if let args = call.arguments as? Dictionary<String, Any>,
+               let adId = args["adId"] as? NSNumber
+            {
+                let ad = manager.ad(for: adId)
+                
+                if let bannerAd = ad as? FBannerAd {
+                        let adSize = bannerAd.getPlatformAdSize()
+                        result(adSize)
+                    } else {
+                        result(nil)
+                    }
+                
+            } else {
+               result(nil)
+            }
+        
             
         case "disposeAd":
             if let args = call.arguments as? Dictionary<String, Any>,

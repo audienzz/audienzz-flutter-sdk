@@ -25,6 +25,7 @@ final class RewardedAd extends AdWithoutView {
     this.videoDuration = const VideoDuration(min: 1, max: 30),
     this.pbAdSlot,
     this.gpId,
+    this.impOrtbConfig,
     this.onAdOpened,
     this.onAdClosed,
     this.onAdClicked,
@@ -63,6 +64,9 @@ final class RewardedAd extends AdWithoutView {
   /// The Global Placement ID (GPID) is a key that uniquely identifies
   /// a specific instance of an adUnit.
   final String? gpId;
+
+  /// Custom ortb object to be added on impression level
+  final String? impOrtbConfig;
 
   /// A callback triggered when an ad is received.
   final void Function(RewardedAd ad) onAdLoaded;
@@ -114,5 +118,6 @@ final class RewardedAd extends AdWithoutView {
         videoDuration,
         pbAdSlot,
         gpId,
+        impOrtbConfig,
       ];
 }
