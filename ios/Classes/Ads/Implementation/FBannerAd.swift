@@ -67,10 +67,21 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
     
     func load() {
         let mainSize = sizes.first ?? FAdSize(width: 1, height: 1)
+        let cgSizes: [CGSize] = sizes.dropFirst().map {
+            CGSize(width: $0.width, height: $0.height)
+        }
         
         bannerViewInstance = AdManagerBannerView(adSize: adSizeFor(cgSize: CGSize(width: mainSize.width, height: mainSize.height)))
         bannerViewInstance!.adUnitID = adUnitId
         bannerViewInstance!.delegate = self
+
+        var validAdSizes: [NSValue] = [nsValue(for: adSizeFor(cgSize: CGSize(width: mainSize.width, height: mainSize.height)))]
+        
+        for cgSize in cgSizes {
+            validAdSizes.append(nsValue(for: adSizeFor(cgSize: cgSize)))
+        }
+        
+        bannerViewInstance!.validAdSizes = validAdSizes
     
         let request = AdManagerRequest()
         
@@ -86,9 +97,6 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         auBannerView?.frame = CGRect(origin: CGPoint(x: 0, y: 0), size: CGSize(width:mainSize.width, height: mainSize.height))
         auBannerView?.backgroundColor = .clear
         
-        let cgSizes: [CGSize] = sizes.dropFirst().map {
-            CGSize(width: $0.width, height: $0.height)
-        }
         if let customImpOrtbConfig = customImpOrtbConfig {
             auBannerView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
         }
