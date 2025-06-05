@@ -55,9 +55,14 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     });
 
     _banner320x50 = BannerAd(
-      adUnitId: 'ca-app-pub-3940256099942544/2934735716',
-      auConfigId: '33994718',
-      sizes: {AdSize(height: 50, width: 320)},
+      adUnitId: '/96628199/testapp_publisher/banner_test_ad_unit',
+      auConfigId: '15624474',
+      sizes: {
+        AdSize(height: 50, width: 320),
+        AdSize(height: 250, width: 300),
+        AdSize(height: 160, width: 320),
+        AdSize(height: 416, width: 320)
+      },
       onAdLoaded: (ad) async {
         log('Ad is loaded: ${ad.adUnitId}');
         final adSize = await ad.getPlatformAdSize();
@@ -95,8 +100,8 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     });
 
     _banner300x250 = BannerAd(
-      adUnitId: 'ca-app-pub-3940256099942544/6300978111',
-      auConfigId: '33994718',
+      adUnitId: '/96628199/testapp_publisher/banner_test_ad_unit',
+      auConfigId: '15624474',
       sizes: const {
         AdSize(height: 250, width: 300),
         AdSize(height: 50, width: 320)
