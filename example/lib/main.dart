@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter_example/pages/banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/interstitial_ad_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/list_with_ads_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/rewarded_ad_example.dart';
 import 'package:flutter/material.dart';
 
@@ -39,8 +40,26 @@ class _MyAppState extends State<MyApp> {
       future: init,
       builder: (_, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
-          return const MaterialApp(
-            home: AdsPages(),
+          return MaterialApp(
+            home: DefaultTabController(
+              length: 2,
+              child: Scaffold(
+                appBar: AppBar(
+                  title: TabBar(
+                    tabs: [
+                      Tab(text: "Regular example"),
+                      Tab(text: "List example"),
+                    ],
+                  ),
+                ),
+                body: TabBarView(
+                  children: [
+                    AdsPages(),
+                    ListWithAdsExample(),
+                  ],
+                ),
+              ),
+            ),
           );
         } else {
           return const MaterialApp(
