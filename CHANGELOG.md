@@ -1,3 +1,8 @@
+## 0.0.5
+
+* Update Audienzz native dependencies to latest version
+* Add support for targeting configuration
+
 ## 0.0.4
 
 * Hotfix for multisize feature on iOS platform

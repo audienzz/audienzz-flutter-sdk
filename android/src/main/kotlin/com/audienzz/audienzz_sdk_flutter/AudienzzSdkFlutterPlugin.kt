@@ -20,6 +20,8 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.StandardMethodCodec
 import org.audienzz.mobile.AudienzzSignals
+import org.audienzz.mobile.AudienzzTargetingParams
+import org.json.JSONObject
 
 class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     private var methodChannel: MethodChannel? = null
@@ -27,6 +29,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
     private var adMessageCodec: AdMessageCodec? = null
     private var adInstanceManager: AdInstanceManager? = null
     private val audienzzSdkWrapper = AudienzzSdkWrapper()
+    private val audienzzTargetingWrapper = AudienzzTargetingWrapper()
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         pluginBinding = flutterPluginBinding
@@ -171,6 +174,218 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
             "disposeAd" -> {
                 adInstanceManager?.disposeAd(call.argument<Int>("adId")!!)
+                result.success(null)
+            }
+
+            "setUserLatLng" -> audienzzTargetingWrapper.setUserLatLng(call, result)
+            "getUserLatLng" -> audienzzTargetingWrapper.getUserLatLng(result)
+
+            "getUserKeywords" -> result.success(AudienzzTargetingParams.userKeywords)
+            "getKeywordSet" -> result.success(AudienzzTargetingParams.keywordSet.toList())
+
+            "setPublisherName" -> {
+                AudienzzTargetingParams.publisherName = call.argument<String?>("value")
+                result.success(null)
+            }
+            "getPublisherName" -> result.success(AudienzzTargetingParams.publisherName)
+
+            "setDomain" -> {
+                AudienzzTargetingParams.domain = call.argument<String>("value") ?: ""
+                result.success(null)
+            }
+            "getDomain" -> result.success(AudienzzTargetingParams.domain)
+
+            "setStoreUrl" -> {
+                AudienzzTargetingParams.storeUrl = call.argument<String>("value") ?: ""
+                result.success(null)
+            }
+            "getStoreUrl" -> result.success(AudienzzTargetingParams.storeUrl)
+
+            "getAccessControlList" -> result.success(AudienzzTargetingParams.accessControlList.toList())
+
+            "setOmidPartnerName" -> {
+                AudienzzTargetingParams.omidPartnerName = call.argument<String?>("value")
+                result.success(null)
+            }
+            "getOmidPartnerName" -> result.success(AudienzzTargetingParams.omidPartnerName)
+
+            "setOmidPartnerVersion" -> {
+                AudienzzTargetingParams.omidPartnerVersion = call.argument<String?>("value")
+                result.success(null)
+            }
+            "getOmidPartnerVersion" -> result.success(AudienzzTargetingParams.omidPartnerVersion)
+
+            "setSubjectToCOPPA" -> {
+                AudienzzTargetingParams.isSubjectToCOPPA = call.argument<Boolean?>("value")
+                result.success(null)
+            }
+            "isSubjectToCOPPA" -> result.success(AudienzzTargetingParams.isSubjectToCOPPA)
+
+            "setSubjectToGDPR" -> {
+                AudienzzTargetingParams.isSubjectToGDPR = call.argument<Boolean?>("value")
+                result.success(null)
+            }
+            "isSubjectToGDPR" -> result.success(AudienzzTargetingParams.isSubjectToGDPR)
+
+            "setGdprConsentString" -> {
+                AudienzzTargetingParams.gdprConsentString = call.argument<String?>("value")
+                result.success(null)
+            }
+            "getGdprConsentString" -> result.success(AudienzzTargetingParams.gdprConsentString)
+
+            "setPurposeConsents" -> {
+                AudienzzTargetingParams.purposeConsents = call.argument<String?>("value")
+                result.success(null)
+            }
+            "getPurposeConsents" -> result.success(AudienzzTargetingParams.purposeConsents)
+
+            "setBundleName" -> {
+                AudienzzTargetingParams.bundleName = call.argument<String?>("value")
+                result.success(null)
+            }
+            "getBundleName" -> result.success(AudienzzTargetingParams.bundleName)
+
+            "getExtDataDictionary" -> audienzzTargetingWrapper.getExtDataDictionary(result)
+            "isDeviceAccessConsent" -> result.success(AudienzzTargetingParams.isDeviceAccessConsent)
+
+            "setUserExt" -> audienzzTargetingWrapper.setUserExt(call, result)
+            "getUserExt" -> audienzzTargetingWrapper.getUserExt(result)
+
+            "addUserKeyword" -> {
+                val keyword = call.argument<String>("keyword")
+                if (keyword != null) {
+                    AudienzzTargetingParams.addUserKeyword(keyword)
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Keyword cannot be null", null)
+                }
+            }
+
+            "addUserKeywords" -> {
+                val keywords = call.argument<List<String>>("keywords")
+                if (keywords != null) {
+                    AudienzzTargetingParams.addUserKeywords(keywords.toSet())
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Keywords cannot be null", null)
+                }
+            }
+
+            "removeUserKeyword" -> {
+                val keyword = call.argument<String>("keyword")
+                if (keyword != null) {
+                    AudienzzTargetingParams.removeUserKeyword(keyword)
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Keyword cannot be null", null)
+                }
+            }
+
+            "clearUserKeywords" -> {
+                AudienzzTargetingParams.clearUserKeywords()
+                result.success(null)
+            }
+
+            "setExternalUserIds" -> audienzzTargetingWrapper.setExternalUserIds(call, result)
+            "getExternalUserIds" -> audienzzTargetingWrapper.getExternalUserIds(result)
+
+            "addExtData" -> {
+                val key = call.argument<String>("key")
+                val value = call.argument<String>("value")
+                if (key != null && value != null) {
+                    AudienzzTargetingParams.addExtData(key, value)
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Key and value cannot be null", null)
+                }
+            }
+
+            "updateExtData" -> {
+                val key = call.argument<String>("key")
+                val values = call.argument<List<String>>("values")
+                if (key != null && values != null) {
+                    AudienzzTargetingParams.updateExtData(key, values.toSet())
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Key and values cannot be null", null)
+                }
+            }
+
+            "removeExtData" -> {
+                val key = call.argument<String>("key")
+                if (key != null) {
+                    AudienzzTargetingParams.removeExtData(key)
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Key cannot be null", null)
+                }
+            }
+
+            "clearExtData" -> {
+                AudienzzTargetingParams.clearExtData()
+                result.success(null)
+            }
+
+            "addBidderToAccessControlList" -> {
+                val bidderName = call.argument<String>("bidderName")
+                if (bidderName != null) {
+                    AudienzzTargetingParams.addBidderToAccessControlList(bidderName)
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Bidder name cannot be null", null)
+                }
+            }
+
+            "removeBidderFromAccessControlList" -> {
+                val bidderName = call.argument<String>("bidderName")
+                if (bidderName != null) {
+                    AudienzzTargetingParams.removeBidderFromAccessControlList(bidderName)
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Bidder name cannot be null", null)
+                }
+            }
+
+            "clearAccessControlList" -> {
+                AudienzzTargetingParams.clearAccessControlList()
+                result.success(null)
+            }
+
+            "getPurposeConsent" -> {
+                val index = call.argument<Int>("index")
+                if (index != null) {
+                    result.success(AudienzzTargetingParams.getPurposeConsent(index))
+                } else {
+                    result.error("INVALID_ARGUMENT", "Index cannot be null", null)
+                }
+            }
+
+            "getGlobalOrtbConfig" -> result.success(AudienzzTargetingParams.getGlobalOrtbConfig())
+
+            "setGlobalOrtbConfig" -> {
+                val config = call.argument<Map<String, Any>>("config")
+                if (config != null) {
+                    val jsonObject = JSONObject(config)
+                    AudienzzTargetingParams.setGlobalOrtbConfig(jsonObject)
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Config cannot be null", null)
+                }
+            }
+
+            "addGlobalTargeting" -> audienzzTargetingWrapper.addGlobalTargeting(call, result)
+            "removeGlobalTargeting" -> {
+                val key = call.argument<String>("key")
+                if (key != null) {
+                    AudienzzTargetingParams.removeGlobalTargeting(key)
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGUMENT", "Key cannot be null", null)
+                }
+            }
+
+            "clearGlobalTargeting" -> {
+                AudienzzTargetingParams.clearGlobalTargeting()
                 result.success(null)
             }
 

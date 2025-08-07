@@ -16,7 +16,8 @@ import org.audienzz.mobile.AudienzzInterstitialAdUnit
 import org.audienzz.mobile.AudienzzSignals
 import org.audienzz.mobile.AudienzzVideoParameters
 import org.audienzz.mobile.original.AudienzzInterstitialAdHandler
-import org.audienzz.mobile.util.AudienzzFullScreenContentCallback
+import org.audienzz.mobile.original.callbacks.AudienzzFullScreenContentCallback
+import org.audienzz.mobile.original.callbacks.AudienzzInterstitialAdLoadCallback
 import java.util.EnumSet
 
 class InterstitialAd(
@@ -35,7 +36,7 @@ class InterstitialAd(
     private val adSizes: List<AdSize>,
     private val customImpOrtbConfig: String?,
     private val context: Context,
-    private val interstitialAdLoadedListener: AdManagerInterstitialAdLoadCallback,
+    private val interstitialAdLoadedListener: AudienzzInterstitialAdLoadCallback,
     private val fullScreenContentListener: AudienzzFullScreenContentCallback,
 ) : OverlayAd() {
     private var interstitialAd: AdManagerInterstitialAd? = null

@@ -14,10 +14,10 @@ import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.OnUserEarnedRewardListener
 import com.google.android.gms.ads.admanager.AdManagerInterstitialAd
-import com.google.android.gms.ads.admanager.AdManagerInterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
-import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
-import org.audienzz.mobile.util.AudienzzFullScreenContentCallback
+import org.audienzz.mobile.original.callbacks.AudienzzFullScreenContentCallback
+import org.audienzz.mobile.original.callbacks.AudienzzInterstitialAdLoadCallback
+import org.audienzz.mobile.original.callbacks.AudienzzRewardedAdLoadCallback
 
 class AdInstanceManager(private val channel: MethodChannel) {
     private val ads = mutableMapOf<Int, Ad>()
@@ -174,8 +174,8 @@ class AdInstanceManager(private val channel: MethodChannel) {
         }
     }
 
-    fun createRewardedAdLoadedListener(adId: Int): RewardedAdLoadCallback {
-        return object : RewardedAdLoadCallback() {
+    fun createRewardedAdLoadedListener(adId: Int): AudienzzRewardedAdLoadCallback {
+        return object : AudienzzRewardedAdLoadCallback() {
             override fun onAdLoaded(ad: RewardedAd) {
                 onAdLoaded(adId)
                 val rewardAd = adFor(adId) as? RewardAd
@@ -192,13 +192,32 @@ class AdInstanceManager(private val channel: MethodChannel) {
     }
 
     fun createOverlayAdFullscreenContentListener(adId: Int): AudienzzFullScreenContentCallback {
-        return AudienzzFullScreenContentCallback(
-            onAdClickedAd = { onAdClicked(adId) },
-            onAdShowedFullScreen = { onAdOpened(adId) },
-            onAdFailedToShowFullScreen = { adError -> onAdFailedToLoad(adId, adError) },
-            onAdDismissedFullScreen = { onAdClosed(adId) },
-            onAdImpression = { onAdImpression(adId) }
-        )
+        return object: AudienzzFullScreenContentCallback(){
+            override fun onAdClicked() {
+                super.onAdClicked()
+                onAdClicked(adId)
+            }
+
+            override fun onAdDismissedFullScreenContent() {
+                super.onAdDismissedFullScreenContent()
+                onAdClosed(adId)
+            }
+
+            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                super.onAdFailedToShowFullScreenContent(adError)
+                onAdFailedToLoad(adId, adError)
+            }
+
+            override fun onAdImpression() {
+                super.onAdImpression()
+                onAdImpression(adId)
+            }
+
+            override fun onAdShowedFullScreenContent() {
+                super.onAdShowedFullScreenContent()
+                onAdOpened(adId)
+            }
+        }
     }
 
     fun createRewardedAdUserEarnedRewardListener(adId: Int): OnUserEarnedRewardListener {
@@ -210,8 +229,8 @@ class AdInstanceManager(private val channel: MethodChannel) {
         }
     }
 
-    fun createInterstitialAdLoadedListener(adId: Int): AdManagerInterstitialAdLoadCallback {
-        return object : AdManagerInterstitialAdLoadCallback() {
+    fun createInterstitialAdLoadedListener(adId: Int): AudienzzInterstitialAdLoadCallback {
+        return object : AudienzzInterstitialAdLoadCallback() {
             override fun onAdLoaded(ad: AdManagerInterstitialAd) {
                 onAdLoaded(adId)
                 val interstitialAd = adFor(adId) as? InterstitialAd
