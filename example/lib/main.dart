@@ -32,6 +32,8 @@ class _MyAppState extends State<MyApp> {
     );
 
     log(status.toString());
+
+    await AudienzzTargeting.addSingleGlobalTargeting("TEST", "1");
   }
 
   @override

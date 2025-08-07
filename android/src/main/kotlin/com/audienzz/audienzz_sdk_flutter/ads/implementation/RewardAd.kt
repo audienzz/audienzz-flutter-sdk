@@ -7,12 +7,12 @@ import com.audienzz.audienzz_sdk_flutter.entities.VideoBitrate
 import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
 import com.google.android.gms.ads.OnUserEarnedRewardListener
 import com.google.android.gms.ads.rewarded.RewardedAd
-import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import org.audienzz.mobile.AudienzzRewardedVideoAdUnit
 import org.audienzz.mobile.AudienzzSignals
 import org.audienzz.mobile.AudienzzVideoParameters
 import org.audienzz.mobile.original.AudienzzRewardedVideoAdHandler
-import org.audienzz.mobile.util.AudienzzFullScreenContentCallback
+import org.audienzz.mobile.original.callbacks.AudienzzFullScreenContentCallback
+import org.audienzz.mobile.original.callbacks.AudienzzRewardedAdLoadCallback
 
 class RewardAd(
     private val adUnitId: String,
@@ -27,7 +27,7 @@ class RewardAd(
     private val gpId: String?,
     private val customImpOrtbConfig: String?,
     private val context: Context,
-    private val rewardAdLoadedListener: RewardedAdLoadCallback,
+    private val rewardAdLoadedListener: AudienzzRewardedAdLoadCallback,
     private val userEarnedRewardListener: OnUserEarnedRewardListener,
     private val fullScreenContentListener: AudienzzFullScreenContentCallback,
 ) : OverlayAd() {
