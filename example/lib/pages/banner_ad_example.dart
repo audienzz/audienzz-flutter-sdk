@@ -195,7 +195,7 @@ class _BannerAdExampleState extends State<BannerAdExample> {
     _heightAdaptiveBanner = BannerAd(
       adUnitId: 'ca-app-pub-3940256099942544/2435281174',
       auConfigId: '33994718',
-      sizes: {AdSize(height: safeHeight.toInt(), width: 320)},
+      sizes: {AdSize(height: (safeHeight / 2).toInt(), width: 320)},
       isAdaptiveSize: true,
       onAdLoaded: (ad) async {
         log('Ad is loaded: ${ad.adUnitId}');

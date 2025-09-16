@@ -1,3 +1,7 @@
+## 0.0.6
+* Add method to set Schain object
+* Update Audienzz native dependencies to latest version
+
 ## 0.0.5
 
 * Update Audienzz native dependencies to latest version
