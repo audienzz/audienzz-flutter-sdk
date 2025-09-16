@@ -24,4 +24,11 @@ final class AudienzzSdkFlutter {
           ' instance: ${e.message} ${e.details}');
     }
   }
+
+  Future<void> setSchainObject(String schain) {
+    return adInstanceManager.methodChannel.invokeMethod(
+      'setSchainObject',
+      {'schain': schain},
+    );
+  }
 }

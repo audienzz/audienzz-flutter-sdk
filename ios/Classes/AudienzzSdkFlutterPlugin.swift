@@ -3,7 +3,6 @@ import Flutter
 import UIKit
 
 public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
-
     private var manager: AdInstanceManager
     private var targetingWrapper: AudienzzTargetingWrapper
 
@@ -51,15 +50,16 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         _ call: FlutterMethodCall,
         result: @escaping FlutterResult
     ) {
-        let rootViewController = self.rootController
+        let rootViewController = rootController
 
         switch call.method {
         case "_init":
             manager.disposeAllAds()
             result(nil)
+
         case "initialize":
             if let args = call.arguments as? [String: Any],
-                let companyId = args["companyId"] as? String
+               let companyId = args["companyId"] as? String
             {
                 Audienzz.shared.configureSDK(companyId: companyId)
                 AudienzzGAMUtils.shared.initializeGAM()
@@ -67,31 +67,32 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 result(AudienzzInitializationStatus.success)
             } else {
                 result(
-                    FlutterError.init(
+                    FlutterError(
                         code: "SDK Initialize Error",
                         message: "Initialization error: No company id provided",
                         details: nil
                     )
                 )
             }
+
         case "loadBannerAd":
             guard let args = call.arguments as? [String: Any],
-                let adId = args["adId"] as? NSNumber,
-                let adUnitId = args["adUnitId"] as? String,
-                let auConfigId = args["auConfigId"] as? String,
-                let adSizes = args["adSizes"] as? [FAdSize],
-                let isAdaptiveSize = args["isAdaptiveSize"] as? Bool,
-                let adFormat = args["adFormat"] as? FAdFormat,
-                let apiParameters = args["apiParameters"] as? [AUApi],
-                let videoProtocols = args["protocols"] as? [AUVideoProtocols],
-                let videoPlacement = args["placement"] as? AUPlacement,
-                let videoPlaybackMethods = args["playbackMethods"]
-                    as? [AUVideoPlaybackMethod],
-                let videoBitrate = args["videoBitrate"] as? FVideoBitrate,
-                let videoDuration = args["videoDuration"] as? FVideoDuration
+                  let adId = args["adId"] as? NSNumber,
+                  let adUnitId = args["adUnitId"] as? String,
+                  let auConfigId = args["auConfigId"] as? String,
+                  let adSizes = args["adSizes"] as? [FAdSize],
+                  let isAdaptiveSize = args["isAdaptiveSize"] as? Bool,
+                  let adFormat = args["adFormat"] as? FAdFormat,
+                  let apiParameters = args["apiParameters"] as? [AUApi],
+                  let videoProtocols = args["protocols"] as? [AUVideoProtocols],
+                  let videoPlacement = args["placement"] as? AUPlacement,
+                  let videoPlaybackMethods = args["playbackMethods"]
+                  as? [AUVideoPlaybackMethod],
+                  let videoBitrate = args["videoBitrate"] as? FVideoBitrate,
+                  let videoDuration = args["videoDuration"] as? FVideoDuration
             else {
                 result(
-                    FlutterError.init(
+                    FlutterError(
                         code: "Load Banner Ad Error",
                         message: "Missing or unexpected call parameters",
                         details: nil
@@ -131,19 +132,19 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "loadRewardedAd":
             guard let args = call.arguments as? [String: Any],
-                let adId = args["adId"] as? NSNumber,
-                let adUnitId = args["adUnitId"] as? String,
-                let auConfigId = args["auConfigId"] as? String,
-                let apiParameters = args["apiParameters"] as? [AUApi],
-                let videoProtocols = args["protocols"] as? [AUVideoProtocols],
-                let videoPlacement = args["placement"] as? AUPlacement,
-                let videoPlaybackMethods = args["playbackMethods"]
-                    as? [AUVideoPlaybackMethod],
-                let videoBitrate = args["videoBitrate"] as? FVideoBitrate,
-                let videoDuration = args["videoDuration"] as? FVideoDuration
+                  let adId = args["adId"] as? NSNumber,
+                  let adUnitId = args["adUnitId"] as? String,
+                  let auConfigId = args["auConfigId"] as? String,
+                  let apiParameters = args["apiParameters"] as? [AUApi],
+                  let videoProtocols = args["protocols"] as? [AUVideoProtocols],
+                  let videoPlacement = args["placement"] as? AUPlacement,
+                  let videoPlaybackMethods = args["playbackMethods"]
+                  as? [AUVideoPlaybackMethod],
+                  let videoBitrate = args["videoBitrate"] as? FVideoBitrate,
+                  let videoDuration = args["videoDuration"] as? FVideoDuration
             else {
                 result(
-                    FlutterError.init(
+                    FlutterError(
                         code: "Rewarded Ad Loading Error",
                         message: "Missing or unexpected call parameters",
                         details: nil
@@ -178,22 +179,22 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "loadInterstitialAd":
             guard let args = call.arguments as? [String: Any],
-                let adId = args["adId"] as? NSNumber,
-                let adUnitId = args["adUnitId"] as? String,
-                let auConfigId = args["auConfigId"] as? String,
-                let adFormat = args["adFormat"] as? FAdFormat,
-                let minSizePercentage = args["minSizePercentage"]
-                    as? FMinSizePercentage,
-                let apiParameters = args["apiParameters"] as? [AUApi],
-                let videoProtocols = args["protocols"] as? [AUVideoProtocols],
-                let videoPlacement = args["placement"] as? AUPlacement,
-                let videoPlaybackMethods = args["playbackMethods"]
-                    as? [AUVideoPlaybackMethod],
-                let videoBitrate = args["videoBitrate"] as? FVideoBitrate,
-                let videoDuration = args["videoDuration"] as? FVideoDuration
+                  let adId = args["adId"] as? NSNumber,
+                  let adUnitId = args["adUnitId"] as? String,
+                  let auConfigId = args["auConfigId"] as? String,
+                  let adFormat = args["adFormat"] as? FAdFormat,
+                  let minSizePercentage = args["minSizePercentage"]
+                  as? FMinSizePercentage,
+                  let apiParameters = args["apiParameters"] as? [AUApi],
+                  let videoProtocols = args["protocols"] as? [AUVideoProtocols],
+                  let videoPlacement = args["placement"] as? AUPlacement,
+                  let videoPlaybackMethods = args["playbackMethods"]
+                  as? [AUVideoPlaybackMethod],
+                  let videoBitrate = args["videoBitrate"] as? FVideoBitrate,
+                  let videoDuration = args["videoDuration"] as? FVideoDuration
             else {
                 result(
-                    FlutterError.init(
+                    FlutterError(
                         code: "Interstitial Ad Loading Error",
                         message: "Missing or unexpected call parameters",
                         details: nil
@@ -232,23 +233,24 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "showAdWithoutView":
             if let args = call.arguments as? [String: Any],
-                let adId = args["adId"] as? NSNumber
+               let adId = args["adId"] as? NSNumber
             {
                 manager.showAd(withId: adId)
                 result(nil)
 
             } else {
                 result(
-                    FlutterError.init(
+                    FlutterError(
                         code: "Show Ad Without View Error",
                         message: "Missing or unexpected call parameters",
                         details: nil
                     )
                 )
             }
+
         case "getPlatformAdSize":
             if let args = call.arguments as? [String: Any],
-                let adId = args["adId"] as? NSNumber
+               let adId = args["adId"] as? NSNumber
             {
                 let ad = manager.ad(for: adId)
 
@@ -265,14 +267,14 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "disposeAd":
             if let args = call.arguments as? [String: Any],
-                let adId = args["adId"] as? NSNumber
+               let adId = args["adId"] as? NSNumber
             {
                 manager.dispose(adId: adId)
                 result(nil)
 
             } else {
                 result(
-                    FlutterError.init(
+                    FlutterError(
                         code: "Dispose Ad Error",
                         message: "Missing or unexpected call parameters",
                         details: nil
@@ -298,7 +300,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "setPublisherName":
             if let value = call.arguments as? [String: Any],
-                let publisherName = value["value"] as? String?
+               let publisherName = value["value"] as? String?
             {
                 AUTargeting.shared.publisherName = publisherName
                 result(nil)
@@ -317,7 +319,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "setDomain":
             if let value = call.arguments as? [String: Any],
-                let domain = value["value"] as? String
+               let domain = value["value"] as? String
             {
                 AUTargeting.shared.domain = domain
                 result(nil)
@@ -336,7 +338,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "setStoreUrl":
             if let value = call.arguments as? [String: Any],
-                let storeUrl = value["value"] as? String
+               let storeUrl = value["value"] as? String
             {
                 AUTargeting.shared.storeURL = storeUrl
                 result(nil)
@@ -492,7 +494,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         // User keyword methods
         case "addUserKeyword":
             if let args = call.arguments as? [String: Any],
-                let keyword = args["keyword"] as? String
+               let keyword = args["keyword"] as? String
             {
                 AUTargeting.shared.addUserKeyword(keyword)
                 result(nil)
@@ -508,7 +510,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "addUserKeywords":
             if let args = call.arguments as? [String: Any],
-                let keywords = args["keywords"] as? [String]
+               let keywords = args["keywords"] as? [String]
             {
                 AUTargeting.shared.addUserKeywords(Set(keywords))
                 result(nil)
@@ -524,7 +526,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "removeUserKeyword":
             if let args = call.arguments as? [String: Any],
-                let keyword = args["keyword"] as? String
+               let keyword = args["keyword"] as? String
             {
                 AUTargeting.shared.removeUserKeyword(keyword)
                 result(nil)
@@ -550,8 +552,8 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "addExtData":
             if let args = call.arguments as? [String: Any],
-                let key = args["key"] as? String,
-                let value = args["value"] as? String
+               let key = args["key"] as? String,
+               let value = args["value"] as? String
             {
                 AUTargeting.shared.addAppExtData(key: key, value: value)
                 result(nil)
@@ -567,8 +569,8 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "updateExtData":
             if let args = call.arguments as? [String: Any],
-                let key = args["key"] as? String,
-                let values = args["values"] as? [String]
+               let key = args["key"] as? String,
+               let values = args["values"] as? [String]
             {
                 AUTargeting.shared.updateAppExtData(
                     key: key,
@@ -587,7 +589,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "removeExtData":
             if let args = call.arguments as? [String: Any],
-                let key = args["key"] as? String
+               let key = args["key"] as? String
             {
                 AUTargeting.shared.removeAppExtData(for: key)
                 result(nil)
@@ -607,7 +609,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "addBidderToAccessControlList":
             if let args = call.arguments as? [String: Any],
-                let bidderName = args["bidderName"] as? String
+               let bidderName = args["bidderName"] as? String
             {
                 AUTargeting.shared.addBidderToAccessControlList(bidderName)
                 result(nil)
@@ -623,7 +625,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "removeBidderFromAccessControlList":
             if let args = call.arguments as? [String: Any],
-                let bidderName = args["bidderName"] as? String
+               let bidderName = args["bidderName"] as? String
             {
                 AUTargeting.shared.removeBidderFromAccessControlList(bidderName)
                 result(nil)
@@ -643,7 +645,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "getPurposeConsent":
             if let args = call.arguments as? [String: Any],
-                let index = args["index"] as? Int
+               let index = args["index"] as? Int
             {
                 result(AUTargeting.shared.getPurposeConsent(index: index))
             } else {
@@ -661,7 +663,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "setGlobalOrtbConfig":
             if let args = call.arguments as? [String: Any],
-                let config = args["config"] as? [String: Any]
+               let config = args["config"] as? [String: Any]
             {
                 do {
                     let jsonData = try JSONSerialization.data(
@@ -697,7 +699,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "removeGlobalTargeting":
             if let args = call.arguments as? [String: Any],
-                let key = args["key"] as? String
+               let key = args["key"] as? String
             {
                 AUTargeting.shared.removeGlobalTargeting(key: key)
                 result(nil)
@@ -713,6 +715,14 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "clearGlobalTargeting":
             AUTargeting.shared.clearGlobalTargeting()
+            result(nil)
+
+        case "setSchainObject":
+            if let args = call.arguments as? [String: Any],
+               let schain = args["schain"] as? String
+            {
+                Audienzz.shared.setSchainObject(schain: schain)
+            }
             result(nil)
 
         default:

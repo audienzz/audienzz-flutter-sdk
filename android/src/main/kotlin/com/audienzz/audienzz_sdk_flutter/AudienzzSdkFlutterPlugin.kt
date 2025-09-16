@@ -19,6 +19,7 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.StandardMethodCodec
+import org.audienzz.mobile.AudienzzPrebidMobile
 import org.audienzz.mobile.AudienzzSignals
 import org.audienzz.mobile.AudienzzTargetingParams
 import org.json.JSONObject
@@ -386,6 +387,14 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
             "clearGlobalTargeting" -> {
                 AudienzzTargetingParams.clearGlobalTargeting()
+                result.success(null)
+            }
+
+            "setSchainObject" -> {
+                val schain = call.argument<String>("schain")
+                if(schain != null){
+                    AudienzzPrebidMobile.setSchainObject(schain)
+                }
                 result.success(null)
             }
 
