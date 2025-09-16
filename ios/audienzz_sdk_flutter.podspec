@@ -12,7 +12,7 @@ Flutter wrapper for Audienzz Mobile SDK
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'
   s.dependency 'Google-Mobile-Ads-SDK','12.3.0'
-  s.dependency 'AudienzziOSSDK', '0.0.25'
+  s.dependency 'AudienzziOSSDK', '0.1.1'
   s.platform = :ios, '13.0'
 
   # Flutter.framework does not contain a i386 slice.
