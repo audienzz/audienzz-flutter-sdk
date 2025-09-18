@@ -33,17 +33,22 @@ class _MyAppState extends State<MyApp> {
 
     log(status.toString());
 
-    await AudienzzSdkFlutter.instance.setSchainObject("""{
-    "source": {
-    "schain": [
-    {
-    "asi": "audienzz.com",
-    "sid": "812net",
-    "hp": 1
-    }
-    ]
-    }
-    }""");
+    await AudienzzSdkFlutter.instance.setSchainObject("""
+                        { "source": 
+                            { "schain": {
+                                "ver": "1.0",
+                                "complete": 1,
+                                "nodes": [
+                                    {
+                                        "asi": "netpoint-media.de",
+                                        "sid": "np-7255",
+                                        "hp": 1
+                                    }
+                                  ]
+                                }
+                            } 
+                        }
+                    """);
 
     await AudienzzTargeting.addSingleGlobalTargeting("TEST", "1");
   }
