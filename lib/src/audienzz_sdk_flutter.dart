@@ -12,8 +12,14 @@ final class AudienzzSdkFlutter {
   static AudienzzSdkFlutter get instance => _instance;
 
   /// Required to initialize the SDK.
-  Future<InitializationStatus> initialize({required String companyId}) {
-    return adInstanceManager.initialize(companyId: companyId);
+  Future<InitializationStatus> initialize({
+    required String companyId,
+    bool isAutomaticPpidEnabled = false,
+  }) {
+    return adInstanceManager.initialize(
+      companyId: companyId,
+      isAutomaticPpidEnabled: isAutomaticPpidEnabled,
+    );
   }
 
   Future<void> _init() async {

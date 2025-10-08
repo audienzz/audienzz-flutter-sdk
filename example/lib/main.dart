@@ -5,6 +5,7 @@ import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter_example/pages/banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/interstitial_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/list_with_ads_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/ppid_usage_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/rewarded_ad_example.dart';
 import 'package:flutter/material.dart';
 
@@ -29,6 +30,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> initializeSdk() async {
     final status = await AudienzzSdkFlutter.instance.initialize(
       companyId: 'Company Id',
+      isAutomaticPpidEnabled: true,
     );
 
     log(status.toString());
@@ -123,6 +125,12 @@ final class AdsPages extends StatelessWidget {
                 child: Text('Interstitial ads'),
               ),
               InterstitialAdExample(),
+              Divider(),
+              Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Text('PPID usage'),
+              ),
+              PpidUsageExample(),
               Divider(),
             ],
           ),

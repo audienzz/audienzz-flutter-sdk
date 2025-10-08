@@ -56,12 +56,13 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         case "_init":
             manager.disposeAllAds()
             result(nil)
-
+            
         case "initialize":
             if let args = call.arguments as? [String: Any],
-               let companyId = args["companyId"] as? String
+               let companyId = args["companyId"] as? String,
+               let isAutomaticPpidEnabled = args["isAutomaticPpidEnabled"] as? Bool
             {
-                Audienzz.shared.configureSDK(companyId: companyId)
+                Audienzz.shared.configureSDK(companyId: companyId, enablePPID: isAutomaticPpidEnabled)
                 AudienzzGAMUtils.shared.initializeGAM()
 
                 result(AudienzzInitializationStatus.success)
@@ -724,6 +725,19 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 Audienzz.shared.setSchainObject(schain: schain)
             }
             result(nil)
+            
+        case "isAutomaticPpidEnabled":
+            result(PPIDManager.shared.getAutomaticPpidEnabled())
+            
+        case "setAutomaticPpidEnabled":
+            if let args = call.arguments as? [String: Any],
+               let isAutomaticPpidEnabled = args["isAutomaticPpidEnabled"] as? Bool {
+                PPIDManager.shared.setAutomaticPpidEnabled(isAutomaticPpidEnabled)
+            }
+            result(nil)
+            
+        case "getPpid":
+            result(PPIDManager.shared.getPPID())
 
         default:
             result(FlutterMethodNotImplemented)

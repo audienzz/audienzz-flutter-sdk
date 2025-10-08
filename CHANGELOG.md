@@ -1,3 +1,9 @@
+## 0.0.7
+
+* Added default values for API
+* Added automatic PPID feature
+* Update Audienzz native dependencies to latest version
+
 ## 0.0.6
 * Add method to set Schain object
 * Update Audienzz native dependencies to latest version

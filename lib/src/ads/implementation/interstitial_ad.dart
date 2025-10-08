@@ -21,7 +21,12 @@ final class InterstitialAd extends AdWithoutView {
     required this.onAdFailedToLoad,
     this.minSizePercentage = const MinSizePercentage(width: 80, height: 60),
     this.sizes = const <AdSize>{},
-    this.apiParameters = const {ApiParameter.mraid3, ApiParameter.omid1},
+    this.apiParameters = const {
+      ApiParameter.mraid1,
+      ApiParameter.mraid2,
+      ApiParameter.mraid3,
+      ApiParameter.omid1,
+    },
     this.protocols = const {},
     this.placement = Placement.inBanner,
     this.playbackMethods = const {PlaybackMethod.enterSoundOff},

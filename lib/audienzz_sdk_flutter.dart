@@ -22,4 +22,5 @@ export 'src/entities/video_parameters/playback_method.dart';
 export 'src/entities/video_parameters/protocol.dart';
 export 'src/entities/video_parameters/video_bitrate.dart';
 export 'src/entities/video_parameters/video_duration.dart';
+export 'src/ppid_manager.dart';
 export 'src/widgets/ad_widget.dart';

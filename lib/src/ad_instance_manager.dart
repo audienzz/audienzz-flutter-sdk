@@ -65,12 +65,16 @@ final class AdInstanceManager {
 
   Future<InitializationStatus> initialize({
     required String companyId,
+    required bool isAutomaticPpidEnabled,
   }) async {
     try {
       final initializationStatus =
           await methodChannel.invokeMethod<InitializationStatus>(
         'initialize',
-        {'companyId': companyId},
+        {
+          'companyId': companyId,
+          'isAutomaticPpidEnabled': isAutomaticPpidEnabled,
+        },
       );
 
       if (initializationStatus != null) {

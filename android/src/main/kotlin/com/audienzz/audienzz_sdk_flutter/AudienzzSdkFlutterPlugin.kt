@@ -64,6 +64,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
             "initialize" -> audienzzSdkWrapper.initialize(
                 context,
                 call.argument<String>("companyId")!!,
+                call.argument<Boolean>("isAutomaticPpidEnabled")!!,
                 result
             )
 
@@ -396,6 +397,23 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     AudienzzPrebidMobile.setSchainObject(schain)
                 }
                 result.success(null)
+            }
+
+            "isAutomaticPpidEnabled" -> {
+                result.success(AudienzzPrebidMobile.ppidManager?.isAutomaticPpidEnabled())
+            }
+
+            "setAutomaticPpidEnabled" -> {
+                val isAutomaticPpidEnabled = call.argument<Boolean>("isAutomaticPpidEnabled")
+
+                if(isAutomaticPpidEnabled != null) {
+                    AudienzzPrebidMobile.ppidManager?.setAutomaticPpidEnabled(isAutomaticPpidEnabled)
+                }
+                result.success(null)
+            }
+
+            "getPpid" -> {
+                result.success(AudienzzPrebidMobile.ppidManager?.getPpid())
             }
 
             else -> result.notImplemented()

@@ -19,7 +19,12 @@ final class BannerAd extends AdWithView {
     required this.onAdLoaded,
     required this.onAdFailedToLoad,
     this.adFormat = AdFormat.banner,
-    this.apiParameters = const {ApiParameter.mraid3, ApiParameter.omid1},
+    this.apiParameters = const {
+      ApiParameter.mraid1,
+      ApiParameter.mraid2,
+      ApiParameter.mraid3,
+      ApiParameter.omid1,
+    },
     this.protocols = const {},
     this.placement = Placement.inBanner,
     this.playbackMethods = const {PlaybackMethod.autoPlaySoundOn},
