@@ -12,7 +12,7 @@ import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_bitrate
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_duration.dart';
 
 /// Class for work with interstitial ads
-final class InterstitialAd extends AdWithoutView {
+class InterstitialAd extends AdWithoutView {
   const InterstitialAd({
     required super.adUnitId,
     required super.auConfigId,

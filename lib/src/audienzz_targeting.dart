@@ -169,6 +169,13 @@ final class AudienzzTargeting {
     );
   }
 
+  static Future<void> setItunesID(String? itunesID) async {
+    return adInstanceManager.methodChannel.invokeMethod(
+      'setItunesID',
+      {'value': itunesID},
+    );
+  }
+
   static Future<String?> getBundleName() async {
     return adInstanceManager.methodChannel.invokeMethod<String>(
       'getBundleName',

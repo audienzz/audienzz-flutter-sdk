@@ -11,7 +11,7 @@ import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_bitrate
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_duration.dart';
 
 /// Class for work with banner ads
-final class BannerAd extends AdWithView {
+class BannerAd extends AdWithView {
   const BannerAd({
     required this.sizes,
     required super.adUnitId,
