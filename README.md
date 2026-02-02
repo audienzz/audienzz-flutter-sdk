@@ -200,6 +200,117 @@ await rewarded.load();
 await rewarded.show();
 ```
 
+Remote Configuration Integration
+=================================
+
+The SDK supports a simplified integration using remote configuration. This allows you to manage ad units (GAM IDs, Prebid Config IDs, sizes, etc.) from the backend, requiring only a simple configuration ID in your app.
+
+## Initialize SDK with Remote Configuration
+
+Before using remote configuration ads, ensure the SDK is properly initialized:
+
+```dart
+final status = await AudienzzSdkFlutter.instance.initializeRemote(
+  publisherId: 'YOUR_PUBLISHER_ID', // Will be provided for you
+  remoteUrl: 'https://dev-api.adnz.co/api/ws-sdk-config/public/v1/', // Audienzz remove config URL
+  isAutomaticPpidEnabled: false
+);
+
+if (status == InitializationStatus.success) {
+  // SDK is ready to use with remote config
+}
+```
+
+## Banner Ad (Remote Config)
+
+Use `RemoteBannerAd` to load a banner defined by a remote configuration ID.
+
+```dart
+// 1. Create the remote banner ad with the configuration ID
+final remoteBanner = RemoteBannerAd(
+  configId: 'YOUR_CONFIG_ID',
+  onAdLoaded: (ad) {
+    debugPrint('Remote banner loaded successfully');
+  },
+  onAdFailedToLoad: (ad, error) {
+    debugPrint('Remote banner failed to load: ${error?.message}');
+  },
+  onAdClicked: (ad) {
+    debugPrint('Remote banner clicked');
+  },
+  onAdClosed: (ad) {
+    debugPrint('Remote banner closed');
+  },
+);
+
+// 2. Load the ad
+await remoteBanner.load();
+
+#### Fixed Size Banner
+The SDK will use the sizes defined in the remote configuration. To ensure the banner is displayed correctly, you should place the `AdWidget` inside a container (like a `SizedBox`) that matches the intended ad size:
+
+```dart
+Center(
+  child: SizedBox(
+    width: 320,
+    height: 50,
+    child: AdWidget(ad: remoteBanner),
+  ),
+)
+```
+
+#### Adaptive Banner
+If adaptive banners are enabled in the backend for your configuration ID, the SDK will automatically calculate the optimal height. You should ensure the `AdWidget` has enough horizontal space to calculate the adaptive size correctly:
+
+```dart
+Center(
+  child: AdWidget(ad: remoteBanner),
+)
+```
+
+// 3. Display the ad using AdWidget
+@override
+Widget build(BuildContext context) {
+  return Center(
+    child: AdWidget(ad: remoteBanner),
+  );
+}
+
+// 4. Dispose when done
+@override
+void dispose() {
+  remoteBanner.dispose();
+  super.dispose();
+}
+```
+
+## Interstitial Ad (Remote Config)
+
+Use `RemoteInterstitialAd` to load an interstitial defined by a remote configuration ID.
+
+```dart
+// 1. Create the remote interstitial ad with the configuration ID
+final remoteInterstitial = RemoteInterstitialAd(
+  configId: 'YOUR_CONFIG_ID',
+  onAdLoaded: (ad) {
+    debugPrint('Remote interstitial loaded successfully');
+  },
+  onAdFailedToLoad: (ad, error) {
+    debugPrint('Remote interstitial failed to load: ${error?.message}');
+  },
+  onAdClosed: (ad) async {
+    debugPrint('Remote interstitial closed');
+    await ad.dispose();
+  },
+);
+
+// 2. Load the ad
+await remoteInterstitial.load();
+
+// 3. Show the ad when ready
+await remoteInterstitial.show();
+```
+
 Targeting basics
 ================
 

@@ -1,5 +1,6 @@
 import AudienzziOSSDK
 import Flutter
+import PrebidMobile
 import UIKit
 
 public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
@@ -64,6 +65,10 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             {
                 Audienzz.shared.configureSDK(companyId: companyId, enablePPID: isAutomaticPpidEnabled)
                 AudienzzGAMUtils.shared.initializeGAM()
+
+                if let prebidServerUrl = args["prebidServerUrl"] as? String {
+                     try? Prebid.initializeSDK(serverURL: prebidServerUrl)
+                }
 
                 result(AudienzzInitializationStatus.success)
             } else {
@@ -466,6 +471,20 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             if let value = call.arguments as? [String: Any] {
                 // iOS uses sourceapp for bundle name equivalent
                 AUTargeting.shared.sourceapp = value["value"] as? String
+                result(nil)
+            } else {
+                result(
+                    FlutterError(
+                        code: "INVALID_ARGUMENT",
+                        message: "Invalid arguments",
+                        details: nil
+                    )
+                )
+            }
+
+        case "setItunesID":
+            if let value = call.arguments as? [String: Any] {
+                AUTargeting.shared.itunesID = value["value"] as? String
                 result(nil)
             } else {
                 result(

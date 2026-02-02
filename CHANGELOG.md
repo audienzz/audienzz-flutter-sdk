@@ -1,3 +1,8 @@
+## 0.0.8
+
+* Added remote configuration feature
+* Updated Readme with new documentation
+
 ## 0.0.7
 
 * Added default values for API

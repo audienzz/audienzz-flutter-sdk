@@ -65,6 +65,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 context,
                 call.argument<String>("companyId")!!,
                 call.argument<Boolean>("isAutomaticPpidEnabled")!!,
+                call.argument<String?>("prebidServerUrl"),
                 result
             )
 
