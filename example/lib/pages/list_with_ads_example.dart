@@ -2,19 +2,38 @@ import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter_example/ad/example_banner_ad.dart';
 import 'package:flutter/material.dart';
 
-final class ListWithAdsExample extends StatelessWidget {
+final class ListWithAdsExample extends StatefulWidget {
   const ListWithAdsExample({super.key});
+
+  @override
+  State<ListWithAdsExample> createState() => _ListWithAdsExampleState();
+}
+
+final class _ListWithAdsExampleState extends State<ListWithAdsExample> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
+      controller: _scrollController,
       itemBuilder: (_, index) {
         if (index % 10 == 0) {
-          return ExampleBannerAd(
-            id: index,
-            adUnitId: '/96628199/testapp_publisher/banner_test_ad_unit',
-            adConfigId: '15624474',
-            adSize: AdSize(height: 50, width: 320),
+          return AudienzzStickyAdWrapper(
+            scrollController: _scrollController,
+            stickyTopOffset: 0,
+            maxHeight: 450,
+            child: ExampleBannerAd(
+              id: index,
+              adUnitId: '/96628199/testapp_publisher/banner_test_ad_unit',
+              adConfigId: '15624474',
+              adSize: AdSize(height: 50, width: 320),
+            ),
           );
         }
 
