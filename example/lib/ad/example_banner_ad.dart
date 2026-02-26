@@ -95,9 +95,7 @@ class _ExampleBannerAdState extends State<ExampleBannerAd> {
     return SizedBox(
       width: widget.adSize.width.toDouble(),
       height: widget.adSize.height.toDouble(),
-      child: Center(
-        child: CircularProgressIndicator(),
-      ),
+      child: Center(child: CircularProgressIndicator()),
     );
   }
 

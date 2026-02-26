@@ -11,6 +11,7 @@ class BannerAdExample extends StatefulWidget {
 }
 
 class _BannerAdExampleState extends State<BannerAdExample> {
+  final ScrollController _scrollController = ScrollController();
   BannerAd? _banner320x50;
   bool _isBanner320x50Loaded = false;
   bool _isBanner320x50LoadFailed = false;
@@ -39,6 +40,7 @@ class _BannerAdExampleState extends State<BannerAdExample> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _banner320x50?.dispose();
     _banner300x250?.dispose();
     _widthAdaptiveBanner?.dispose();
@@ -335,18 +337,30 @@ class _BannerAdExampleState extends State<BannerAdExample> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        children: [
-          _getBannerAdaptiveWidthWidget(),
-          const SizedBox(height: 40),
-          _getBannerAdaptiveHeightWidget(),
-          const SizedBox(height: 40),
-          _getBanner300x250Widget(),
-          const SizedBox(height: 40),
-          _getBanner320x50AdWidget(),
-        ],
-      ),
+    return ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      children: [
+        const Text(
+          'Sticky Ad Wrapper Demo',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Scroll to see the 300x250 ad stick to the top of the viewport '
+          'within its 600px reserved area.',
+        ),
+        const SizedBox(height: 24),
+        _getBanner300x250Widget(),
+        const SizedBox(height: 40),
+        _getBannerAdaptiveWidthWidget(),
+        const SizedBox(height: 40),
+        _getBannerAdaptiveHeightWidget(),
+        const SizedBox(height: 40),
+        _getBanner320x50AdWidget(),
+        const SizedBox(height: 800),
+        const Text('End of content'),
+      ],
     );
   }
 }
