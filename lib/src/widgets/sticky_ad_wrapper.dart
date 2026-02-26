@@ -17,7 +17,6 @@ final class AudienzzStickyAdWrapper extends StatefulWidget {
     this.stickyTopOffset,
     this.maxHeight = 600,
     this.enabled = true,
-    this.debugLog = true,
   });
 
   /// The ad widget to display (e.g. [AdWidget]).
@@ -36,9 +35,6 @@ final class AudienzzStickyAdWrapper extends StatefulWidget {
 
   /// Enables or disables sticky behavior.
   final bool enabled;
-
-  /// Enables verbose debug logging for sticky calculations.
-  final bool debugLog;
 
   @override
   State<AudienzzStickyAdWrapper> createState() =>
@@ -163,21 +159,6 @@ final class _AudienzzStickyAdWrapperState extends State<AudienzzStickyAdWrapper>
     if ((nextTop - _topOffset.value).abs() > 0.5) {
       _topOffset.value = nextTop;
     }
-
-    if (widget.debugLog) {
-      final scrollOffset = position.pixels;
-      debugPrint(
-        '[AudienzzStickyAdWrapper] '
-        'scroll=${scrollOffset?.toStringAsFixed(1)} '
-        'wrapperTop=${wrapperTop.toStringAsFixed(1)} '
-        'wrapperBottom=${wrapperBottom.toStringAsFixed(1)} '
-        'topOffset=${topOffset.toStringAsFixed(1)} '
-        'childH=${childHeight.toStringAsFixed(1)} '
-        'maxTop=${maxTop.toStringAsFixed(1)} '
-        'nextTop=${nextTop.toStringAsFixed(1)}',
-      );
-    }
-
   }
 
   @override
