@@ -515,6 +515,41 @@ API Reference
 |-----------------|--------------|--------------------------------------------------------|
 | `ad`            | `AdWithView` | The ad instance to display. Must be loaded before use. |
 
+## AudienzzStickyAdWrapper
+Wraps any `AdWidget` and keeps the ad "sticky" inside a reserved area. This is useful when creatives vary in size (e.g., 320x50 up to 300x600) and you want a stable layout with improved viewability.
+
+**Key ideas**
+- The wrapper always reserves `maxHeight` in the layout, preventing layout jumps.
+- The ad sticks to the top of the viewport while the wrapper is visible.
+- When the wrapper scrolls off-screen, the ad naturally scrolls away.
+- If `scrollController` is not provided, the wrapper listens to scroll notifications.
+
+**Example**
+```dart
+final _scrollController = ScrollController();
+
+ListView(
+  controller: _scrollController,
+  children: [
+    AudienzzStickyAdWrapper(
+      scrollController: _scrollController,
+      stickyTopOffset: 0, // or MediaQuery.padding.top + kToolbarHeight
+      maxHeight: 450,
+      child: AdWidget(ad: bannerAd),
+    ),
+  ],
+)
+```
+
+| Property | Type | Description |
+|---|---|---|
+| `child` | `Widget` | Ad widget to display (e.g., `AdWidget`). |
+| `scrollController` | `ScrollController?` | Optional. If provided, drives sticky updates. |
+| `stickyTopOffset` | `double?` | Top offset for sticky position. Defaults to `MediaQuery.padding.top`. |
+| `maxHeight` | `double` | Reserved height for the wrapper. Default `600`. |
+| `enabled` | `bool` | Enable/disable sticky behavior. Default `true`. |
+| `debugLog` | `bool` | Logs internal calculations for debugging. Default `false`. |
+
 ## Data Classes & Enums
 
 ### AdFormat
