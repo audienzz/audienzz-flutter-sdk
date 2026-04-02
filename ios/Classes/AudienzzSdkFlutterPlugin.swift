@@ -113,6 +113,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             let customImpOrtbConfig = args["impOrtbConfig"] as? String
             let isLazyLoad = args["isLazyLoad"] as? Bool ?? true
             let smartRefresh = args["smartRefresh"] as? Bool ?? false
+            let prefetchMarginPoints = CGFloat((args["prefetchMargin"] as? Int) ?? 200)
 
             let bannerAd = FBannerAd(
                 adUnitId: adUnitId,
@@ -121,6 +122,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 isAdaptiveSize: isAdaptiveSize,
                 isLazyLoad: isLazyLoad,
                 smartRefresh: smartRefresh,
+                prefetchMarginPoints: prefetchMarginPoints,
                 refreshTimeInterval: refreshTimeInterval?.doubleValue,
                 adFormat: adFormat,
                 apiParameters: apiParameters,
