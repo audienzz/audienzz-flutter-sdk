@@ -39,6 +39,8 @@ class BannerAd extends AdWithView {
     this.onAdImpression,
     this.isAdaptiveSize = false,
     this.refreshTimeInterval,
+    this.isLazyLoad = true,
+    this.smartRefresh = false,
   });
 
   /// Specify width and height of the ad unit, will be used in a bid request
@@ -50,6 +52,14 @@ class BannerAd extends AdWithView {
 
   /// Specify refresh time in milliseconds for the ad
   final int? refreshTimeInterval;
+
+  /// Whether to defer the ad request until the view scrolls into the viewport.
+  /// Defaults to `true`.
+  final bool isLazyLoad;
+
+  /// Whether to pause auto-refresh while the ad is off-screen and resume when
+  /// it returns. Defaults to `false`.
+  final bool smartRefresh;
 
   /// Ad desired format, [AdFormat.banner], [AdFormat.video]
   /// or [AdFormat.bannerAndVideo] (used by multiformat banner ads)
@@ -131,6 +141,8 @@ class BannerAd extends AdWithView {
         onAdClicked,
         isAdaptiveSize,
         refreshTimeInterval,
+        isLazyLoad,
+        smartRefresh,
         adFormat,
         apiParameters,
         protocols,

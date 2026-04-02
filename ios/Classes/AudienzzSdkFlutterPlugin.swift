@@ -111,12 +111,16 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             let pbAdSlot = args["pbAdSlot"] as? String
             let gpId = args["gpId"] as? String
             let customImpOrtbConfig = args["impOrtbConfig"] as? String
+            let isLazyLoad = args["isLazyLoad"] as? Bool ?? true
+            let smartRefresh = args["smartRefresh"] as? Bool ?? false
 
             let bannerAd = FBannerAd(
                 adUnitId: adUnitId,
                 auConfigId: auConfigId,
                 sizes: adSizes,
                 isAdaptiveSize: isAdaptiveSize,
+                isLazyLoad: isLazyLoad,
+                smartRefresh: smartRefresh,
                 refreshTimeInterval: refreshTimeInterval?.doubleValue,
                 adFormat: adFormat,
                 apiParameters: apiParameters,

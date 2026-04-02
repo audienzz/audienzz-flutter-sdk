@@ -218,6 +218,8 @@ final class AdInstanceManager {
         'auConfigId': ad.auConfigId,
         'adSizes': ad.sizes.toList(),
         'isAdaptiveSize': ad.isAdaptiveSize,
+        'isLazyLoad': ad.isLazyLoad,
+        'smartRefresh': ad.smartRefresh,
         if (ad.refreshTimeInterval != null)
           'refreshTimeInterval': ad.refreshTimeInterval,
         'adFormat': ad.adFormat,
