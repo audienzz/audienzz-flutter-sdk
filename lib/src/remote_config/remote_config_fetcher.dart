@@ -39,7 +39,7 @@ class RemoteConfigFetcher {
     T Function(dynamic json) fromJson,
   ) async {
     try {
-      final response = await http.get(url);
+      final response = await http.get(url).timeout(const Duration(seconds: 10));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final json = jsonDecode(response.body);

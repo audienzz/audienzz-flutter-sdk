@@ -36,7 +36,12 @@ final class AudienzzSdkFlutter {
         remoteUrl: remoteUrl,
         publisherId: publisherId,
       );
-    await audienzzRemoteConfig.fetchPublisherConfig();
+    try {
+      await audienzzRemoteConfig.fetchPublisherConfig();
+    } catch (e) {
+      log('Audienzz SDK: Remote config unavailable, SDK not initialized: $e');
+      return InitializationStatus.fail;
+    }
 
     final config = audienzzRemoteConfig.publisherConfig;
     if (config != null) {
