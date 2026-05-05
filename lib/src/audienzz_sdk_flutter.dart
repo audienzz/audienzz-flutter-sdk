@@ -30,6 +30,7 @@ final class AudienzzSdkFlutter {
     required String publisherId,
     required String remoteUrl,
     bool isAutomaticPpidEnabled = false,
+    bool enablePolling = true,
   }) async {
     final audienzzRemoteConfig = AudienzzRemoteConfig.instance
       ..configureRemote(
@@ -37,10 +38,14 @@ final class AudienzzSdkFlutter {
         publisherId: publisherId,
       );
     try {
-      await audienzzRemoteConfig.fetchPublisherConfig();
+      await audienzzRemoteConfig.fetchPublisherConfig(
+        enablePolling: enablePolling,
+      );
     } catch (e) {
-      log('Audienzz SDK: Remote config unavailable, SDK not initialized: $e');
-      return InitializationStatus.fail;
+      log('Audienzz SDK: Remote config unavailable: $e');
+      return enablePolling
+          ? InitializationStatus.fallbackPolling
+          : InitializationStatus.fail;
     }
 
     final config = audienzzRemoteConfig.publisherConfig;
