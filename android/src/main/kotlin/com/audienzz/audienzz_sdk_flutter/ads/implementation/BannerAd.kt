@@ -25,6 +25,9 @@ class BannerAd(
     private val auConfigId: String,
     private val adSizes: List<AdSize>,
     private val isAdaptiveSize: Boolean,
+    private val isLazyLoad: Boolean,
+    private val smartRefresh: Boolean,
+    private val prefetchMarginDp: Int,
     private val refreshTimeInterval: Int?,
     private val adFormat: AdFormat,
     private val apiParameters: List<AudienzzSignals.Api>,
@@ -98,8 +101,15 @@ class BannerAd(
         }
 
         currentAdView?.let { adView ->
-            AudienzzAdViewHandler(adView, adUnit).load { request, _ ->
+            val handler = AudienzzAdViewHandler(adView, adUnit)
+            handler.load(
+                withLazyLoading = isLazyLoad,
+                prefetchMarginDp = prefetchMarginDp,
+            ) { request, _ ->
                 adView.loadAd(request)
+            }
+            if (smartRefresh) {
+                handler.enableSmartRefresh()
             }
         }
     }

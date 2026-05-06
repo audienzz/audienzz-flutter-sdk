@@ -99,6 +99,48 @@ Automatic PPID (Publisher Provided Identifier for Google Ad Manager) usage could
 
 The Audienzz SDK Flutter allows you to display three types Ads - `BannerAd`, `InterstitialAd` and `RewardedAd`.
 
+Lazy Loading
+-------
+Lazy loading defers the ad request until the `BannerAd` widget is actually visible on screen, saving resources for ads that may never be seen.
+
+Enable by setting `isLazyLoad: true` (the default):
+
+```dart
+final banner = BannerAd(
+  adUnitId: 'YOUR_AD_UNIT_ID',
+  auConfigId: 'YOUR_AU_CONFIG_ID',
+  sizes: {const AdSize(width: 320, height: 50)},
+  isLazyLoad: true,  // ad loads only when the widget scrolls into view
+  onAdLoaded: (_) {},
+  onAdFailedToLoad: (_, __) {},
+)..load();
+```
+
+Smart Refresh
+-------
+Smart Refresh makes banner auto-refresh viewport-aware: refresh is paused while the ad is off-screen, and resumes intelligently when it returns.
+
+When the ad scrolls back into view the SDK checks how long it was hidden:
+- **Stale** (hidden ≥ refresh interval) → a new ad is fetched immediately, then normal auto-refresh resumes.
+- **Not stale** (hidden < refresh interval) → the remaining time is waited before the next fetch, then normal auto-refresh resumes.
+
+Enable by setting `smartRefresh: true` alongside a `refreshTimeInterval`:
+
+```dart
+final banner = BannerAd(
+  adUnitId: 'YOUR_AD_UNIT_ID',
+  auConfigId: 'YOUR_AU_CONFIG_ID',
+  sizes: {const AdSize(width: 320, height: 50)},
+  refreshTimeInterval: 60000, // 60-second refresh cycle
+  isLazyLoad: true,
+  smartRefresh: true,
+  onAdLoaded: (_) {},
+  onAdFailedToLoad: (_, __) {},
+)..load();
+```
+
+> **Note:** `smartRefresh` has no effect without `refreshTimeInterval` set.
+
 Examples
 ========
 You can find examples of practical implementation here:
@@ -445,6 +487,8 @@ API Reference
 | `sizes`               | `Set<AdSize>`                                | Required. Ad sizes for the bid request. At least one required.          |
 | `isAdaptiveSize`      | `bool`                                       | If true, ad size is adaptive. Default: false.                           |
 | `refreshTimeInterval` | `int?`                                       | Refresh time in milliseconds. Optional.                                 |
+| `isLazyLoad`          | `bool`                                       | If true, defers ad loading until the view is visible. Default: `true`.  |
+| `smartRefresh`        | `bool`                                       | If true, pauses auto-refresh while off-screen and force-refreshes on return if the interval elapsed. Requires `refreshTimeInterval`. Default: `false`. |
 | `adFormat`            | `AdFormat`                                   | Desired ad format (banner, video, or both). Default: `AdFormat.banner`. |
 | `apiParameters`       | `Set<ApiParameter>`                          | API frameworks for bid response. Default: `{mraid3, omid1}`.            |
 | `protocols`           | `Set<Protocol>`                              | Supported video protocols. Optional.                                    |

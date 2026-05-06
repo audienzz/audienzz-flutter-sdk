@@ -7,6 +7,9 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
     private let auConfigId: String
     private let sizes: [FAdSize]
     private let isAdaptiveSize: Bool
+    private let isLazyLoad: Bool
+    private let smartRefresh: Bool
+    private let prefetchMarginPoints: CGFloat
     private let refreshTimeInterval: Double?
     private let adFormat: FAdFormat
     private let apiParameters: [AUApi]
@@ -30,6 +33,9 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         auConfigId: String,
         sizes: [FAdSize],
         isAdaptiveSize: Bool,
+        isLazyLoad: Bool,
+        smartRefresh: Bool,
+        prefetchMarginPoints: CGFloat,
         refreshTimeInterval: Double?,
         adFormat: FAdFormat,
         apiParameters: [AUApi],
@@ -49,6 +55,9 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         self.sizes = sizes
         self.auConfigId = auConfigId
         self.isAdaptiveSize = isAdaptiveSize
+        self.isLazyLoad = isLazyLoad
+        self.smartRefresh = smartRefresh
+        self.prefetchMarginPoints = prefetchMarginPoints
         self.refreshTimeInterval = refreshTimeInterval
         self.adFormat = adFormat
         self.apiParameters = apiParameters
@@ -93,9 +102,11 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         case FAdFormat.bannerAndVideo: bannerAdFormat = [AUAdFormat.banner, AUAdFormat.video]
         }
         
-        auBannerView = AUBannerView(configId: auConfigId, adSize: CGSize(width: mainSize.width, height: mainSize.height), adFormats: bannerAdFormat, isLazyLoad: false)
+        auBannerView = AUBannerView(configId: auConfigId, adSize: CGSize(width: mainSize.width, height: mainSize.height), adFormats: bannerAdFormat, isLazyLoad: isLazyLoad)
         auBannerView?.frame = CGRect(origin: CGPoint(x: 0, y: 0), size: CGSize(width:mainSize.width, height: mainSize.height))
         auBannerView?.backgroundColor = .clear
+        auBannerView?.smartRefresh = smartRefresh
+        auBannerView?.prefetchMarginPoints = prefetchMarginPoints
         
         if let customImpOrtbConfig = customImpOrtbConfig {
             auBannerView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
