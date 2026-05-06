@@ -32,6 +32,7 @@ final class RemoteBannerAd extends BannerAd {
           auConfigId: _getAuConfigId(configId),
           refreshTimeInterval: _getRefreshTime(configId),
           isAdaptiveSize: _getIsAdaptive(configId),
+          prefetchMargin: _getPrefetchMargin(configId),
           // Always enable smart refresh for remote-config banners: pause auto-refresh
           // when the ad scrolls off-screen, resume (or force-refresh if stale) on return.
           smartRefresh: true,
@@ -56,12 +57,19 @@ final class RemoteBannerAd extends BannerAd {
   }
 
   static const _defaultRefreshSeconds = 30;
+  static const _defaultPrefetchMargin = 200;
 
   static int _getRefreshTime(String configId) {
     // Fall back to 30 s when refreshTimeSeconds is absent or null in the remote payload.
     final seconds =
         _getConfig(configId)?.config.refreshTimeSeconds ?? _defaultRefreshSeconds;
     return seconds * 1000;
+  }
+
+  static int _getPrefetchMargin(String configId) {
+    // Fall back to 200 logical pixels when prefetchDistanceDp is absent or null.
+    // Maps to prefetchMarginDp on Android and prefetchMarginPoints on iOS.
+    return _getConfig(configId)?.config.prefetchDistanceDp ?? _defaultPrefetchMargin;
   }
 
   static bool _getIsAdaptive(String configId) {

@@ -79,6 +79,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<Boolean>("isAdaptiveSize")!!,
                     call.argument<Boolean>("isLazyLoad") ?: true,
                     call.argument<Boolean>("smartRefresh") ?: false,
+                    call.argument<Int>("prefetchMargin") ?: 200,
                     call.argument<Int?>("refreshTimeInterval"),
                     call.argument<AdFormat>("adFormat")!!,
                     call.argument<List<AudienzzSignals.Api>>("apiParameters")!!,
