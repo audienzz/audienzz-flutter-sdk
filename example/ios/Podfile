@@ -26,6 +26,12 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+# Fix Issue (b) — static/dynamic hybrid linking setup
+#
+# Google-Mobile-Ads-SDK ships as a static XCFramework, so the whole target must
+# link statically.  However BridSDK (vendored inside AudienzziOSSDK) is a dynamic
+# XCFramework that expects PrebidMobile and Protobuf as dynamic frameworks at
+# runtime, so we override those two pods back to dynamic in pre_install.
 pre_install do |installer|
   dynamic_pods = %w[PrebidMobile Protobuf]
   installer.pod_targets.each do |pod|
@@ -37,6 +43,8 @@ pre_install do |installer|
 end
 
 target 'Runner' do
+  # Required because Google-Mobile-Ads-SDK is a static XCFramework.
+  # PrebidMobile and Protobuf are forced back to dynamic in pre_install above.
   use_frameworks! :linkage => :static
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))

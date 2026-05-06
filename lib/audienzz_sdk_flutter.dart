@@ -35,3 +35,4 @@ export 'src/entities/video_parameters/video_duration.dart';
 export 'src/ppid_manager.dart';
 export 'src/remote_config/audienzz_remote_config.dart';
 export 'src/widgets/ad_widget.dart';
+export 'src/widgets/sticky_ad_wrapper.dart';

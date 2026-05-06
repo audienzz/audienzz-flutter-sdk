@@ -27,7 +27,7 @@ class BannerAd extends AdWithView {
     },
     this.protocols = const {},
     this.placement = Placement.inBanner,
-    this.playbackMethods = const {PlaybackMethod.autoPlaySoundOn},
+    this.playbackMethods = const {PlaybackMethod.autoPlaySoundOff},
     this.videoBitrate = const VideoBitrate(min: 300, max: 1500),
     this.videoDuration = const VideoDuration(min: 1, max: 30),
     this.pbAdSlot,
@@ -39,6 +39,9 @@ class BannerAd extends AdWithView {
     this.onAdImpression,
     this.isAdaptiveSize = false,
     this.refreshTimeInterval,
+    this.isLazyLoad = true,
+    this.smartRefresh = false,
+    this.prefetchMargin = 200,
   });
 
   /// Specify width and height of the ad unit, will be used in a bid request
@@ -50,6 +53,23 @@ class BannerAd extends AdWithView {
 
   /// Specify refresh time in milliseconds for the ad
   final int? refreshTimeInterval;
+
+  /// Whether to defer the ad request until the view scrolls into the viewport.
+  /// Defaults to `true`.
+  final bool isLazyLoad;
+
+  /// Whether to pause auto-refresh while the ad is off-screen and resume when
+  /// it returns. Defaults to `false`.
+  final bool smartRefresh;
+
+  /// Distance in logical pixels before the view enters the viewport that
+  /// starts the Prebid demand fetch. Maps to `prefetchMarginPoints` on iOS
+  /// and `prefetchMarginDp` on Android. Defaults to `200`.
+  ///
+  /// Has no practical effect inside a `ListView` / `GridView` — those widgets
+  /// create items just before they appear on screen. Use `isLazyLoad = false`
+  /// there instead.
+  final int prefetchMargin;
 
   /// Ad desired format, [AdFormat.banner], [AdFormat.video]
   /// or [AdFormat.bannerAndVideo] (used by multiformat banner ads)
@@ -66,8 +86,8 @@ class BannerAd extends AdWithView {
   final Placement placement;
 
   ///Array of OpenRTB 2.5 playback methods. Only one method is typically used
-  ///in practice. It is strongly advised to use only the
-  ///[PlaybackMethod.autoPlaySoundOn]`
+  ///in practice. Defaults to [PlaybackMethod.autoPlaySoundOff] to ensure
+  ///video ads play muted.
   final Set<PlaybackMethod> playbackMethods;
 
   /// The property representing the OpenRTB 2.5 bit rate in Kbps.
@@ -131,6 +151,9 @@ class BannerAd extends AdWithView {
         onAdClicked,
         isAdaptiveSize,
         refreshTimeInterval,
+        isLazyLoad,
+        smartRefresh,
+        prefetchMargin,
         adFormat,
         apiParameters,
         protocols,

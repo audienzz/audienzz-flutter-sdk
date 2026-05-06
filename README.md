@@ -99,6 +99,48 @@ Automatic PPID (Publisher Provided Identifier for Google Ad Manager) usage could
 
 The Audienzz SDK Flutter allows you to display three types Ads - `BannerAd`, `InterstitialAd` and `RewardedAd`.
 
+Lazy Loading
+-------
+Lazy loading defers the ad request until the `BannerAd` widget is actually visible on screen, saving resources for ads that may never be seen.
+
+Enable by setting `isLazyLoad: true` (the default):
+
+```dart
+final banner = BannerAd(
+  adUnitId: 'YOUR_AD_UNIT_ID',
+  auConfigId: 'YOUR_AU_CONFIG_ID',
+  sizes: {const AdSize(width: 320, height: 50)},
+  isLazyLoad: true,  // ad loads only when the widget scrolls into view
+  onAdLoaded: (_) {},
+  onAdFailedToLoad: (_, __) {},
+)..load();
+```
+
+Smart Refresh
+-------
+Smart Refresh makes banner auto-refresh viewport-aware: refresh is paused while the ad is off-screen, and resumes intelligently when it returns.
+
+When the ad scrolls back into view the SDK checks how long it was hidden:
+- **Stale** (hidden ≥ refresh interval) → a new ad is fetched immediately, then normal auto-refresh resumes.
+- **Not stale** (hidden < refresh interval) → the remaining time is waited before the next fetch, then normal auto-refresh resumes.
+
+Enable by setting `smartRefresh: true` alongside a `refreshTimeInterval`:
+
+```dart
+final banner = BannerAd(
+  adUnitId: 'YOUR_AD_UNIT_ID',
+  auConfigId: 'YOUR_AU_CONFIG_ID',
+  sizes: {const AdSize(width: 320, height: 50)},
+  refreshTimeInterval: 60000, // 60-second refresh cycle
+  isLazyLoad: true,
+  smartRefresh: true,
+  onAdLoaded: (_) {},
+  onAdFailedToLoad: (_, __) {},
+)..load();
+```
+
+> **Note:** `smartRefresh` has no effect without `refreshTimeInterval` set.
+
 Examples
 ========
 You can find examples of practical implementation here:
@@ -445,6 +487,8 @@ API Reference
 | `sizes`               | `Set<AdSize>`                                | Required. Ad sizes for the bid request. At least one required.          |
 | `isAdaptiveSize`      | `bool`                                       | If true, ad size is adaptive. Default: false.                           |
 | `refreshTimeInterval` | `int?`                                       | Refresh time in milliseconds. Optional.                                 |
+| `isLazyLoad`          | `bool`                                       | If true, defers ad loading until the view is visible. Default: `true`.  |
+| `smartRefresh`        | `bool`                                       | If true, pauses auto-refresh while off-screen and force-refreshes on return if the interval elapsed. Requires `refreshTimeInterval`. Default: `false`. |
 | `adFormat`            | `AdFormat`                                   | Desired ad format (banner, video, or both). Default: `AdFormat.banner`. |
 | `apiParameters`       | `Set<ApiParameter>`                          | API frameworks for bid response. Default: `{mraid3, omid1}`.            |
 | `protocols`           | `Set<Protocol>`                              | Supported video protocols. Optional.                                    |
@@ -514,6 +558,41 @@ API Reference
 | Property/Method | Type         | Description                                            |
 |-----------------|--------------|--------------------------------------------------------|
 | `ad`            | `AdWithView` | The ad instance to display. Must be loaded before use. |
+
+## AudienzzStickyAdWrapper
+Wraps any `AdWidget` and keeps the ad "sticky" inside a reserved area. This is useful when creatives vary in size (e.g., 320x50 up to 300x600) and you want a stable layout with improved viewability.
+
+**Key ideas**
+- The wrapper always reserves `maxHeight` in the layout, preventing layout jumps.
+- The ad sticks to the top of the viewport while the wrapper is visible.
+- When the wrapper scrolls off-screen, the ad naturally scrolls away.
+- If `scrollController` is not provided, the wrapper listens to scroll notifications.
+
+**Example**
+```dart
+final _scrollController = ScrollController();
+
+ListView(
+  controller: _scrollController,
+  children: [
+    AudienzzStickyAdWrapper(
+      scrollController: _scrollController,
+      stickyTopOffset: 0, // or MediaQuery.padding.top + kToolbarHeight
+      maxHeight: 450,
+      child: AdWidget(ad: bannerAd),
+    ),
+  ],
+)
+```
+
+| Property | Type | Description |
+|---|---|---|
+| `child` | `Widget` | Ad widget to display (e.g., `AdWidget`). |
+| `scrollController` | `ScrollController?` | Optional. If provided, drives sticky updates. |
+| `stickyTopOffset` | `double?` | Top offset for sticky position. Defaults to `MediaQuery.padding.top`. |
+| `maxHeight` | `double` | Reserved height for the wrapper. Default `600`. |
+| `enabled` | `bool` | Enable/disable sticky behavior. Default `true`. |
+| `debugLog` | `bool` | Logs internal calculations for debugging. Default `false`. |
 
 ## Data Classes & Enums
 

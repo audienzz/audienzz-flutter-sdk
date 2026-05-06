@@ -77,6 +77,9 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<String>("auConfigId")!!,
                     call.argument<List<AdSize>>("adSizes")!!,
                     call.argument<Boolean>("isAdaptiveSize")!!,
+                    call.argument<Boolean>("isLazyLoad") ?: true,
+                    call.argument<Boolean>("smartRefresh") ?: false,
+                    call.argument<Int>("prefetchMargin") ?: 200,
                     call.argument<Int?>("refreshTimeInterval"),
                     call.argument<AdFormat>("adFormat")!!,
                     call.argument<List<AudienzzSignals.Api>>("apiParameters")!!,
@@ -415,6 +418,12 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
             "getPpid" -> {
                 result.success(AudienzzPrebidMobile.ppidManager?.getPpid())
+            }
+
+            "setAppVolume" -> {
+                val volume = call.argument<Double>("volume")?.toFloat() ?: 0f
+                AudienzzPrebidMobile.setAppVolume(volume)
+                result.success(null)
             }
 
             else -> result.notImplemented()

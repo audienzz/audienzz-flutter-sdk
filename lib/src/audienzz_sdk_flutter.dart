@@ -30,13 +30,23 @@ final class AudienzzSdkFlutter {
     required String publisherId,
     required String remoteUrl,
     bool isAutomaticPpidEnabled = false,
+    bool enablePolling = true,
   }) async {
     final audienzzRemoteConfig = AudienzzRemoteConfig.instance
       ..configureRemote(
         remoteUrl: remoteUrl,
         publisherId: publisherId,
       );
-    await audienzzRemoteConfig.fetchPublisherConfig();
+    try {
+      await audienzzRemoteConfig.fetchPublisherConfig(
+        enablePolling: enablePolling,
+      );
+    } catch (e) {
+      log('Audienzz SDK: Remote config unavailable: $e');
+      return enablePolling
+          ? InitializationStatus.fallbackPolling
+          : InitializationStatus.fail;
+    }
 
     final config = audienzzRemoteConfig.publisherConfig;
     if (config != null) {
@@ -105,6 +115,24 @@ final class AudienzzSdkFlutter {
     return adInstanceManager.methodChannel.invokeMethod(
       'setSchainObject',
       {'schain': schain},
+    );
+  }
+
+  /// Sets the global GMA ad audio volume for all ad types (banner, interstitial, rewarded).
+  ///
+  /// [volume] must be in range [0.0, 1.0]:
+  /// - 0.0 = fully muted
+  /// - 1.0 = full device volume
+  ///
+  /// Values outside [0.0, 1.0] are clamped automatically.
+  ///
+  /// The SDK already defaults to 0.0 (muted) on initialization. Call this method
+  /// explicitly if you need to override the volume mid-session or after any other
+  /// SDK has modified the GMA audio state.
+  Future<void> setAppVolume(double volume) {
+    return adInstanceManager.methodChannel.invokeMethod<void>(
+      'setAppVolume',
+      {'volume': volume.clamp(0.0, 1.0)},
     );
   }
 }

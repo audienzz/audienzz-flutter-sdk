@@ -65,6 +65,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             {
                 Audienzz.shared.configureSDK(companyId: companyId, enablePPID: isAutomaticPpidEnabled)
                 AudienzzGAMUtils.shared.initializeGAM()
+                Audienzz.shared.setAppVolume(0.0)
 
                 if let prebidServerUrl = args["prebidServerUrl"] as? String {
                      try? Prebid.initializeSDK(serverURL: prebidServerUrl)
@@ -111,12 +112,18 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             let pbAdSlot = args["pbAdSlot"] as? String
             let gpId = args["gpId"] as? String
             let customImpOrtbConfig = args["impOrtbConfig"] as? String
+            let isLazyLoad = args["isLazyLoad"] as? Bool ?? true
+            let smartRefresh = args["smartRefresh"] as? Bool ?? false
+            let prefetchMarginPoints = CGFloat((args["prefetchMargin"] as? Int) ?? 200)
 
             let bannerAd = FBannerAd(
                 adUnitId: adUnitId,
                 auConfigId: auConfigId,
                 sizes: adSizes,
                 isAdaptiveSize: isAdaptiveSize,
+                isLazyLoad: isLazyLoad,
+                smartRefresh: smartRefresh,
+                prefetchMarginPoints: prefetchMarginPoints,
                 refreshTimeInterval: refreshTimeInterval?.doubleValue,
                 adFormat: adFormat,
                 apiParameters: apiParameters,
@@ -757,6 +764,17 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             
         case "getPpid":
             result(PPIDManager.shared.getPPID())
+
+        case "setAppVolume":
+            if let args = call.arguments as? [String: Any],
+               let volume = args["volume"] as? Double {
+                Audienzz.shared.setAppVolume(Float(volume))
+                result(nil)
+            } else {
+                result(FlutterError(code: "INVALID_ARGUMENT",
+                                    message: "Missing or invalid volume argument",
+                                    details: nil))
+            }
 
         default:
             result(FlutterMethodNotImplemented)
