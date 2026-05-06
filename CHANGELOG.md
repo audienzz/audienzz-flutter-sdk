@@ -1,3 +1,15 @@
+## 0.0.10
+
+* Fix crash on network error during initialization
+* Implement fallback polling for initialization
+
+## 0.0.9
+
+* Implement sticky ads header
+* Bump native dependencies: iOS SDK 0.1.7, Android SDK 0.0.13
+* Fix static/dynamic hybrid linking issue
+* Update README with sticky ads documentation
+
 ## 0.0.8
 
 * Added remote configuration feature
