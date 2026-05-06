@@ -43,6 +43,11 @@ class BannerAd(
     private val context: Context,
 ) : Ad() {
     private var adView: AdManagerAdView? = null
+    private var adViewHandler: AudienzzAdViewHandler? = null
+    // Kept as a field so pauseAutoRefresh() / resumeAutoRefresh() can reach it
+    // after load() returns. Dart-side visibility detection (RenderBox.localToGlobal)
+    // drives these calls via method channel.
+    private var bannerAdUnit: AudienzzBannerAdUnit? = null
 
     fun getPlatformAdSize(): AdSize? {
         return adView?.adSize
@@ -87,6 +92,7 @@ class BannerAd(
             AdFormat.VIDEO ->  AudienzzBannerAdUnit(auConfigId, adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.VIDEO))
             AdFormat.BANNER_AND_VIDEO ->  AudienzzBannerAdUnit(auConfigId,adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO))
         }
+        bannerAdUnit = adUnit
 
         adUnit.apply {
             bannerParameters = customBannerParameters
@@ -96,25 +102,44 @@ class BannerAd(
             adSizes.forEach { size ->
                 addAdditionalSize(size.width, size.height)
             }
-            refreshTimeInterval?.let(::setAutoRefreshInterval)
+            // refreshTimeInterval arrives in milliseconds from Dart (seconds * 1000).
+            // setAutoRefreshInterval expects seconds — divide by 1000.
+            refreshTimeInterval?.let { setAutoRefreshInterval(it / 1000) }
             customImpOrtbConfig?.let { impOrtbConfig = it }
         }
 
         currentAdView?.let { adView ->
             val handler = AudienzzAdViewHandler(adView, adUnit)
+            adViewHandler = handler
             handler.load(
                 withLazyLoading = isLazyLoad,
                 prefetchMarginDp = prefetchMarginDp,
             ) { request, _ ->
                 adView.loadAd(request)
             }
-            if (smartRefresh) {
-                handler.enableSmartRefresh()
-            }
+            // Smart refresh is driven from the Dart layer: RemoteBannerAdExample uses
+            // RenderBox.localToGlobal() (Flutter coordinates) to detect ≥20% visibility
+            // and calls pauseAutoRefresh() / resumeAutoRefresh() via method channel.
         }
     }
 
+    fun pauseAutoRefresh() {
+        // Delegate to the handler so it can also cancel any pending scheduled
+        // refresh runnable (the plain stopAutoRefresh() on bannerAdUnit would
+        // leave a postDelayed Runnable alive and it would fire despite the pause).
+        adViewHandler?.pauseSmartRefresh()
+    }
+
+    fun resumeAutoRefresh() {
+        // Stale-aware resume: if elapsed time since last fetch >= refresh interval
+        // the handler force-fetches demand immediately instead of restarting the
+        // 30 s timer from zero (which is what bannerAdUnit.resumeAutoRefresh() does).
+        adViewHandler?.resumeSmartRefresh()
+    }
+
     override fun dispose() {
+        adViewHandler = null
+        bannerAdUnit = null
         adView?.destroy()
         adView = null
     }

@@ -47,6 +47,14 @@ target 'Runner' do
   # PrebidMobile and Protobuf are forced back to dynamic in pre_install above.
   use_frameworks! :linkage => :static
 
+  # Pin PrebidMobile to 3.0.x — 3.1+ generates duplicate class/enum definitions
+  # in PrebidMobile-Swift.h (public + @_spi sections) that Clang 16 / Xcode 16
+  # rejects as redefinitions.  3.0.x predates those @_spi annotations and builds
+  # cleanly.  Remove this override once PrebidMobile ships a 3.x that is
+  # Xcode 16-compatible AND PrebidMobileGAMEventHandlers still targets GMAS 12.x.
+  pod 'PrebidMobile',                 '~> 3.0.0'
+  pod 'PrebidMobileGAMEventHandlers', '~> 3.0.0'
+
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths

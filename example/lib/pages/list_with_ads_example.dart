@@ -1,5 +1,5 @@
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
-import 'package:audienzz_sdk_flutter_example/ad/example_banner_ad.dart';
+import 'package:audienzz_sdk_flutter_example/pages/remote_banner_ad_example.dart';
 import 'package:flutter/material.dart';
 
 final class ListWithAdsExample extends StatefulWidget {
@@ -12,6 +12,7 @@ final class ListWithAdsExample extends StatefulWidget {
 final class _ListWithAdsExampleState extends State<ListWithAdsExample> {
   final ScrollController _scrollController = ScrollController();
   static const _adSlots = <int>{5, 10, 15, 20, 25};
+  static const _configIds = ['118', '192'];
 
   @override
   void dispose() {
@@ -34,21 +35,19 @@ final class _ListWithAdsExampleState extends State<ListWithAdsExample> {
       const SizedBox(height: 16),
     ];
 
+    var adIndex = 0;
     for (var i = 1; i <= 30; i++) {
       rows.add(_ArticleParagraph(index: i));
 
       if (_adSlots.contains(i)) {
+        final configId = _configIds[adIndex % _configIds.length];
+        adIndex++;
         rows.add(
           AudienzzStickyAdWrapper(
             scrollController: _scrollController,
             stickyTopOffset: 0,
             maxHeight: 450,
-            child: ExampleBannerAd(
-              id: i,
-              adUnitId: '/96628199/testapp_publisher/banner_test_ad_unit',
-              adConfigId: '15624474',
-              adSize: const AdSize(height: 50, width: 320),
-            ),
+            child: RemoteBannerAdExample(configId: configId),
           ),
         );
         rows.add(const SizedBox(height: 16));

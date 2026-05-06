@@ -23,11 +23,65 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
     private let customImpOrtbConfig: String?
     private let rootViewController: UIViewController
     var auBannerView: AUBannerView?
-    
+
     weak var manager: AdInstanceManager?
-    
+
     private var bannerViewInstance: AdManagerBannerView?
-    
+
+    // MARK: - Flutter smart-refresh visibility polling
+    //
+    // AUBannerView (VisibleView) detects scroll events via KVO on UIScrollView ancestor
+    // contentOffset. Flutter platform views have no UIScrollView in their ancestor chain,
+    // so that mechanism never fires. Instead we poll every 0.5 s and pause/resume
+    // Prebid auto-refresh ourselves using the public adUnitConfiguration API.
+
+    private var smartRefreshTimer: Timer?
+    private var smartRefreshWasVisible = false
+
+    private func startSmartRefreshPolling() {
+        smartRefreshTimer?.invalidate()
+        smartRefreshTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.checkSmartRefreshVisibility()
+        }
+    }
+
+    private func stopSmartRefreshPolling() {
+        smartRefreshTimer?.invalidate()
+        smartRefreshTimer = nil
+    }
+
+    private func checkSmartRefreshVisibility() {
+        guard let view = auBannerView, let window = view.window else {
+            // View left the window — treat as hidden.
+            if smartRefreshWasVisible {
+                smartRefreshWasVisible = false
+                auBannerView?.adUnitConfiguration?.stopAutoRefresh()
+            }
+            return
+        }
+
+        let frameInWindow = window.convert(view.frame, from: view.superview)
+        guard frameInWindow.height > 0 else { return }
+
+        let intersection = frameInWindow.intersection(window.bounds)
+        let visibleFraction = intersection.height / frameInWindow.height
+        let isVisible = visibleFraction >= 0.2
+
+        if isVisible && !smartRefreshWasVisible {
+            smartRefreshWasVisible = true
+            auBannerView?.adUnitConfiguration?.resumeAutoRefresh()
+        } else if !isVisible && smartRefreshWasVisible {
+            smartRefreshWasVisible = false
+            auBannerView?.adUnitConfiguration?.stopAutoRefresh()
+        }
+    }
+
+    deinit {
+        stopSmartRefreshPolling()
+    }
+
+    // MARK: - Init
+
     init(
         adUnitId: String,
         auConfigId: String,
@@ -73,41 +127,57 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         self.manager = manager
         super.init(adId: adId)
     }
-    
+
+    // MARK: - Load
+
     func load() {
         let mainSize = sizes.first ?? FAdSize(width: 1, height: 1)
         let cgSizes: [CGSize] = sizes.dropFirst().map {
             CGSize(width: $0.width, height: $0.height)
         }
-        
+
         bannerViewInstance = AdManagerBannerView(adSize: adSizeFor(cgSize: CGSize(width: mainSize.width, height: mainSize.height)))
         bannerViewInstance!.adUnitID = adUnitId
         bannerViewInstance!.delegate = self
 
         var validAdSizes: [NSValue] = [nsValue(for: adSizeFor(cgSize: CGSize(width: mainSize.width, height: mainSize.height)))]
-        
+
         for cgSize in cgSizes {
             validAdSizes.append(nsValue(for: adSizeFor(cgSize: cgSize)))
         }
-        
+
         bannerViewInstance!.validAdSizes = validAdSizes
-    
+
         let request = AdManagerRequest()
-        
-        let bannerAdFormat:  [AUAdFormat]
-        
-        switch(adFormat){
+
+        let bannerAdFormat: [AUAdFormat]
+
+        switch adFormat {
         case FAdFormat.banner: bannerAdFormat = [AUAdFormat.banner]
         case FAdFormat.video: bannerAdFormat = [AUAdFormat.video]
         case FAdFormat.bannerAndVideo: bannerAdFormat = [AUAdFormat.banner, AUAdFormat.video]
         }
-        
-        auBannerView = AUBannerView(configId: auConfigId, adSize: CGSize(width: mainSize.width, height: mainSize.height), adFormats: bannerAdFormat, isLazyLoad: isLazyLoad)
-        auBannerView?.frame = CGRect(origin: CGPoint(x: 0, y: 0), size: CGSize(width:mainSize.width, height: mainSize.height))
+
+        auBannerView = AUBannerView(
+            configId: auConfigId,
+            adSize: CGSize(width: mainSize.width, height: mainSize.height),
+            adFormats: bannerAdFormat,
+            isLazyLoad: isLazyLoad
+        )
+        auBannerView?.frame = CGRect(origin: .zero, size: CGSize(width: mainSize.width, height: mainSize.height))
         auBannerView?.backgroundColor = .clear
-        auBannerView?.smartRefresh = smartRefresh
+        // Always set smartRefresh = false on AUBannerView in Flutter.
+        // When smartRefresh = true, AUBannerView_Private.onBecameVisible() schedules a
+        // DispatchWorkItem that calls fetchRequest() directly after the remaining interval.
+        // Because Flutter has no UIScrollView ancestors, onBecameHidden() never fires to
+        // cancel that work item — so fetchRequest() fires even when the ad is off-screen,
+        // bypassing our external stopAutoRefresh() call.
+        // With smartRefresh = false the guard in onBecameVisible() exits after
+        // super.onBecameVisible() (which handles lazy load via detectVisible()), so no
+        // work item is ever scheduled. Our 0.5s polling timer owns stop/resume entirely.
+        auBannerView?.smartRefresh = false
         auBannerView?.prefetchMarginPoints = prefetchMarginPoints
-        
+
         if let customImpOrtbConfig = customImpOrtbConfig {
             auBannerView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
         }
@@ -123,64 +193,69 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         auBannerView?.videoParameters?.maxDuration = videoDuration.max.intValue
         auBannerView?.adUnitConfiguration.adSlot = pbAdSlot
         auBannerView?.adUnitConfiguration?.setGPID(gpId)
-        
+
         if let refreshTimeInterval = refreshTimeInterval {
-            auBannerView?.adUnitConfiguration.setAutoRefreshMillis(time: refreshTimeInterval * 1000)
+            // refreshTimeInterval is already in milliseconds (sent from Dart as seconds * 1000).
+            // setAutoRefreshMillis expects milliseconds — no conversion needed.
+            auBannerView?.adUnitConfiguration.setAutoRefreshMillis(time: refreshTimeInterval)
         }
-        
-        auBannerView?.createAd(with: request, gamBanner: bannerViewInstance!,
-                               eventHandler: AUBannerEventHandler(adUnitId: adUnitId, gamView: bannerViewInstance!))
-        
-        auBannerView?.onLoadRequest = { gamRequest in
+
+        auBannerView?.createAd(
+            with: request,
+            gamBanner: bannerViewInstance!,
+            eventHandler: AUBannerEventHandler(adUnitId: adUnitId, gamView: bannerViewInstance!)
+        )
+
+        auBannerView?.onLoadRequest = { [weak self] gamRequest in
             guard let request = gamRequest as? Request,
-                  let bannerViewInstance = self.bannerViewInstance else {
-                return
-            }
-            
+                  let bannerViewInstance = self?.bannerViewInstance else { return }
             bannerViewInstance.load(request)
         }
-        
+
+        if smartRefresh {
+            startSmartRefreshPolling()
+        }
     }
-    
+
+    // MARK: - FlutterPlatformView
+
     func view() -> UIView {
         auBannerView!
     }
-    
+
+    // MARK: - Size
+
     func getPlatformAdSize() -> FAdSize? {
-        let assignedSize = bannerViewInstance?.adSize
-        guard let assignedSize = assignedSize else {
-            return nil
-        }
-        
-        return FAdSize(width: Int(assignedSize.size.width), height: Int(assignedSize.size.height))
+        guard let size = bannerViewInstance?.adSize else { return nil }
+        return FAdSize(width: Int(size.size.width), height: Int(size.size.height))
     }
-    
-    
+
+    // MARK: - BannerViewDelegate
+
     func bannerViewDidReceiveAd(_ bannerView: BannerView) {
         manager?.onAdLoaded(ad: self)
     }
-    
+
     func bannerView(_ bannerView: BannerView, didFailToReceiveAdWithError error: any Error) {
         manager?.onAdFailedToLoad(ad: self, error: FAdError(code: 1, message: error.localizedDescription))
     }
-    
+
     func bannerViewDidRecordClick(_ bannerView: BannerView) {
         manager?.onAdClicked(ad: self)
     }
-    
+
     func bannerViewDidRecordImpression(_ bannerView: BannerView) {
         manager?.onAdImpression(ad: self)
     }
-    
+
     func bannerViewWillPresentScreen(_ bannerView: BannerView) {
         manager?.onAdOpened(ad: self)
     }
-    
-    
+
     func bannerViewWillDismissScreen(_ bannerView: BannerView) {
         manager?.onAdClosed(ad: self)
     }
-    
+
     func bannerViewDidDismissScreen(_ bannerView: BannerView) {
         manager?.onAdClosed(ad: self)
     }

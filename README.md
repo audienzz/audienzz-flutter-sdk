@@ -110,19 +110,38 @@ final banner = BannerAd(
   adUnitId: 'YOUR_AD_UNIT_ID',
   auConfigId: 'YOUR_AU_CONFIG_ID',
   sizes: {const AdSize(width: 320, height: 50)},
-  isLazyLoad: true,  // ad loads only when the widget scrolls into view
+  isLazyLoad: true,       // ad loads only when the widget scrolls into view
+  prefetchMargin: 200,    // start fetching 200 logical pixels before the view appears (default)
   onAdLoaded: (_) {},
   onAdFailedToLoad: (_, __) {},
 )..load();
 ```
 
+> **Note:** `prefetchMargin` has no practical effect inside `ListView` / `GridView` because those widgets create items just before they appear on screen. Use `isLazyLoad: false` there instead and let the list handle its own item prefetch.
+
 Smart Refresh
 -------
-Smart Refresh makes banner auto-refresh viewport-aware: refresh is paused while the ad is off-screen, and resumes intelligently when it returns.
+Smart Refresh makes banner auto-refresh viewport-aware: auto-refresh is **paused** while less than 20 % of the ad height is visible on screen, and **resumes** intelligently when the ad scrolls back into view.
 
-When the ad scrolls back into view the SDK checks how long it was hidden:
-- **Stale** (hidden ≥ refresh interval) → a new ad is fetched immediately, then normal auto-refresh resumes.
-- **Not stale** (hidden < refresh interval) → the remaining time is waited before the next fetch, then normal auto-refresh resumes.
+#### Visibility detection
+
+The SDK polls the ad's position every 500 ms using Flutter's `RenderBox.localToGlobal()` — Flutter's own layout coordinate system, not the native platform's. This means the 20 % rule is enforced correctly on both platforms regardless of how the ad is embedded:
+
+- **iOS** — UIKit already moves its views during scroll, but the polling approach keeps parity with the Android implementation and avoids UIScrollView ancestor look-ups.
+- **Android** — Flutter does not physically move the embedded `AdManagerAdView` when a `ListView` or `SingleChildScrollView` scrolls (it applies compositor-level clipping instead). Native visibility APIs (`getGlobalVisibleRect`, `getLocationOnScreen`) therefore always report the view's original position. The Flutter coordinate-space polling works around this limitation entirely. No `ScrollController` needs to be wired up by the caller.
+
+#### Stale-aware resume
+
+When the ad scrolls back into view the SDK checks how long it was off-screen:
+
+| State | Action |
+|---|---|
+| **Stale** — hidden ≥ refresh interval | Fetches new demand immediately, then resumes normal auto-refresh. |
+| **Fresh** — hidden < refresh interval | Waits the remaining interval, then fetches and resumes auto-refresh. |
+
+This means the refresh cycle is never reset to zero when the ad returns — it continues from where it left off.
+
+#### Usage
 
 Enable by setting `smartRefresh: true` alongside a `refreshTimeInterval`:
 
@@ -131,7 +150,7 @@ final banner = BannerAd(
   adUnitId: 'YOUR_AD_UNIT_ID',
   auConfigId: 'YOUR_AU_CONFIG_ID',
   sizes: {const AdSize(width: 320, height: 50)},
-  refreshTimeInterval: 60000, // 60-second refresh cycle
+  refreshTimeInterval: 30000, // 30-second refresh cycle
   isLazyLoad: true,
   smartRefresh: true,
   onAdLoaded: (_) {},
@@ -140,6 +159,8 @@ final banner = BannerAd(
 ```
 
 > **Note:** `smartRefresh` has no effect without `refreshTimeInterval` set.
+>
+> **`RemoteBannerAd`** always has `smartRefresh` enabled — it is unconditionally set to `true` from remote configuration and cannot be disabled per-instance.
 
 Examples
 ========
@@ -488,7 +509,8 @@ API Reference
 | `isAdaptiveSize`      | `bool`                                       | If true, ad size is adaptive. Default: false.                           |
 | `refreshTimeInterval` | `int?`                                       | Refresh time in milliseconds. Optional.                                 |
 | `isLazyLoad`          | `bool`                                       | If true, defers ad loading until the view is visible. Default: `true`.  |
-| `smartRefresh`        | `bool`                                       | If true, pauses auto-refresh while off-screen and force-refreshes on return if the interval elapsed. Requires `refreshTimeInterval`. Default: `false`. |
+| `prefetchMargin`      | `int`                                        | Logical pixels before the view enters the viewport at which the demand fetch begins. Maps to `prefetchMarginPoints` on iOS and `prefetchMarginDp` on Android. Has no practical effect inside `ListView`/`GridView`. Default: `200`. |
+| `smartRefresh`        | `bool`                                       | If true, pauses auto-refresh when < 20 % of the ad height is visible and resumes — with stale-aware timing — when it returns. Requires `refreshTimeInterval`. Default: `false`. |
 | `adFormat`            | `AdFormat`                                   | Desired ad format (banner, video, or both). Default: `AdFormat.banner`. |
 | `apiParameters`       | `Set<ApiParameter>`                          | API frameworks for bid response. Default: `{mraid3, omid1}`.            |
 | `protocols`           | `Set<Protocol>`                              | Supported video protocols. Optional.                                    |

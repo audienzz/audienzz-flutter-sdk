@@ -1,16 +1,22 @@
-# audienzz_sdk_flutter_example
+# Audienzz SDK Flutter — Example App
 
-Demonstrates how to use the audienzz_sdk_flutter plugin.
+Demonstrates the main features of the `audienzz_sdk_flutter` plugin.
 
-## Getting Started
+## Screens
 
-This project is a starting point for a Flutter application.
+### Regular example tab
+Shows remote-config banner ads (`configId` 118 and 192) inside a `SingleChildScrollView` alongside a remote interstitial ad. Demonstrates:
+- Remote banner loading and display
+- **Smart Refresh visual indicator**: the background turns **green** while ≥ 20 % of the ad is visible (auto-refresh active) and **red** when < 20 % is visible (auto-refresh paused). The color transitions smoothly as you scroll.
 
-A few resources to get you started if this is your first Flutter project:
+### List example tab
+Shows five sticky banner ads interleaved with article paragraphs in a `ListView`, using `AudienzzStickyAdWrapper` so each ad stays pinned within its reserved area while scrolling past it. Same green/red smart-refresh indicator applies to every ad in the list.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Running
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+cd example
+flutter run
+```
+
+The app initialises the SDK with remote configuration (publisher ID `81`) and targets the Audienzz test environment. All ad requests include `TEST=1` targeting so only test creatives are served.

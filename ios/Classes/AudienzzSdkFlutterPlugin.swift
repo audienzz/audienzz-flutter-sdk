@@ -295,6 +295,11 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 )
             }
 
+        case "pauseBannerAutoRefresh", "resumeBannerAutoRefresh":
+            // iOS smart refresh is driven by FBannerAd's 0.5s polling timer which
+            // uses UIKit frame coordinates — no action needed from the Dart layer.
+            result(nil)
+
         case "setUserLatLng":
             targetingWrapper.setUserLatLng(call, result: result)
 

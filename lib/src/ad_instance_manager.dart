@@ -337,4 +337,22 @@ final class AdInstanceManager {
       {'adId': adId},
     );
   }
+
+  Future<void> pauseBannerAutoRefresh(BannerAd ad) {
+    final adId = adIdFor(ad);
+    if (adId == null) return Future<void>.value();
+    return methodChannel.invokeMethod<void>(
+      'pauseBannerAutoRefresh',
+      {'adId': adId},
+    );
+  }
+
+  Future<void> resumeBannerAutoRefresh(BannerAd ad) {
+    final adId = adIdFor(ad);
+    if (adId == null) return Future<void>.value();
+    return methodChannel.invokeMethod<void>(
+      'resumeBannerAutoRefresh',
+      {'adId': adId},
+    );
+  }
 }

@@ -183,6 +183,18 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
+            "pauseBannerAutoRefresh" -> {
+                val ad = adInstanceManager?.adFor(call.argument<Int>("adId")!!)
+                (ad as? com.audienzz.audienzz_sdk_flutter.ads.implementation.BannerAd)?.pauseAutoRefresh()
+                result.success(null)
+            }
+
+            "resumeBannerAutoRefresh" -> {
+                val ad = adInstanceManager?.adFor(call.argument<Int>("adId")!!)
+                (ad as? com.audienzz.audienzz_sdk_flutter.ads.implementation.BannerAd)?.resumeAutoRefresh()
+                result.success(null)
+            }
+
             "setUserLatLng" -> audienzzTargetingWrapper.setUserLatLng(call, result)
             "getUserLatLng" -> audienzzTargetingWrapper.getUserLatLng(result)
 
