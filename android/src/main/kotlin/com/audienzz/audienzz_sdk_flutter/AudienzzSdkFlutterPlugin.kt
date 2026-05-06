@@ -420,6 +420,12 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(AudienzzPrebidMobile.ppidManager?.getPpid())
             }
 
+            "setAppVolume" -> {
+                val volume = call.argument<Double>("volume")?.toFloat() ?: 0f
+                AudienzzPrebidMobile.setAppVolume(volume)
+                result.success(null)
+            }
+
             else -> result.notImplemented()
         }
     }

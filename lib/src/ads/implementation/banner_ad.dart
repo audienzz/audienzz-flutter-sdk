@@ -27,7 +27,7 @@ class BannerAd extends AdWithView {
     },
     this.protocols = const {},
     this.placement = Placement.inBanner,
-    this.playbackMethods = const {PlaybackMethod.autoPlaySoundOn},
+    this.playbackMethods = const {PlaybackMethod.autoPlaySoundOff},
     this.videoBitrate = const VideoBitrate(min: 300, max: 1500),
     this.videoDuration = const VideoDuration(min: 1, max: 30),
     this.pbAdSlot,
@@ -86,8 +86,8 @@ class BannerAd extends AdWithView {
   final Placement placement;
 
   ///Array of OpenRTB 2.5 playback methods. Only one method is typically used
-  ///in practice. It is strongly advised to use only the
-  ///[PlaybackMethod.autoPlaySoundOn]`
+  ///in practice. Defaults to [PlaybackMethod.autoPlaySoundOff] to ensure
+  ///video ads play muted.
   final Set<PlaybackMethod> playbackMethods;
 
   /// The property representing the OpenRTB 2.5 bit rate in Kbps.

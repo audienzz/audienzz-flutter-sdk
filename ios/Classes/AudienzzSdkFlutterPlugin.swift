@@ -65,6 +65,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             {
                 Audienzz.shared.configureSDK(companyId: companyId, enablePPID: isAutomaticPpidEnabled)
                 AudienzzGAMUtils.shared.initializeGAM()
+                Audienzz.shared.setAppVolume(0.0)
 
                 if let prebidServerUrl = args["prebidServerUrl"] as? String {
                      try? Prebid.initializeSDK(serverURL: prebidServerUrl)
@@ -763,6 +764,17 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             
         case "getPpid":
             result(PPIDManager.shared.getPPID())
+
+        case "setAppVolume":
+            if let args = call.arguments as? [String: Any],
+               let volume = args["volume"] as? Double {
+                Audienzz.shared.setAppVolume(Float(volume))
+                result(nil)
+            } else {
+                result(FlutterError(code: "INVALID_ARGUMENT",
+                                    message: "Missing or invalid volume argument",
+                                    details: nil))
+            }
 
         default:
             result(FlutterMethodNotImplemented)
