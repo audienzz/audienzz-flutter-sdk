@@ -1,3 +1,11 @@
+## 0.1.0
+
+* Add lazy loading support for banner ads (defers demand fetch until ad enters the viewport)
+* Add smart refresh support for banner ads (pauses auto-refresh when ad is off-screen, resumes with stale-aware timing when it returns)
+* Add prefetch distance support: configurable margin (default 200 dp/pt) that triggers demand fetch before the ad enters the viewport
+* Bump iOS native dependency to AudienzziOSSDK 0.2.1
+* Fix infinite loading when lazy load is enabled (AdWidget now always rendered in the widget tree)
+
 ## 0.0.10
 
 * Fix crash on network error during initialization

@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'audienzz_sdk_flutter'
-  s.version          = '0.0.10'
+  s.version          = '0.1.0'
   s.summary          = 'Flutter wrapper for Audienzz Mobile SDK'
   s.description      = <<-DESC
 Flutter wrapper for Audienzz Mobile SDK
