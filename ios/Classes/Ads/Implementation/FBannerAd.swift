@@ -55,7 +55,7 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
             // View left the window — treat as hidden.
             if smartRefreshWasVisible {
                 smartRefreshWasVisible = false
-                auBannerView?.adUnitConfiguration?.stopAutoRefresh()
+                auBannerView?.pauseSmartRefresh()
             }
             return
         }
@@ -69,10 +69,15 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
 
         if isVisible && !smartRefreshWasVisible {
             smartRefreshWasVisible = true
-            auBannerView?.adUnitConfiguration?.resumeAutoRefresh()
+            // Stale-aware resume: if the ad has been off-screen for longer than the
+            // refresh interval, fetch demand immediately; otherwise schedule the fetch
+            // for the exact remaining time.  Plain resumeAutoRefresh() would always
+            // restart the full interval from zero, producing the "timer starts from 0"
+            // behaviour the user noticed.
+            auBannerView?.resumeSmartRefresh()
         } else if !isVisible && smartRefreshWasVisible {
             smartRefreshWasVisible = false
-            auBannerView?.adUnitConfiguration?.stopAutoRefresh()
+            auBannerView?.pauseSmartRefresh()
         }
     }
 

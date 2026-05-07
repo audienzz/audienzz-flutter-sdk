@@ -236,101 +236,138 @@ class _BannerAdExampleState extends State<BannerAdExample> {
   }
 
   Widget _getBanner320x50AdWidget() {
-    if (_banner320x50 != null &&
-        _isBanner320x50Loaded &&
-        _banner320x50AdSize != null) {
-      return SizedBox(
-        width: _banner320x50AdSize?.width.toDouble(),
-        height: _banner320x50AdSize?.height.toDouble(),
-        child: AdWidget(ad: _banner320x50!),
-      );
-    }
-
+    // Failure state — offer a retry button.
     if (_isBanner320x50LoadFailed) {
       return TextButton(
         onPressed: _load320x50BannerAd,
-        child: Text('Retry'),
+        child: const Text('Retry'),
       );
     }
 
-    return const SizedBox(
-      child: Center(
-        child: CircularProgressIndicator(),
+    // Ad not yet created (e.g. during dispose/reload) — plain spinner.
+    if (_banner320x50 == null || _banner320x50!.sizes.isEmpty) {
+      return const SizedBox(
+        height: 50,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // AdWidget must be in the tree immediately so the native view attaches and
+    // the lazy-load visibility check can fire.  A spinner overlay is shown
+    // until the first ad creative arrives.
+    final width = _banner320x50AdSize?.width.toDouble() ??
+        _banner320x50!.sizes.first.width.toDouble();
+    final height = _banner320x50AdSize?.height.toDouble() ??
+        _banner320x50!.sizes.first.height.toDouble();
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        children: [
+          AdWidget(ad: _banner320x50!),
+          if (!_isBanner320x50Loaded)
+            const Center(child: CircularProgressIndicator()),
+        ],
       ),
     );
   }
 
   Widget _getBanner300x250Widget() {
-    if (_banner300x250 != null &&
-        _isBanner300x250Loaded &&
-        _banner300x250AdSize != null) {
-      return SizedBox(
-        width: _banner300x250AdSize?.width.toDouble(),
-        height: _banner300x250AdSize?.height.toDouble(),
-        child: AdWidget(ad: _banner300x250!),
-      );
-    }
-
     if (_isBanner300x250LoadFailed) {
       return TextButton(
         onPressed: _load300x250BannerAd,
-        child: Text('Retry'),
+        child: const Text('Retry'),
       );
     }
 
-    return const SizedBox(
-      child: Center(
-        child: CircularProgressIndicator(),
+    if (_banner300x250 == null || _banner300x250!.sizes.isEmpty) {
+      return const SizedBox(
+        height: 250,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final width = _banner300x250AdSize?.width.toDouble() ??
+        _banner300x250!.sizes.first.width.toDouble();
+    final height = _banner300x250AdSize?.height.toDouble() ??
+        _banner300x250!.sizes.first.height.toDouble();
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        children: [
+          AdWidget(ad: _banner300x250!),
+          if (!_isBanner300x250Loaded)
+            const Center(child: CircularProgressIndicator()),
+        ],
       ),
     );
   }
 
   Widget _getBannerAdaptiveWidthWidget() {
-    if (_widthAdaptiveBanner != null &&
-        _isWidthAdaptiveBannerLoaded &&
-        _widthAdaptiveBannerAdSize != null) {
-      return SizedBox(
-        width: _widthAdaptiveBannerAdSize?.width.toDouble(),
-        height: _widthAdaptiveBannerAdSize?.height.toDouble(),
-        child: AdWidget(ad: _widthAdaptiveBanner!),
-      );
-    }
-
     if (_isWidthAdaptiveBannerLoadFailed) {
       return TextButton(
         onPressed: _loadWidthAdaptiveBannerAd,
-        child: Text('Retry'),
+        child: const Text('Retry'),
       );
     }
 
-    return const SizedBox(
-      child: Center(
-        child: CircularProgressIndicator(),
+    if (_widthAdaptiveBanner == null || _widthAdaptiveBanner!.sizes.isEmpty) {
+      return const SizedBox(
+        height: 50,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final width = _widthAdaptiveBannerAdSize?.width.toDouble() ??
+        _widthAdaptiveBanner!.sizes.first.width.toDouble();
+    final height = _widthAdaptiveBannerAdSize?.height.toDouble() ??
+        _widthAdaptiveBanner!.sizes.first.height.toDouble();
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        children: [
+          AdWidget(ad: _widthAdaptiveBanner!),
+          if (!_isWidthAdaptiveBannerLoaded)
+            const Center(child: CircularProgressIndicator()),
+        ],
       ),
     );
   }
 
   Widget _getBannerAdaptiveHeightWidget() {
-    if (_heightAdaptiveBanner != null &&
-        _isHeightAdaptiveBannerLoaded &&
-        _heightAdaptiveBannerAdSize != null) {
-      return SizedBox(
-        width: _heightAdaptiveBannerAdSize?.width.toDouble(),
-        height: _heightAdaptiveBannerAdSize?.height.toDouble(),
-        child: AdWidget(ad: _heightAdaptiveBanner!),
-      );
-    }
-
     if (_isHeightAdaptiveBannerLoadFailed) {
       return TextButton(
         onPressed: _loadHeightAdaptiveBannerAd,
-        child: Text('Retry'),
+        child: const Text('Retry'),
       );
     }
 
-    return const SizedBox(
-      child: Center(
-        child: CircularProgressIndicator(),
+    if (_heightAdaptiveBanner == null || _heightAdaptiveBanner!.sizes.isEmpty) {
+      return const SizedBox(
+        height: 50,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final width = _heightAdaptiveBannerAdSize?.width.toDouble() ??
+        _heightAdaptiveBanner!.sizes.first.width.toDouble();
+    final height = _heightAdaptiveBannerAdSize?.height.toDouble() ??
+        _heightAdaptiveBanner!.sizes.first.height.toDouble();
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        children: [
+          AdWidget(ad: _heightAdaptiveBanner!),
+          if (!_isHeightAdaptiveBannerLoaded)
+            const Center(child: CircularProgressIndicator()),
+        ],
       ),
     );
   }

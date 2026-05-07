@@ -129,6 +129,28 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
       return Center(child: Text('Error: $_error'));
     }
 
+    // AdWidget must be in the tree from the very first build so the native
+    // platform view is attached to the iOS/Android view hierarchy immediately.
+    // With isLazyLoad = true the demand fetch is only triggered once the
+    // native view enters the viewport — but that can only happen if the view
+    // is already embedded in the hierarchy.  Gating AdWidget behind
+    // _isAdLoaded creates a deadlock: the view never attaches, the fetch never
+    // fires, and onAdLoaded never arrives.
+    //
+    // If the banner ad or its sizes aren't available yet (e.g. remote config
+    // hasn't loaded) fall back to a plain spinner.
+    if (_bannerAd == null || _bannerAd!.sizes.isEmpty) {
+      return const SizedBox(
+        height: 50,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final width = _adSize?.width.toDouble() ??
+        _bannerAd!.sizes.first.width.toDouble();
+    final height = _adSize?.height.toDouble() ??
+        _bannerAd!.sizes.first.height.toDouble();
+
     // Colour: green = auto-refresh active (≥20% visible), red = paused (<20%).
     // Shown only once the ad is loaded and smartRefresh is enabled.
     final showIndicator = _isAdLoaded && (_bannerAd?.smartRefresh ?? false);
@@ -142,44 +164,41 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
         ? '● Auto-refresh active'
         : '● Auto-refresh paused';
 
-    if (_isAdLoaded && _bannerAd != null) {
-      final width = _adSize?.width.toDouble() ??
-          _bannerAd!.sizes.first.width.toDouble();
-      final height = _adSize?.height.toDouble() ??
-          _bannerAd!.sizes.first.height.toDouble();
-
-      return AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        color: showIndicator ? indicatorColor : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (showIndicator)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  labelText,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: labelColor,
-                  ),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      color: showIndicator ? indicatorColor : null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showIndicator)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                labelText,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: labelColor,
                 ),
               ),
-            SizedBox(
-              key: _adKey,
-              width: width,
-              height: height,
-              child: AdWidget(ad: _bannerAd!),
             ),
-          ],
-        ),
-      );
-    }
-
-    return const SizedBox(
-      height: 50,
-      child: Center(child: CircularProgressIndicator()),
+          SizedBox(
+            key: _adKey,
+            width: width,
+            height: height,
+            // Stack the AdWidget behind a spinner so the native view is always
+            // attached (enabling lazy-load visibility detection) while a
+            // loading indicator is shown until the first ad arrives.
+            child: Stack(
+              children: [
+                AdWidget(ad: _bannerAd!),
+                if (!_isAdLoaded)
+                  const Center(child: CircularProgressIndicator()),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
