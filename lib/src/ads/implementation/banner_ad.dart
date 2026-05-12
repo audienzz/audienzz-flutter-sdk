@@ -39,7 +39,7 @@ class BannerAd extends AdWithView {
     this.onAdImpression,
     this.isAdaptiveSize = false,
     this.refreshTimeInterval,
-    this.isLazyLoad = true,
+    this.isLazyLoad = false,
     this.smartRefresh = false,
     this.prefetchMargin = 200,
   });
@@ -55,7 +55,9 @@ class BannerAd extends AdWithView {
   final int? refreshTimeInterval;
 
   /// Whether to defer the ad request until the view scrolls into the viewport.
-  /// Defaults to `true`.
+  /// Defaults to `false`. Set to `true` only when using [smartRefresh], as
+  /// Flutter has no UIScrollView ancestor for the native visibility detector
+  /// to fire on — lazy load without smart refresh will never trigger a request.
   final bool isLazyLoad;
 
   /// Whether to pause auto-refresh while the ad is off-screen and resume when

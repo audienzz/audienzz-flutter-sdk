@@ -8,6 +8,7 @@ import 'package:audienzz_sdk_flutter_example/pages/list_with_ads_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/ppid_usage_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/remote_banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/remote_interstitial_ad_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/legacy_banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/rewarded_ad_example.dart';
 import 'package:flutter/material.dart';
 
@@ -79,13 +80,14 @@ class _MyAppState extends State<MyApp> {
         if (snapshot.connectionState == ConnectionState.done) {
           return MaterialApp(
             home: DefaultTabController(
-              length: 2,
+              length: 3,
               child: Scaffold(
                 appBar: AppBar(
                   title: TabBar(
                     tabs: [
                       Tab(text: "Regular example"),
                       Tab(text: "List example"),
+                      Tab(text: "Legacy (v0.0.10)"),
                     ],
                   ),
                   actions: const [],
@@ -94,6 +96,7 @@ class _MyAppState extends State<MyApp> {
                   children: [
                     AdsPages(useRemoteConfiguration: useRemoteConfiguration),
                     ListWithAdsExample(),
+                    LegacyBannerAdExample(),
                   ],
                 ),
               ),
