@@ -1,6 +1,7 @@
 package com.audienzz.audienzz_sdk_flutter.ads.implementation
 
 import android.content.Context
+import androidx.core.view.doOnAttach
 import androidx.core.view.doOnNextLayout
 import com.audienzz.audienzz_sdk_flutter.ads.base.Ad
 import com.audienzz.audienzz_sdk_flutter.entities.AdFormat
@@ -115,7 +116,27 @@ class BannerAd(
                 withLazyLoading = isLazyLoad,
                 prefetchMarginDp = prefetchMarginDp,
             ) { request, _ ->
+                // Always call loadAd() immediately so onAdLoaded can fire even when the
+                // customer gates AdWidget behind the load callback (legacy pattern).
                 adView.loadAd(request)
+                // Race-condition guard: if loadAd() fired before Flutter embedded the
+                // platform view, GAM's internal invalidate() is a no-op (no window token).
+                // We register doOnAttach so the creative is drawn once the view attaches.
+                //
+                // Important: only register when the view is NOT yet attached.
+                //   • Already attached → GAM's own invalidate() inside loadAd() reaches
+                //     the ViewRootImpl directly; adding doOnAttach here would fire
+                //     synchronously on the main thread during the fetchDemand callback,
+                //     triggering an expensive AdManagerAdView draw pass that causes
+                //     Choreographer frame skips (Davey! jank).
+                //   • Not yet attached → register doOnAttach. Use post{} so the
+                //     invalidate() runs on the next Looper iteration, after Flutter's
+                //     platform-view embedding pass has fully completed.
+                if (!adView.isAttachedToWindow) {
+                    adView.doOnAttach {
+                        adView.post { adView.invalidate() }
+                    }
+                }
             }
             // Smart refresh is driven from the Dart layer: RemoteBannerAdExample uses
             // RenderBox.localToGlobal() (Flutter coordinates) to detect ≥20% visibility

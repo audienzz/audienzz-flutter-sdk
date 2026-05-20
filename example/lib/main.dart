@@ -10,6 +10,9 @@ import 'package:audienzz_sdk_flutter_example/pages/remote_banner_ad_example.dart
 import 'package:audienzz_sdk_flutter_example/pages/remote_interstitial_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/legacy_banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/rewarded_ad_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/smart_refresh_banner_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/always_in_tree_banner_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/scroll_render_test_example.dart';
 import 'package:flutter/material.dart';
 
 void main() => runApp(const MyApp());
@@ -25,6 +28,9 @@ class _MyAppState extends State<MyApp> {
   late final Future<void> init;
   bool useRemoteConfiguration = true;
 
+  RemoteBannerAdLoader? _loader118;
+  RemoteBannerAdLoader? _loader192;
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +39,13 @@ class _MyAppState extends State<MyApp> {
 
   void _initializeSdk() {
     init = initializeSdk();
+  }
+
+  @override
+  void dispose() {
+    _loader118?.dispose();
+    _loader192?.dispose();
+    super.dispose();
   }
 
   Future<void> initializeSdk() async {
@@ -70,6 +83,15 @@ class _MyAppState extends State<MyApp> {
                     """);
 
     await AudienzzTargeting.addSingleGlobalTargeting("TEST", "1");
+
+    // Start loading AFTER all global SDK config is set (schain + targeting must
+    // be in place before fetchDemand constructs the OpenRTB request).
+    // Starting here — before FutureBuilder resolves — saves the FutureBuilder
+    // rebuild → widget mount → initState → loadAd() round-trip (~100–400 ms).
+    if (useRemoteConfiguration) {
+      _loader118 = RemoteBannerAdLoader(configId: '118');
+      _loader192 = RemoteBannerAdLoader(configId: '192');
+    }
   }
 
   @override
@@ -94,7 +116,11 @@ class _MyAppState extends State<MyApp> {
                 ),
                 body: TabBarView(
                   children: [
-                    AdsPages(useRemoteConfiguration: useRemoteConfiguration),
+                    AdsPages(
+                      useRemoteConfiguration: useRemoteConfiguration,
+                      loader118: _loader118,
+                      loader192: _loader192,
+                    ),
                     ListWithAdsExample(),
                     LegacyBannerAdExample(),
                   ],
@@ -114,13 +140,53 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Navigation helper
+// ---------------------------------------------------------------------------
+
+class _NavigationTile extends StatelessWidget {
+  const _NavigationTile({
+    required this.title,
+    required this.subtitle,
+    required this.pageBuilder,
+  });
+
+  final String title;
+  final String subtitle;
+  final WidgetBuilder pageBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: Text(title, style: const TextStyle(fontSize: 14)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+      trailing: const Icon(Icons.chevron_right, size: 18),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (ctx) => Scaffold(
+            appBar: AppBar(title: Text(title)),
+            body: pageBuilder(ctx),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 final class AdsPages extends StatelessWidget {
   const AdsPages({
     required this.useRemoteConfiguration,
+    this.loader118,
+    this.loader192,
     super.key,
   });
 
   final bool useRemoteConfiguration;
+  final RemoteBannerAdLoader? loader118;
+  final RemoteBannerAdLoader? loader192;
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +233,7 @@ final class AdsPages extends StatelessWidget {
                 padding: EdgeInsets.all(8.0),
                 child: Text('Remote Banner Ad (Adaptive - 118)'),
               ),
-              RemoteBannerAdExample(configId: '118'),
+              RemoteBannerAdExample(configId: '118', loader: loader118),
 
               loremIpsum(),
 
@@ -176,7 +242,7 @@ final class AdsPages extends StatelessWidget {
                 padding: EdgeInsets.all(8.0),
                 child: Text('Remote Banner Ad (Fixed - 192)'),
               ),
-              RemoteBannerAdExample(configId: '192'),
+              RemoteBannerAdExample(configId: '192', loader: loader192),
 
               loremIpsum(),
 
@@ -186,6 +252,35 @@ final class AdsPages extends StatelessWidget {
                 child: Text('Remote Interstitial Ad (267)'),
               ),
               RemoteInterstitialAdExample(configId: '267'),
+
+              const Divider(),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Text(
+                  'Test Screens',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ),
+              _NavigationTile(
+                title: 'Always-in-tree Banner Pattern',
+                subtitle: 'AdWidget never gated behind onAdLoaded',
+                pageBuilder: (_) => const AlwaysInTreeBannerExample(),
+              ),
+              _NavigationTile(
+                title: 'Smart Refresh Banner',
+                subtitle: 'Manual BannerAd with smartRefresh=true',
+                pageBuilder: (_) => const SmartRefreshBannerExample(),
+              ),
+              _NavigationTile(
+                title: 'Scroll-Render Race Condition Test',
+                subtitle: 'Scroll while loading — tests doOnAttach fix',
+                pageBuilder: (_) => const ScrollRenderTestExample(),
+              ),
 
               const Divider(),
             ],
