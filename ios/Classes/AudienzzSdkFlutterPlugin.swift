@@ -3,6 +3,8 @@ import Flutter
 import PrebidMobile
 import UIKit
 
+private let flutterSdkVersion = "0.1.4"
+
 public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
     private var manager: AdInstanceManager
     private var targetingWrapper: AudienzzTargetingWrapper
@@ -66,6 +68,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 Audienzz.shared.configureSDK(companyId: companyId, enablePPID: isAutomaticPpidEnabled)
                 AudienzzGAMUtils.shared.initializeGAM()
                 Audienzz.shared.setAppVolume(0.0)
+                AUTargeting.shared.addGlobalTargeting(key: "au_flutter_v", value: flutterSdkVersion)
 
                 if let prebidServerUrl = args["prebidServerUrl"] as? String {
                      try? Prebid.initializeSDK(serverURL: prebidServerUrl)
