@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -15,8 +16,9 @@ final class AudienzzStickyAdWrapper extends StatefulWidget {
     super.key,
     this.scrollController,
     this.stickyTopOffset,
-    this.maxHeight = 600,
+    this.maxHeight,
     this.enabled = true,
+    this.adConfigId,
   });
 
   /// The ad widget to display (e.g. [AdWidget]).
@@ -27,14 +29,25 @@ final class AudienzzStickyAdWrapper extends StatefulWidget {
   final ScrollController? scrollController;
 
   /// Offset from the top of the viewport where the ad should stick.
-  /// Defaults to `MediaQuery.padding.top`.
+  ///
+  /// Leave `null` to use the backend-configured value (requires [adConfigId]),
+  /// falling back to `MediaQuery.padding.top`. A non-null value always wins
+  /// over the backend setting.
   final double? stickyTopOffset;
 
   /// Reserved height for the wrapper.
-  final double maxHeight;
+  ///
+  /// Leave `null` to use the backend-configured value (requires [adConfigId]),
+  /// falling back to 600. A non-null value always wins over the backend setting.
+  final double? maxHeight;
 
   /// Enables or disables sticky behavior.
   final bool enabled;
+
+  /// Remote ad-unit config ID. When provided the SDK reads `stickyMaxHeight`
+  /// and `stickyTopOffset` from the cached remote config and uses them as
+  /// fallback values (publisher-supplied [maxHeight] / [stickyTopOffset] win).
+  final String? adConfigId;
 
   @override
   State<AudienzzStickyAdWrapper> createState() =>
@@ -43,23 +56,52 @@ final class AudienzzStickyAdWrapper extends StatefulWidget {
 
 final class _AudienzzStickyAdWrapperState extends State<AudienzzStickyAdWrapper>
     with SingleTickerProviderStateMixin {
+  static const double _defaultMaxHeight = 600.0;
+
   final GlobalKey _wrapperKey = GlobalKey();
   final ValueNotifier<double> _topOffset = ValueNotifier<double>(0);
   double _childHeight = 0;
   ScrollPosition? _scrollPosition;
   late final Ticker _ticker;
 
+  /// Resolved max height: publisher override → remote config → SDK default.
+  late double _effectiveMaxHeight;
+
+  /// Resolved sticky top offset: publisher override → remote config → null (uses safe-area).
+  double? _effectiveStickyTopOffset;
+
   @override
   void initState() {
     super.initState();
+    _resolveRemoteConfig();
     _ticker = createTicker((_) => _updatePosition());
     widget.scrollController?.addListener(_handleScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _attachPosition());
   }
 
+  void _resolveRemoteConfig() {
+    final remoteConfig = widget.adConfigId != null
+        ? AudienzzRemoteConfig.instance.remoteConfigFor(widget.adConfigId!)?.config
+        : null;
+
+    // maxHeight: publisher override → remote config → SDK default.
+    _effectiveMaxHeight = widget.maxHeight ??
+        remoteConfig?.stickyMaxHeight?.toDouble() ??
+        _defaultMaxHeight;
+
+    // stickyTopOffset: publisher override → remote config → null (falls back to safe-area in _updatePosition).
+    _effectiveStickyTopOffset = widget.stickyTopOffset ??
+        remoteConfig?.stickyTopOffset?.toDouble();
+  }
+
   @override
   void didUpdateWidget(AudienzzStickyAdWrapper oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.adConfigId != widget.adConfigId ||
+        oldWidget.maxHeight != widget.maxHeight ||
+        oldWidget.stickyTopOffset != widget.stickyTopOffset) {
+      setState(() => _resolveRemoteConfig());
+    }
     if (oldWidget.scrollController != widget.scrollController) {
       oldWidget.scrollController?.removeListener(_handleScroll);
       widget.scrollController?.addListener(_handleScroll);
@@ -142,10 +184,10 @@ final class _AudienzzStickyAdWrapperState extends State<AudienzzStickyAdWrapper>
     final wrapperTop = revealOffset - position.pixels;
     final wrapperBottom = wrapperTop + renderBox.size.height;
     final topOffset =
-        widget.stickyTopOffset ?? MediaQuery.of(this.context).padding.top;
+        _effectiveStickyTopOffset ?? MediaQuery.of(this.context).padding.top;
 
     final childHeight = _childHeight > 0 ? _childHeight : renderBox.size.height;
-    final maxTop = (widget.maxHeight - childHeight).clamp(0.0, widget.maxHeight);
+    final maxTop = (_effectiveMaxHeight - childHeight).clamp(0.0, _effectiveMaxHeight);
 
     double nextTop;
     if (wrapperTop >= topOffset) {
@@ -165,7 +207,7 @@ final class _AudienzzStickyAdWrapperState extends State<AudienzzStickyAdWrapper>
   Widget build(BuildContext context) {
     final stack = SizedBox(
       key: _wrapperKey,
-      height: widget.maxHeight,
+      height: _effectiveMaxHeight,
       child: ValueListenableBuilder<double>(
         valueListenable: _topOffset,
         builder: (_, top, child) {
