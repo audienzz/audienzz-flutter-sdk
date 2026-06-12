@@ -34,4 +34,14 @@ final class PpidManager {
       'getPpid',
     );
   }
+
+  /// Sets a publisher-provided PPID value (e.g. a hashed user account ID).
+  /// When set, this value is sent on every ad request instead of the auto-generated UUID.
+  /// Pass null to clear and fall back to UUID generation.
+  static Future<void> setPpid(String? ppid) async {
+    return adInstanceManager.methodChannel.invokeMethod<void>(
+      'setPpid',
+      {'ppid': ppid},
+    );
+  }
 }

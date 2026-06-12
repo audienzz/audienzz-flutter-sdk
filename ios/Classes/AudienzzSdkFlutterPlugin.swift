@@ -62,13 +62,14 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             
         case "initialize":
             if let args = call.arguments as? [String: Any],
-               let companyId = args["companyId"] as? String,
-               let isAutomaticPpidEnabled = args["isAutomaticPpidEnabled"] as? Bool
+               let companyId = args["companyId"] as? String
             {
-                Audienzz.shared.configureSDK(companyId: companyId, enablePPID: isAutomaticPpidEnabled)
+                // enablePPID is optional — nil means "no client override, use backend or default true"
+                let enablePPID = args["isAutomaticPpidEnabled"] as? Bool
+                Audienzz.shared.configureSDK(companyId: companyId, enablePPID: enablePPID)
                 AudienzzGAMUtils.shared.initializeGAM()
                 Audienzz.shared.setAppVolume(0.0)
-                AUTargeting.shared.addGlobalTargeting(key: "au_flutter_v", value: flutterSdkVersion)
+                AUTargeting.shared.setBridgeTargeting(key: "au_flutter_v", value: flutterSdkVersion)
 
                 if let prebidServerUrl = args["prebidServerUrl"] as? String {
                      try? Prebid.initializeSDK(serverURL: prebidServerUrl)
@@ -772,6 +773,11 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             
         case "getPpid":
             result(PPIDManager.shared.getPPID())
+
+        case "setPpid":
+            let ppid = (call.arguments as? [String: Any])?["ppid"] as? String
+            PPIDManager.shared.setCustomPpid(ppid)
+            result(nil)
 
         case "setAppVolume":
             if let args = call.arguments as? [String: Any],

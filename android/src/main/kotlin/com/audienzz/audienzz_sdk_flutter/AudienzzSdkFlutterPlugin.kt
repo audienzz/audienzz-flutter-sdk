@@ -64,7 +64,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
             "initialize" -> audienzzSdkWrapper.initialize(
                 context,
                 call.argument<String>("companyId")!!,
-                call.argument<Boolean>("isAutomaticPpidEnabled")!!,
+                call.argument<Boolean?>("isAutomaticPpidEnabled"),  // nullable — null = no client override
                 call.argument<String?>("prebidServerUrl"),
                 result
             )
@@ -430,6 +430,12 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
             "getPpid" -> {
                 result.success(AudienzzPrebidMobile.ppidManager?.getPpid())
+            }
+
+            "setPpid" -> {
+                val ppid = call.argument<String?>("ppid")
+                audienzzSdkWrapper.setPpid(ppid)
+                result.success(null)
             }
 
             "setAppVolume" -> {

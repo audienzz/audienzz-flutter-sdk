@@ -10,7 +10,13 @@ import io.flutter.plugin.common.MethodChannel.Result
 private const val FLUTTER_SDK_VERSION = "0.1.4"
 
 class AudienzzSdkWrapper {
-    fun initialize(context: Context, companyId: String, isAutomaticPpidEnabled: Boolean, prebidServerUrl: String?, result: Result){
+    fun initialize(
+        context: Context,
+        companyId: String,
+        isAutomaticPpidEnabled: Boolean?,  // null = no client override, use backend or default true
+        prebidServerUrl: String?,
+        result: Result,
+    ) {
         if (AudienzzPrebidMobile.isSdkInitialized) {
             result.success(InitializationStatus.SUCCESS)
         } else {
@@ -37,6 +43,10 @@ class AudienzzSdkWrapper {
         }
     }
 
+    fun setPpid(ppid: String?) {
+        AudienzzPrebidMobile.ppidManager?.setCustomPpid(ppid)
+    }
+
     private fun setupOmid() {
         val v = MobileAds.getVersion()
         AudienzzTargetingParams.omidPartnerName = "Google"
@@ -44,6 +54,6 @@ class AudienzzSdkWrapper {
     }
 
     private fun setupFlutterSdkIdentity() {
-        AudienzzTargetingParams.addGlobalTargeting("au_flutter_v", FLUTTER_SDK_VERSION)
+        AudienzzTargetingParams.setBridgeTargeting("au_flutter_v", FLUTTER_SDK_VERSION)
     }
 }
