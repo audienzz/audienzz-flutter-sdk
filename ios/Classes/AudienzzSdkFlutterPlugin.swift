@@ -732,6 +732,23 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         case "addGlobalTargeting":
             targetingWrapper.addGlobalTargeting(call, result: result)
 
+        case "updateGlobalTargeting":
+            if let args = call.arguments as? [String: Any],
+               let key = args["key"] as? String,
+               let values = args["values"] as? [String]
+            {
+                AUTargeting.shared.updateGlobalTargeting(key: key, values: Set(values))
+                result(nil)
+            } else {
+                result(
+                    FlutterError(
+                        code: "INVALID_ARGUMENT",
+                        message: "Key and values cannot be null",
+                        details: nil
+                    )
+                )
+            }
+
         case "removeGlobalTargeting":
             if let args = call.arguments as? [String: Any],
                let key = args["key"] as? String

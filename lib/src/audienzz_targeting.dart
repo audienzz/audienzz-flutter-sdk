@@ -345,6 +345,16 @@ final class AudienzzTargeting {
     );
   }
 
+  static Future<void> updateGlobalTargeting(
+    String key,
+    Set<String> values,
+  ) async {
+    return adInstanceManager.methodChannel.invokeMethod(
+      'updateGlobalTargeting',
+      {'key': key, 'values': values.toList()},
+    );
+  }
+
   static Future<void> removeGlobalTargeting(String key) async {
     return adInstanceManager.methodChannel.invokeMethod(
       'removeGlobalTargeting',
