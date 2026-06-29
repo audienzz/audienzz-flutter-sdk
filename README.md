@@ -275,7 +275,7 @@ Before using remote configuration ads, ensure the SDK is properly initialized:
 ```dart
 final status = await AudienzzSdkFlutter.instance.initializeRemote(
   publisherId: 'YOUR_PUBLISHER_ID', // Will be provided for you
-  remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1/', // Audienzz remove config URL
+  remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1/', // Audienzz remote config URL
   isAutomaticPpidEnabled: false
 );
 
