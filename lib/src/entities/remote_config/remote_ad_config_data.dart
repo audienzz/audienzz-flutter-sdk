@@ -3,6 +3,8 @@ class RemoteAdConfigData {
     required this.adType,
     this.refreshTimeSeconds,
     this.prefetchDistanceDp,
+    this.stickyMaxHeight,
+    this.stickyTopOffset,
   });
 
   factory RemoteAdConfigData.fromJson(Map<String, dynamic> json) {
@@ -12,6 +14,8 @@ class RemoteAdConfigData {
       // so callers apply a default via the null-coalescing operator.
       refreshTimeSeconds: json['refreshTimeSeconds'] as int?,
       prefetchDistanceDp: json['prefetchDistanceDp'] as int?,
+      stickyMaxHeight: json['stickyMaxHeight'] as int?,
+      stickyTopOffset: json['stickyTopOffset'] as int?,
     );
   }
 
@@ -24,9 +28,19 @@ class RemoteAdConfigData {
   /// Maps to `prefetchMarginDp` on Android and `prefetchMarginPoints` on iOS.
   final int? prefetchDistanceDp;
 
+  /// Reserved height (dp/pt) for [AudienzzStickyAdWrapper].
+  /// `null` falls back to the SDK default (600).
+  final int? stickyMaxHeight;
+
+  /// Y offset (dp/pt) from the scroll viewport top where the sticky ad pins.
+  /// `null` falls back to 0 (or the scroll view's safe-area padding on iOS).
+  final int? stickyTopOffset;
+
   Map<String, dynamic> toJson() => {
         'adType': adType,
         if (refreshTimeSeconds != null) 'refreshTimeSeconds': refreshTimeSeconds,
         if (prefetchDistanceDp != null) 'prefetchDistanceDp': prefetchDistanceDp,
+        if (stickyMaxHeight != null) 'stickyMaxHeight': stickyMaxHeight,
+        if (stickyTopOffset != null) 'stickyTopOffset': stickyTopOffset,
       };
 }
