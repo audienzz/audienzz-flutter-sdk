@@ -54,7 +54,7 @@ class _MyAppState extends State<MyApp> {
       status = await AudienzzSdkFlutter.instance.initializeRemote(
         publisherId: '81',
         isAutomaticPpidEnabled: true,
-        remoteUrl: 'https://dev-api.adnz.co/api/ws-sdk-config/public/v1',
+        remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1',
       );
     } else {
       status = await AudienzzSdkFlutter.instance.initialize(
