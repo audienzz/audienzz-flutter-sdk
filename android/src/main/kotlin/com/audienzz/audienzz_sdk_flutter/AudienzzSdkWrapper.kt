@@ -44,6 +44,6 @@ class AudienzzSdkWrapper {
     }
 
     private fun setupFlutterSdkIdentity() {
-        AudienzzTargetingParams.addGlobalTargeting("au_flutter_v", FLUTTER_SDK_VERSION)
+        AudienzzTargetingParams.setBridgeTargeting("au_flutter_v", FLUTTER_SDK_VERSION)
     }
 }

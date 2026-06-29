@@ -68,7 +68,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 Audienzz.shared.configureSDK(companyId: companyId, enablePPID: isAutomaticPpidEnabled)
                 AudienzzGAMUtils.shared.initializeGAM()
                 Audienzz.shared.setAppVolume(0.0)
-                AUTargeting.shared.addGlobalTargeting(key: "au_flutter_v", value: flutterSdkVersion)
+                AUTargeting.shared.setBridgeTargeting(key: "au_flutter_v", value: flutterSdkVersion)
 
                 if let prebidServerUrl = args["prebidServerUrl"] as? String {
                      try? Prebid.initializeSDK(serverURL: prebidServerUrl)
