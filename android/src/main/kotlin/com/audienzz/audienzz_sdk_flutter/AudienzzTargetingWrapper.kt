@@ -131,6 +131,18 @@ class AudienzzTargetingWrapper {
         }
     }
 
+    fun updateGlobalTargeting(call: MethodCall, result: MethodChannel.Result) {
+        val key = call.argument<String>("key")
+        val values = call.argument<List<String>>("values")
+
+        if (key != null && values != null) {
+            AudienzzTargetingParams.updateGlobalTargeting(key, values.toSet())
+            result.success(null)
+        } else {
+            result.error("INVALID_ARGUMENT", "Key and values must be provided", null)
+        }
+    }
+
     private fun jsonObjectToMap(jsonObject: JSONObject): Map<String, Any> {
         val map = mutableMapOf<String, Any>()
         val keys = jsonObject.keys()

@@ -392,6 +392,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
             }
 
             "addGlobalTargeting" -> audienzzTargetingWrapper.addGlobalTargeting(call, result)
+            "updateGlobalTargeting" -> audienzzTargetingWrapper.updateGlobalTargeting(call, result)
             "removeGlobalTargeting" -> {
                 val key = call.argument<String>("key")
                 if (key != null) {
