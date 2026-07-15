@@ -1,4 +1,4 @@
-platform :ios, '13.0'
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -49,16 +49,17 @@ target 'Runner' do
 
   # Pin AudienzziOSSDK to the exact release tag so CocoaPods fetches it
   # directly from GitHub without requiring a trunk registry push.
-  # Remove this override once 0.2.1 is published to the CocoaPods trunk.
-  pod 'AudienzziOSSDK', :git => 'https://github.com/audienzz/audienzz-ios-sdk.git', :tag => '0.2.1'
+  # Remove this override once 0.2.4 is published to the CocoaPods trunk.
+  pod 'AudienzziOSSDK', :git => 'https://github.com/audienzz/audienzz-ios-sdk.git', :tag => '0.2.4'
 
-  # Pin PrebidMobile to 3.0.x — 3.1+ generates duplicate class/enum definitions
-  # in PrebidMobile-Swift.h (public + @_spi sections) that Clang 16 / Xcode 16
-  # rejects as redefinitions.  3.0.x predates those @_spi annotations and builds
-  # cleanly.  Remove this override once PrebidMobile ships a 3.x that is
-  # Xcode 16-compatible AND PrebidMobileGAMEventHandlers still targets GMAS 12.x.
-  pod 'PrebidMobile',                 '~> 3.0.0'
-  pod 'PrebidMobileGAMEventHandlers', '~> 3.0.0'
+  # PrebidMobile 3.3.1+ is required: AudienzziOSSDK 0.2.4 uses the
+  # UserUniqueID(uniqueId:) initializer introduced in 3.3.1.
+  # NOTE: an earlier "PBMOpenMeasurementFriendlyObstructionPurpose redefinition"
+  # failure that made 3.1+ look incompatible was NOT a real PrebidMobile bug —
+  # it was a stale header left in Flutter's build/ dir after switching pod
+  # versions.  Always `flutter clean` after changing these pins.
+  pod 'PrebidMobile',                 '~> 3.3.1'
+  pod 'PrebidMobileGAMEventHandlers', '~> 3.3.1'
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/ads/base/ad_with_view.dart';
+import 'package:audienzz_sdk_flutter/src/ads/implementation/banner_ad.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -24,9 +25,44 @@ final class AdWidget extends StatefulWidget {
   State<AdWidget> createState() => _AdWidgetState();
 }
 
-final class _AdWidgetState extends State<AdWidget> {
+final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
   bool _adIdAlreadyMounted = false;
   bool _adLoadNotCalled = false;
+
+  // ── SmartRefresh visibility management (handled by the SDK, not the app) ──
+  //
+  // When the ad is a [BannerAd] with `smartRefresh: true`, the SDK itself
+  // decides when auto-refresh should run so publishers don't have to write any
+  // visibility code. Refresh is active only when ALL of these hold:
+  //   1. at least [_visibleThreshold] of the ad height is on screen (scrolling),
+  //   2. the ad's route is the top-most one (no screen pushed on top),
+  //   3. the app is in the foreground.
+  // Otherwise auto-refresh is paused, so ads never refresh while hidden.
+
+  /// Minimum visible fraction (0–1) for the ad to count as on-screen.
+  static const double _visibleThreshold = 0.2;
+
+  /// Polling cadence — matches the native FBannerAd refresh-check interval.
+  static const Duration _pollInterval = Duration(milliseconds: 500);
+
+  Timer? _visibilityTimer;
+
+  /// Shadow of the last state pushed to the platform, so we only call
+  /// pause/resume on an actual transition.
+  bool _refreshPaused = false;
+
+  /// Whether the app is currently in the foreground.
+  bool _appResumed = true;
+
+  /// Cached in [build] so the timer never touches InheritedWidgets directly.
+  Size _screenSize = Size.zero;
+  ModalRoute<dynamic>? _route;
+
+  /// The ad as a smart-refresh banner, or null when smart refresh doesn't apply.
+  BannerAd? get _smartRefreshBanner {
+    final ad = widget.ad;
+    return ad is BannerAd && ad.smartRefresh ? ad : null;
+  }
 
   @override
   void initState() {
@@ -40,10 +76,24 @@ final class _AdWidgetState extends State<AdWidget> {
     } else {
       _adLoadNotCalled = true;
     }
+
+    if (_smartRefreshBanner != null) {
+      WidgetsBinding.instance.addObserver(this);
+      _visibilityTimer = Timer.periodic(
+        _pollInterval,
+        (_) {
+          if (mounted) _evaluateVisibility();
+        },
+      );
+    }
   }
 
   @override
   void dispose() {
+    _visibilityTimer?.cancel();
+    if (_smartRefreshBanner != null) {
+      WidgetsBinding.instance.removeObserver(this);
+    }
     final adId = adInstanceManager.adIdFor(widget.ad);
     if (adId != null) {
       adInstanceManager.unmountWidgetAdId(adId);
@@ -52,7 +102,68 @@ final class _AdWidgetState extends State<AdWidget> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appResumed = state == AppLifecycleState.resumed;
+    _evaluateVisibility();
+  }
+
+  /// Decide whether auto-refresh should be running and push the transition to
+  /// the platform. Combines scroll visibility, route occlusion and app
+  /// lifecycle into a single "active" decision.
+  void _evaluateVisibility() {
+    final banner = _smartRefreshBanner;
+    if (banner == null) return;
+    // Only manage a banner that has actually been registered natively.
+    if (adInstanceManager.adIdFor(banner) == null) return;
+
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return;
+    final size = renderBox.size;
+    if (size.height == 0) return;
+
+    final position = renderBox.localToGlobal(Offset.zero);
+    final screenRect = Offset.zero & _screenSize;
+    final widgetRect = position & size;
+    final visibleHeight =
+        screenRect.intersect(widgetRect).height.clamp(0.0, size.height);
+    final fraction = visibleHeight / size.height;
+
+    final routeIsCurrent = _route?.isCurrent ?? true;
+    final shouldBeActive =
+        _appResumed && routeIsCurrent && fraction >= _visibleThreshold;
+
+    if (!shouldBeActive && !_refreshPaused) {
+      _refreshPaused = true;
+      banner.pauseAutoRefresh();
+      if (kDebugMode) {
+        debugPrint(
+          'AudienzzSmartRefresh → PAUSE '
+          '(fraction=${fraction.toStringAsFixed(2)}, '
+          'routeCurrent=$routeIsCurrent, appResumed=$_appResumed)',
+        );
+      }
+    } else if (shouldBeActive && _refreshPaused) {
+      _refreshPaused = false;
+      banner.resumeAutoRefresh();
+      if (kDebugMode) {
+        debugPrint(
+          'AudienzzSmartRefresh → RESUME '
+          '(fraction=${fraction.toStringAsFixed(2)}, '
+          'routeCurrent=$routeIsCurrent, appResumed=$_appResumed)',
+        );
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Cache visibility inputs here (not in the timer) so the InheritedWidget
+    // dependencies are registered correctly and updated on rotation/navigation.
+    if (_smartRefreshBanner != null) {
+      _screenSize = MediaQuery.sizeOf(context);
+      _route = ModalRoute.of(context);
+    }
+
     if (_adIdAlreadyMounted) {
       throw FlutterError.fromParts(
         [

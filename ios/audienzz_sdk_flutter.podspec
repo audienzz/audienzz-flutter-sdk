@@ -11,9 +11,9 @@ Flutter wrapper for Audienzz Mobile SDK
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'
-  s.dependency 'Google-Mobile-Ads-SDK', '~> 12.0'
-  s.dependency 'AudienzziOSSDK', '~> 0.2.3'
-  s.platform = :ios, '13.0'
+  s.dependency 'Google-Mobile-Ads-SDK', '~> 13.0'
+  s.dependency 'AudienzziOSSDK', '~> 0.2.4'
+  s.platform = :ios, '15.0'
 
   # Flutter.framework does not contain a i386 slice.
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
