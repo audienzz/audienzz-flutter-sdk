@@ -1,3 +1,7 @@
+## 0.1.5
+
+* Mute GMA ads by default: bump native dependencies to AudienzziOSSDK 0.2.5 and com.audienzz:sdk 0.1.5, which set the GMA mute flag when the backend-driven app volume is 0
+
 ## 0.1.0
 
 * Add lazy loading support for banner ads (defers demand fetch until ad enters the viewport)

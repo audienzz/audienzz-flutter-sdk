@@ -3,7 +3,7 @@ import Flutter
 import PrebidMobile
 import UIKit
 
-private let flutterSdkVersion = "0.1.4"
+private let flutterSdkVersion = "0.1.5"
 
 public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
     private var manager: AdInstanceManager
