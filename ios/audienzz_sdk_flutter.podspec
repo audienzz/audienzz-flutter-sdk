@@ -11,9 +11,12 @@ Flutter wrapper for Audienzz Mobile SDK
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'
-  s.dependency 'Google-Mobile-Ads-SDK', '~> 12.0'
+  # AudienzziOSSDK 0.2.2+ (incl. 0.2.5) requires Google-Mobile-Ads-SDK 13 and
+  # uses PrebidMobile's UserUniqueID(uniqueId:) (3.3.1+); GMAS 13 raises the
+  # min iOS deployment target to 15.
+  s.dependency 'Google-Mobile-Ads-SDK', '~> 13.0'
   s.dependency 'AudienzziOSSDK', '~> 0.2.5'
-  s.platform = :ios, '13.0'
+  s.platform = :ios, '15.0'
 
   # Flutter.framework does not contain a i386 slice.
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }

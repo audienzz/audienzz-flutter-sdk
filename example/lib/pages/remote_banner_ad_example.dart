@@ -1,8 +1,5 @@
-import 'dart:async';
-
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 // ---------------------------------------------------------------------------
 // RemoteBannerAdLoader
@@ -101,26 +98,6 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
   /// True when this state created the loader and must dispose it.
   bool _ownsLoader = false;
 
-  // Key on the ad SizedBox so _checkSmartRefreshVisibility can locate its
-  // RenderBox for accurate visibility measurement.
-  final GlobalKey _adKey = GlobalKey();
-
-  // 500 ms polling timer — same cadence as the iOS FBannerAd.swift timer.
-  // Fires regardless of which scrollable ancestor the widget lives in, so no
-  // ScrollController plumbing is needed.
-  Timer? _refreshCheckTimer;
-
-  // Shadow state: avoids redundant pause/resume calls to the platform.
-  // Initialised to true so the first tick only pauses if actually off-screen.
-  bool _smartRefreshVisible = true;
-
-  // Screen size cached in build() and read by the 500 ms timer.
-  // MediaQuery.sizeOf called from a timer (not from build) still registers an
-  // InheritedWidget dependency on the element, causing unexpected rebuilds
-  // whenever MediaQuery changes (keyboard, rotation). Caching in build()
-  // keeps the dependency correctly scoped and the timer reads a plain field.
-  Size _screenSize = Size.zero;
-
   @override
   void initState() {
     super.initState();
@@ -132,85 +109,23 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
       _ownsLoader = true;
     }
     _loader.addListener(_onLoaderChanged);
-    // If the loader was pre-created and the ad already loaded before this
-    // widget mounted, start the smart-refresh timer immediately.
-    if (_loader.isLoaded && (_loader.ad?.smartRefresh ?? false)) {
-      _startRefreshCheckTimer();
-    }
   }
 
   @override
   void dispose() {
-    _refreshCheckTimer?.cancel();
     _loader.removeListener(_onLoaderChanged);
     if (_ownsLoader) _loader.dispose();
     super.dispose();
   }
 
-  // Called whenever the loader notifies (ad loaded, failed, size resolved).
+  // Rebuild when the loader notifies (ad loaded, failed, size resolved).
   void _onLoaderChanged() {
     if (!mounted) return;
     setState(() {});
-    if (_loader.isLoaded && (_loader.ad?.smartRefresh ?? false)) {
-      _startRefreshCheckTimer();
-    }
-  }
-
-  void _startRefreshCheckTimer() {
-    _refreshCheckTimer?.cancel();
-    _refreshCheckTimer = Timer.periodic(
-      const Duration(milliseconds: 500),
-      (_) {
-        if (mounted) _checkSmartRefreshVisibility();
-      },
-    );
-  }
-
-  void _checkSmartRefreshVisibility() {
-    final ad = _loader.ad;
-    if (ad == null || !_loader.isLoaded || !ad.smartRefresh) return;
-
-    final renderBox = _adKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return;
-
-    final size = renderBox.size;
-    if (size.height == 0) return;
-
-    // localToGlobal uses Flutter's own layout coordinate system, which is
-    // accurate regardless of how the platform view is embedded natively.
-    // This is what makes it work on Android where Flutter does not physically
-    // move the embedded AdManagerAdView when a ListView scrolls.
-    final position = renderBox.localToGlobal(Offset.zero);
-    final screenRect = Offset.zero & _screenSize; // use cached value, not MediaQuery.sizeOf
-    final widgetRect = position & size;
-    final intersection = screenRect.intersect(widgetRect);
-    final visibleHeight = intersection.height.clamp(0.0, size.height);
-    final fraction = visibleHeight / size.height;
-
-    if (fraction < 0.2 && _smartRefreshVisible) {
-      setState(() => _smartRefreshVisible = false);
-      print(
-        'SmartRefresh [${widget.configId}] → PAUSING '
-        '(fraction=${fraction.toStringAsFixed(2)}, posY=${position.dy.toStringAsFixed(0)})',
-      );
-      ad.pauseAutoRefresh();
-    } else if (fraction >= 0.2 && !_smartRefreshVisible) {
-      setState(() => _smartRefreshVisible = true);
-      print(
-        'SmartRefresh [${widget.configId}] → RESUMING '
-        '(fraction=${fraction.toStringAsFixed(2)}, posY=${position.dy.toStringAsFixed(0)})',
-      );
-      ad.resumeAutoRefresh();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Keep screen size up to date so _checkSmartRefreshVisibility can read it
-    // without calling MediaQuery.sizeOf from a timer (which would register a
-    // stale InheritedWidget dependency outside of build).
-    _screenSize = MediaQuery.sizeOf(context);
-
     final errorMessage = _loader.errorMessage;
     if (errorMessage != null) {
       return Center(child: Text('Error: $errorMessage'));
@@ -239,64 +154,25 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
     final width = adSize?.width.toDouble() ?? ad.sizes.first.width.toDouble();
     final height = adSize?.height.toDouble() ?? ad.sizes.first.height.toDouble();
 
-    // Colour indicator: green = auto-refresh active (≥20% visible), red = paused.
-    // Shown only once the ad is loaded and smartRefresh is enabled.
-    final showIndicator = isLoaded && ad.smartRefresh;
-    final indicatorColor = _smartRefreshVisible
-        ? const Color(0xFFB9F6CA) // light green
-        : const Color(0xFFFFCDD2); // light red
-    final labelColor = _smartRefreshVisible
-        ? const Color(0xFF1B5E20) // dark green text
-        : const Color(0xFFB71C1C); // dark red text
-    final labelText = _smartRefreshVisible
-        ? '● Auto-refresh active'
-        : '● Auto-refresh paused';
-
-    // Avoid AnimatedContainer here. AnimatedContainer schedules a 300 ms
-    // implicit animation on every SmartRefresh state flip, which rebuilds the
-    // entire subtree (Column → SizedBox → Stack → AdWidget) on every
-    // animation frame (~18 rebuilds per transition). A plain conditional
-    // ColoredBox collapses that to a single rebuild per state change with no
-    // ongoing animation overhead during scroll.
-    final column = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (showIndicator)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(
-              labelText,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: labelColor,
-              ),
-            ),
-          ),
-        SizedBox(
-          key: _adKey,
-          width: width,
-          height: height,
-          // Stack the AdWidget behind a spinner so the native view is always
-          // attached (enabling lazy-load visibility detection) while a
-          // loading indicator is shown until the first creative arrives.
-          child: Stack(
-            children: [
-              AdWidget(ad: ad),
-              if (!isLoaded)
-                const Center(child: CircularProgressIndicator()),
-            ],
-          ),
+    // NOTE: SmartRefresh is fully managed by the SDK. As long as the ad was
+    // created with smartRefresh: true, AdWidget itself pauses auto-refresh when
+    // the ad scrolls off-screen, is covered by another route, or the app is
+    // backgrounded — and resumes when it becomes visible again. The app does
+    // not need any visibility/route/lifecycle handling here.
+    return RepaintBoundary(
+      child: SizedBox(
+        width: width,
+        height: height,
+        // Stack the AdWidget behind a spinner so the native view is always
+        // attached (enabling lazy-load visibility detection) while a loading
+        // indicator is shown until the first creative arrives.
+        child: Stack(
+          children: [
+            AdWidget(ad: ad),
+            if (!isLoaded) const Center(child: CircularProgressIndicator()),
+          ],
         ),
-      ],
+      ),
     );
-
-    // RepaintBoundary isolates this widget as its own compositor layer.
-    // Without it, markNeedsPaint() walks up to the SingleChildScrollView's
-    // layer and re-rasterizes everything (lorem ipsum glyphs, dividers, etc.)
-    // every time the SmartRefresh indicator color changes. With it, only this
-    // widget's layer is re-rasterized — the parent column is untouched.
-    if (!showIndicator) return RepaintBoundary(child: column);
-    return RepaintBoundary(child: ColoredBox(color: indicatorColor, child: column));
   }
 }
