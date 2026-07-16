@@ -52,7 +52,7 @@ android {
 
     dependencies {
         implementation 'com.google.android.gms:play-services-ads:25.1.0'
-        implementation 'com.audienzz:sdk:0.1.4'
+        implementation 'com.audienzz:sdk:0.1.5'
         implementation 'androidx.multidex:multidex:2.0.1'
         implementation 'androidx.core:core-ktx:1.15.0'
     }
