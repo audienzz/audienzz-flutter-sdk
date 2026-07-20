@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/ads/base/ad_with_view.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
@@ -12,7 +14,7 @@ import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_duratio
 
 /// Class for work with banner ads
 class BannerAd extends AdWithView {
-  const BannerAd({
+  BannerAd({
     required this.sizes,
     required super.adUnitId,
     required super.auConfigId,
@@ -39,10 +41,28 @@ class BannerAd extends AdWithView {
     this.onAdImpression,
     this.isAdaptiveSize = false,
     this.refreshTimeInterval,
-    this.isLazyLoad = false,
+    bool isLazyLoad = false,
     this.smartRefresh = false,
     this.prefetchMargin = 200,
-  });
+  }) : isLazyLoad = _resolveLazyLoad(isLazyLoad, smartRefresh);
+
+  // On Flutter, lazy load relies on smartRefresh's Flutter-side visibility
+  // detection to trigger the deferred fetch — the native visibility detector
+  // has no scroll container to observe (ads are platform views). So
+  // isLazyLoad: true without smartRefresh would leave off-screen ads never
+  // loading. Coerce it off and tell the developer how to fix it.
+  static bool _resolveLazyLoad(bool isLazyLoad, bool smartRefresh) {
+    if (isLazyLoad && !smartRefresh) {
+      log(
+        'isLazyLoad: true is not supported without smartRefresh on Flutter — '
+        'off-screen ads would never load. Disabling lazy load for this ad. '
+        'To use lazy loading, also set smartRefresh: true.',
+        name: 'AudienzzSdkFlutter',
+      );
+      return false;
+    }
+    return isLazyLoad;
+  }
 
   /// Specify width and height of the ad unit, will be used in a bid request
   /// at minimum one size is required

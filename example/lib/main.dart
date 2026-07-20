@@ -28,8 +28,8 @@ class _MyAppState extends State<MyApp> {
   late final Future<void> init;
   bool useRemoteConfiguration = true;
 
-  RemoteBannerAdLoader? _loader118;
-  RemoteBannerAdLoader? _loader192;
+  RemoteBannerAdLoader? _loader46;
+  RemoteBannerAdLoader? _loader48;
 
   @override
   void initState() {
@@ -43,8 +43,8 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
-    _loader118?.dispose();
-    _loader192?.dispose();
+    _loader46?.dispose();
+    _loader48?.dispose();
     super.dispose();
   }
 
@@ -52,7 +52,7 @@ class _MyAppState extends State<MyApp> {
     final InitializationStatus status;
     if (useRemoteConfiguration) {
       status = await AudienzzSdkFlutter.instance.initializeRemote(
-        publisherId: '81',
+        publisherId: '35',
         isAutomaticPpidEnabled: true,
         remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1',
       );
@@ -89,8 +89,8 @@ class _MyAppState extends State<MyApp> {
     // Starting here — before FutureBuilder resolves — saves the FutureBuilder
     // rebuild → widget mount → initState → loadAd() round-trip (~100–400 ms).
     if (useRemoteConfiguration) {
-      _loader118 = RemoteBannerAdLoader(configId: '118');
-      _loader192 = RemoteBannerAdLoader(configId: '192');
+      _loader46 = RemoteBannerAdLoader(configId: '46');
+      _loader48 = RemoteBannerAdLoader(configId: '48');
     }
   }
 
@@ -118,8 +118,8 @@ class _MyAppState extends State<MyApp> {
                   children: [
                     AdsPages(
                       useRemoteConfiguration: useRemoteConfiguration,
-                      loader118: _loader118,
-                      loader192: _loader192,
+                      loader46: _loader46,
+                      loader48: _loader48,
                     ),
                     ListWithAdsExample(),
                     LegacyBannerAdExample(),
@@ -179,14 +179,14 @@ class _NavigationTile extends StatelessWidget {
 final class AdsPages extends StatelessWidget {
   const AdsPages({
     required this.useRemoteConfiguration,
-    this.loader118,
-    this.loader192,
+    this.loader46,
+    this.loader48,
     super.key,
   });
 
   final bool useRemoteConfiguration;
-  final RemoteBannerAdLoader? loader118;
-  final RemoteBannerAdLoader? loader192;
+  final RemoteBannerAdLoader? loader46;
+  final RemoteBannerAdLoader? loader48;
 
   @override
   Widget build(BuildContext context) {
@@ -231,27 +231,27 @@ final class AdsPages extends StatelessWidget {
               const Divider(),
               const Padding(
                 padding: EdgeInsets.all(8.0),
-                child: Text('Remote Banner Ad (Adaptive - 118)'),
+                child: Text('Remote Banner Ad (46)'),
               ),
-              RemoteBannerAdExample(configId: '118', loader: loader118),
+              RemoteBannerAdExample(configId: '46', loader: loader46),
 
               loremIpsum(),
 
               const Divider(),
               const Padding(
                 padding: EdgeInsets.all(8.0),
-                child: Text('Remote Banner Ad (Fixed - 192)'),
+                child: Text('Remote Banner Ad (48)'),
               ),
-              RemoteBannerAdExample(configId: '192', loader: loader192),
+              RemoteBannerAdExample(configId: '48', loader: loader48),
 
               loremIpsum(),
 
               const Divider(),
               const Padding(
                 padding: EdgeInsets.all(8.0),
-                child: Text('Remote Interstitial Ad (267)'),
+                child: Text('Remote Interstitial Ad (47)'),
               ),
-              RemoteInterstitialAdExample(configId: '267'),
+              RemoteInterstitialAdExample(configId: '47'),
 
               const Divider(),
               const Padding(

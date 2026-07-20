@@ -14,10 +14,10 @@ import 'package:flutter/material.dart';
 ///
 /// ```dart
 /// // In initializeSdk(), after all global SDK config is set:
-/// _loader = RemoteBannerAdLoader(configId: '118');
+/// _loader = RemoteBannerAdLoader(configId: '46');
 ///
 /// // In build():
-/// RemoteBannerAdExample(configId: '118', loader: _loader)
+/// RemoteBannerAdExample(configId: '46', loader: _loader)
 /// ```
 ///
 /// When no loader is passed to [RemoteBannerAdExample], the widget creates and

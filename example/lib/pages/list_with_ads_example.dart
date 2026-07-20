@@ -12,7 +12,7 @@ final class ListWithAdsExample extends StatefulWidget {
 final class _ListWithAdsExampleState extends State<ListWithAdsExample> {
   final ScrollController _scrollController = ScrollController();
   static const _adSlots = <int>{5, 10, 15, 20, 25};
-  static const _configIds = ['118', '192'];
+  static const _configIds = ['46', '48', '49', '50'];
 
   @override
   void dispose() {
