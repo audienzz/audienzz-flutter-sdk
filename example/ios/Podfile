@@ -49,24 +49,16 @@ target 'Runner' do
 
   # Pin AudienzziOSSDK to the exact release tag so CocoaPods fetches it
   # directly from GitHub without requiring a trunk registry push.
-  # Remove this override once 0.2.5 is published to the CocoaPods trunk.
-  pod 'AudienzziOSSDK', :git => 'https://github.com/audienzz/audienzz-ios-sdk.git', :tag => '0.2.5'
+  # Remove this override once 0.2.6 is published to the CocoaPods trunk.
+  pod 'AudienzziOSSDK', :git => 'https://github.com/audienzz/audienzz-ios-sdk.git', :tag => '0.2.6'
 
-  # AudienzziOSSDK 0.2.5 reads the winning bid (cpm/currency/creativeId/adId)
-  # off Prebid's BidInfo for analytics — fields that only exist in Audienzz's
-  # patched PrebidMobile fork, not in stock PrebidMobile. So CocoaPods
-  # integrations MUST pin the fork; stock PrebidMobile 3.3.1 fails to compile
-  # AudienzziOSSDK (fetchDemand's closure is ResultCode, not BidInfo).
-  # The fork tag also carries the 3.3.1 UserUniqueID(uniqueId:) API.
+  # AudienzziOSSDK 0.2.6 builds against STOCK PrebidMobile (no fork). Pin 3.3.1+
+  # for the UserUniqueID(uniqueId:) API the SDK uses.
   # NOTE: after changing these pins always `flutter clean` — a stale
   # PrebidMobile-Swift.h in build/ otherwise causes a spurious
   # "PBMOpenMeasurementFriendlyObstructionPurpose redefinition".
-  pod 'PrebidMobile',
-      :git => 'https://github.com/audienzz/audienzz-ios-prebid-sdk-fork.git',
-      :tag => '3.3.1-audienzz.1'
-  pod 'PrebidMobileGAMEventHandlers',
-      :git => 'https://github.com/audienzz/audienzz-ios-prebid-sdk-fork.git',
-      :tag => '3.3.1-audienzz.1'
+  pod 'PrebidMobile',                 '~> 3.3.1'
+  pod 'PrebidMobileGAMEventHandlers', '~> 3.3.1'
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
