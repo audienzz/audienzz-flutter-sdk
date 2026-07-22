@@ -131,7 +131,14 @@ class _MyAppState extends State<MyApp> {
                       Tab(text: "Legacy (v0.0.10)"),
                     ],
                   ),
-                  actions: const [],
+                  actions: [
+                    IconButton(
+                      tooltip: 'Open Ad Inspector',
+                      icon: const Icon(Icons.troubleshoot),
+                      onPressed: () =>
+                          AudienzzSdkFlutter.instance.openAdInspector(),
+                    ),
+                  ],
                 ),
                 body: TabBarView(
                   children: [

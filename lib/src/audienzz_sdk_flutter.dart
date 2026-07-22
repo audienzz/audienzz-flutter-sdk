@@ -133,6 +133,22 @@ final class AudienzzSdkFlutter {
   Future<void> resumeAllAutoRefresh() =>
       adInstanceManager.resumeAllBannerAutoRefresh();
 
+  /// Opens Google's **Ad Inspector** — an in-app diagnostic overlay that lists
+  /// recent ad requests and, per request, whether it filled and (if not) why.
+  ///
+  /// Use it to diagnose no-fill: it reports the auction outcome, AdX/AdSense/
+  /// Open Bidding fill, latency, and mediation results directly on the device,
+  /// with no Google Ad Manager access required. The overlay is presented by the
+  /// native Google Mobile Ads SDK; the returned future completes when the
+  /// inspector is closed.
+  ///
+  /// Diagnostic use only — do not ship a production UI entry point for it.
+  Future<void> openAdInspector() {
+    return adInstanceManager.methodChannel.invokeMethod<void>(
+      'openAdInspector',
+    );
+  }
+
   /// Sets the global GMA ad audio volume for all ad types (banner, interstitial, rewarded).
   ///
   /// [volume] must be in range [0.0, 1.0]:

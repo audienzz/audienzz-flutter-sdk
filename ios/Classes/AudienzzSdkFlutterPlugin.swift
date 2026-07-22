@@ -1,5 +1,6 @@
 import AudienzziOSSDK
 import Flutter
+import GoogleMobileAds
 import PrebidMobile
 import UIKit
 
@@ -799,6 +800,23 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 result(FlutterError(code: "INVALID_ARGUMENT",
                                     message: "Missing or invalid volume argument",
                                     details: nil))
+            }
+
+        case "openAdInspector":
+            // Google Ad Inspector — in-app diagnostic overlay showing recent ad
+            // requests and, per request, whether/why they filled. Debug tool only.
+            MobileAds.shared.presentAdInspector(from: rootViewController) { error in
+                if let error = error {
+                    result(
+                        FlutterError(
+                            code: "AD_INSPECTOR_ERROR",
+                            message: error.localizedDescription,
+                            details: nil
+                        )
+                    )
+                } else {
+                    result(nil)
+                }
             }
 
         default:

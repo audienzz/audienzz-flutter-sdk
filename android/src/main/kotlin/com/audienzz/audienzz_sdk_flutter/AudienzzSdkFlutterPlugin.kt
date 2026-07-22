@@ -10,7 +10,10 @@ import com.audienzz.audienzz_sdk_flutter.entities.VideoBitrate
 import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
 import com.audienzz.audienzz_sdk_flutter.message_codec.AdMessageCodec
 import com.audienzz.audienzz_sdk_flutter.platform_views.PlatformViewFactoryWrapper
+import android.app.Activity
 import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.OnAdInspectorClosedListener
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -31,6 +34,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
     private var adInstanceManager: AdInstanceManager? = null
     private val audienzzSdkWrapper = AudienzzSdkWrapper()
     private val audienzzTargetingWrapper = AudienzzTargetingWrapper()
+    private var activity: Activity? = null
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         pluginBinding = flutterPluginBinding
@@ -439,6 +443,22 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
+            "openAdInspector" -> {
+                // Google Ad Inspector — in-app diagnostic overlay showing recent ad
+                // requests and, per request, whether/why they filled. Debug tool only.
+                MobileAds.openAdInspector(activity ?: context, OnAdInspectorClosedListener { error ->
+                    if (error != null) {
+                        result.error(
+                            "AD_INSPECTOR_ERROR",
+                            error.message,
+                            null,
+                        )
+                    } else {
+                        result.success(null)
+                    }
+                })
+            }
+
             else -> result.notImplemented()
         }
     }
@@ -448,6 +468,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        activity = binding.activity
         adMessageCodec?.setContext(binding.activity)
         adInstanceManager?.setActivity(binding.activity)
     }
@@ -457,10 +478,12 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
             adMessageCodec?.setContext(bindings.applicationContext)
         }
 
+        activity = null
         adInstanceManager?.setActivity(null)
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        activity = binding.activity
         adMessageCodec?.setContext(binding.activity)
         adInstanceManager?.setActivity(binding.activity)
     }
@@ -470,6 +493,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
             adMessageCodec?.setContext(bindings.applicationContext)
         }
 
+        activity = null
         adInstanceManager?.setActivity(null)
     }
 

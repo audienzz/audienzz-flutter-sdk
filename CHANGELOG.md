@@ -2,6 +2,7 @@
 
 * Add `pauseAllAutoRefresh()` / `resumeAllAutoRefresh()` to pause and resume auto-refresh across all loaded banner ads (e.g. when showing a full-screen overlay the SDK can't see)
 * Auto-detect same-route overlay occlusion via hit-test: a smart-refresh banner covered by an `OverlayEntry`/dialog on the same route now pauses its auto-refresh without any publisher code
+* Add `openAdInspector()` to launch Google's Ad Inspector — an in-app diagnostic overlay showing recent ad requests and their fill/no-fill reasons (useful for diagnosing no-fill without Google Ad Manager access)
 * Document consent/init order in the README — obtain user consent before initializing the SDK and loading ads
 
 ## 0.1.6
