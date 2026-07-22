@@ -13,6 +13,7 @@ import 'package:audienzz_sdk_flutter_example/pages/rewarded_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/smart_refresh_banner_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/always_in_tree_banner_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/article_in_content_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/overlay_detection_test.dart';
 import 'package:audienzz_sdk_flutter_example/pages/scroll_render_test_example.dart';
 import 'package:flutter/material.dart';
 
@@ -286,6 +287,11 @@ final class AdsPages extends StatelessWidget {
                 title: 'Article (in-content ads)',
                 subtitle: '5 in-content banners in a long article — client layout',
                 pageBuilder: (_) => const ArticleInContentExample(),
+              ),
+              _NavigationTile(
+                title: 'Overlay Detection / Global Pause',
+                subtitle: 'OverlayEntry cover + pauseAllAutoRefresh()',
+                pageBuilder: (_) => const OverlayDetectionTestScreen(),
               ),
 
               const Divider(),
