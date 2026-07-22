@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:developer';
+import 'dart:io';
 
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter_example/pages/banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/interstitial_ad_example.dart';
@@ -50,7 +52,22 @@ class _MyAppState extends State<MyApp> {
     super.dispose();
   }
 
+  /// Request App Tracking Transparency BEFORE initializing the ad SDK, so GMA
+  /// has the consent/tracking state when it starts serving (consent-before-init).
+  Future<void> _requestTrackingAuthorization() async {
+    if (!Platform.isIOS) return;
+    // ATT can only be presented once the app is active.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final status = await AppTrackingTransparency.trackingAuthorizationStatus;
+    if (status == TrackingStatus.notDetermined) {
+      await AppTrackingTransparency.requestTrackingAuthorization();
+    }
+    log('ATT status: ${await AppTrackingTransparency.trackingAuthorizationStatus}');
+  }
+
   Future<void> initializeSdk() async {
+    await _requestTrackingAuthorization();
+
     final InitializationStatus status;
     if (useRemoteConfiguration) {
       status = await AudienzzSdkFlutter.instance.initializeRemote(

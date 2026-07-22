@@ -7,7 +7,7 @@ import org.audienzz.mobile.AudienzzTargetingParams
 import com.audienzz.audienzz_sdk_flutter.entities.InitializationStatus
 import io.flutter.plugin.common.MethodChannel.Result
 
-private const val FLUTTER_SDK_VERSION = "0.1.6"
+private const val FLUTTER_SDK_VERSION = "0.1.7"
 
 class AudienzzSdkWrapper {
     fun initialize(context: Context, companyId: String, isAutomaticPpidEnabled: Boolean, prebidServerUrl: String?, result: Result){

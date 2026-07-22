@@ -1,3 +1,15 @@
+## 0.1.7
+
+* Add `pauseAllAutoRefresh()` / `resumeAllAutoRefresh()` to pause and resume auto-refresh across all loaded banner ads (e.g. when showing a full-screen overlay the SDK can't see)
+* Auto-detect same-route overlay occlusion via hit-test: a smart-refresh banner covered by an `OverlayEntry`/dialog on the same route now pauses its auto-refresh without any publisher code
+* Document consent/init order in the README — obtain user consent before initializing the SDK and loading ads
+
+## 0.1.6
+
+* Handle smart-refresh banner visibility entirely inside the SDK (scroll geometry, route changes, and app lifecycle) — no publisher-side visibility handling required
+* Bump iOS native dependency to AudienzziOSSDK 0.2.6 (Google Mobile Ads SDK 13)
+* Guard against `isLazyLoad: true` without `smartRefresh: true` on Flutter (off-screen ads would never load); lazy load is disabled with a log message for that combination
+
 ## 0.1.5
 
 * Mute GMA ads by default: bump native dependencies to AudienzziOSSDK 0.2.5 and com.audienzz:sdk 0.1.5, which set the GMA mute flag when the backend-driven app volume is 0
