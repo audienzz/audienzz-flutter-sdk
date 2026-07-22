@@ -12,6 +12,7 @@ import 'package:audienzz_sdk_flutter_example/pages/legacy_banner_ad_example.dart
 import 'package:audienzz_sdk_flutter_example/pages/rewarded_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/smart_refresh_banner_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/always_in_tree_banner_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/article_in_content_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/scroll_render_test_example.dart';
 import 'package:flutter/material.dart';
 
@@ -280,6 +281,11 @@ final class AdsPages extends StatelessWidget {
                 title: 'Scroll-Render Race Condition Test',
                 subtitle: 'Scroll while loading — tests doOnAttach fix',
                 pageBuilder: (_) => const ScrollRenderTestExample(),
+              ),
+              _NavigationTile(
+                title: 'Article (in-content ads)',
+                subtitle: '5 in-content banners in a long article — client layout',
+                pageBuilder: (_) => const ArticleInContentExample(),
               ),
 
               const Divider(),
