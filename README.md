@@ -82,6 +82,20 @@ Update your app's `Info.plist` file with your AdMob app ID:
 <string>ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy</string>
 ```
 
+Consent
+-------
+The SDK does **not** gate itself on user consent — that's the app's responsibility.
+Run your CMP (consent) flow and forward the result **before** you initialize the SDK
+or load any ads:
+
+1. Show your CMP and obtain the user's choice.
+2. Forward the signals via `AudienzzTargeting` — `setSubjectToGDPR(...)`,
+   `setGdprConsentString(...)`, `setPurposeConsents(...)`.
+3. **Then** call `initialize(...)` / `initializeRemote(...)` and load ads.
+
+Initializing or loading ads before consent will request ads without the consent
+signals.
+
 Initialize SDK
 -------
 First of all, SDK needs to be initialized. It's done asynchronously, so after callback
