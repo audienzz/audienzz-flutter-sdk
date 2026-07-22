@@ -355,4 +355,28 @@ final class AdInstanceManager {
       {'adId': adId},
     );
   }
+
+  /// Pauses auto-refresh for every currently loaded banner ad.
+  Future<void> pauseAllBannerAutoRefresh() async {
+    for (final entry in _loadedAds.entries) {
+      if (entry.value is BannerAd) {
+        await methodChannel.invokeMethod<void>(
+          'pauseBannerAutoRefresh',
+          {'adId': entry.key},
+        );
+      }
+    }
+  }
+
+  /// Resumes auto-refresh for every currently loaded banner ad.
+  Future<void> resumeAllBannerAutoRefresh() async {
+    for (final entry in _loadedAds.entries) {
+      if (entry.value is BannerAd) {
+        await methodChannel.invokeMethod<void>(
+          'resumeBannerAutoRefresh',
+          {'adId': entry.key},
+        );
+      }
+    }
+  }
 }

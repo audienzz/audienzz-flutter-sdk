@@ -118,6 +118,21 @@ final class AudienzzSdkFlutter {
     );
   }
 
+  /// Pauses Prebid auto-refresh for ALL currently loaded banner ads.
+  ///
+  /// Smart-refresh banners auto-pause for scroll visibility, Navigator routes,
+  /// and app backgrounding. They CANNOT auto-detect same-route covers (an
+  /// `OverlayEntry`, a custom stacked widget, etc.), because Flutter exposes no
+  /// occlusion signal. Call this when such an overlay is shown, and
+  /// [resumeAllAutoRefresh] when it is dismissed.
+  Future<void> pauseAllAutoRefresh() =>
+      adInstanceManager.pauseAllBannerAutoRefresh();
+
+  /// Resumes Prebid auto-refresh for all loaded banner ads previously paused
+  /// via [pauseAllAutoRefresh].
+  Future<void> resumeAllAutoRefresh() =>
+      adInstanceManager.resumeAllBannerAutoRefresh();
+
   /// Sets the global GMA ad audio volume for all ad types (banner, interstitial, rewarded).
   ///
   /// [volume] must be in range [0.0, 1.0]:
