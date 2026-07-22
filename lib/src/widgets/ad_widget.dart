@@ -129,8 +129,11 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     final fraction = visibleHeight / size.height;
 
     final routeIsCurrent = _route?.isCurrent ?? true;
+    final onScreen = fraction >= _visibleThreshold;
+    // Only worth a hit-test when the ad is geometrically on screen.
+    final occluded = onScreen && _isOccludedAtCenter(renderBox);
     final shouldBeActive =
-        _appResumed && routeIsCurrent && fraction >= _visibleThreshold;
+        _appResumed && routeIsCurrent && onScreen && !occluded;
 
     if (!shouldBeActive && !_refreshPaused) {
       _refreshPaused = true;
@@ -139,7 +142,8 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
         debugPrint(
           'AudienzzSmartRefresh → PAUSE '
           '(fraction=${fraction.toStringAsFixed(2)}, '
-          'routeCurrent=$routeIsCurrent, appResumed=$_appResumed)',
+          'routeCurrent=$routeIsCurrent, occluded=$occluded, '
+          'appResumed=$_appResumed)',
         );
       }
     } else if (shouldBeActive && _refreshPaused) {
@@ -149,10 +153,29 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
         debugPrint(
           'AudienzzSmartRefresh → RESUME '
           '(fraction=${fraction.toStringAsFixed(2)}, '
-          'routeCurrent=$routeIsCurrent, appResumed=$_appResumed)',
+          'routeCurrent=$routeIsCurrent, occluded=$occluded, '
+          'appResumed=$_appResumed)',
         );
       }
     }
+  }
+
+  /// Best-effort occlusion check: hit-test the ad's centre point. If our
+  /// RenderBox isn't reachable in the hit path, an opaque, hit-testable cover
+  /// (e.g. an [OverlayEntry] or a stacked widget) is painted on top. Covers
+  /// wrapped in [IgnorePointer] or fully transparent to hit-tests can't be
+  /// detected this way — use `pauseAllAutoRefresh()` for those.
+  bool _isOccludedAtCenter(RenderBox box) {
+    final view = View.maybeOf(context);
+    if (view == null) return false;
+    final center = box.localToGlobal(box.size.center(Offset.zero));
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(result, center, view.viewId);
+    if (result.path.isEmpty) return false;
+    for (final entry in result.path) {
+      if (entry.target == box) return false; // ad reachable → not occluded
+    }
+    return true; // something on top absorbed the hit
   }
 
   @override
