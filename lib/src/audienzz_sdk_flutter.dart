@@ -68,8 +68,8 @@ final class AudienzzSdkFlutter {
                                 "complete": 1,
                                 "nodes": [
                                     {
-                                        "asi": $advertisingSystemDomain,
-                                        "sid": $sellerId,
+                                        "asi": "$advertisingSystemDomain",
+                                        "sid": "$sellerId",
                                         "hp": 1
                                     }
                                   ]

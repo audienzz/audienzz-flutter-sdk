@@ -3,7 +3,7 @@ import Flutter
 import PrebidMobile
 import UIKit
 
-private let flutterSdkVersion = "0.1.7"
+private let flutterSdkVersion = "0.1.8"
 
 public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
     private var manager: AdInstanceManager
@@ -115,7 +115,11 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             let pbAdSlot = args["pbAdSlot"] as? String
             let gpId = args["gpId"] as? String
             let customImpOrtbConfig = args["impOrtbConfig"] as? String
-            let isLazyLoad = args["isLazyLoad"] as? Bool ?? true
+            // Default to false to match the Dart BannerAd default; on iOS a lazy-load
+            // banner inside a Flutter platform view never fetches (VisibleView relies on
+            // a UIScrollView ancestor that doesn't exist here), so an accidental default
+            // of true would silently produce no fill.
+            let isLazyLoad = args["isLazyLoad"] as? Bool ?? false
             let smartRefresh = args["smartRefresh"] as? Bool ?? false
             let prefetchMarginPoints = CGFloat((args["prefetchMargin"] as? Int) ?? 200)
 

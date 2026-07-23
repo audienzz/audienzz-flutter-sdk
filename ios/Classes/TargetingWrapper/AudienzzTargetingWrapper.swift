@@ -84,7 +84,19 @@ class AudienzzTargetingWrapper {
         }
 
         if let externalUserIds = args["externalUserIds"] as? [[String: Any]] {
-            AUTargeting.shared.eids = externalUserIds
+            // Dart sends each EID as { source, uniqueIds: [{id, atype, ext}] }, but the
+            // native SDK's `ExternalUserId.from(json:)` reads the `uids` key
+            // (OpenRTB user.ext.eids[].uids). Without this rename the uids array parses
+            // empty, so every EID carries a source but no actual ID — useless to bidders.
+            // That is why iOS ad requests carried no usable external IDs while Android did.
+            let normalized = externalUserIds.map { eid -> [String: Any] in
+                var out = eid
+                if let uniqueIds = out.removeValue(forKey: "uniqueIds") {
+                    out["uids"] = uniqueIds
+                }
+                return out
+            }
+            AUTargeting.shared.eids = normalized
         } else {
             AUTargeting.shared.eids = nil
         }

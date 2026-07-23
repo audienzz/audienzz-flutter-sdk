@@ -144,6 +144,11 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         bannerViewInstance = AdManagerBannerView(adSize: adSizeFor(cgSize: CGSize(width: mainSize.width, height: mainSize.height)))
         bannerViewInstance!.adUnitID = adUnitId
         bannerViewInstance!.delegate = self
+        // GMA requires a rootViewController on the banner before load(); without it the
+        // load can fail and impressions/clicks aren't recorded. This was set on the
+        // SDK's own reference banner but missing here — an iOS-only gap (Android needs
+        // only a Context, which it has).
+        bannerViewInstance!.rootViewController = rootViewController
 
         var validAdSizes: [NSValue] = [nsValue(for: adSizeFor(cgSize: CGSize(width: mainSize.width, height: mainSize.height)))]
 
