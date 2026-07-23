@@ -1,3 +1,10 @@
+## 0.1.8
+
+* Fix iOS external user IDs (EIDs) never reaching the bid request: the values were stored under the `uniqueIds` key but the native SDK reads `uids`, so `user.ext.eids` went out with no IDs on iOS (Android was unaffected). EIDs now serialize correctly, restoring iOS demand/fill for publishers using external identity
+* Fix iOS banner ads not setting a `rootViewController` on the GMA banner before load, which could cause failed loads and unrecorded impressions/clicks
+* Fix iOS `isLazyLoad` defaulting to `true` when the argument was absent (now `false`, matching the Dart default) — an accidental lazy load never fetches inside a Flutter platform view on iOS
+* Fix invalid schain JSON generated during remote initialization: `asi`/`sid` string values were interpolated unquoted, producing malformed JSON
+
 ## 0.1.7
 
 * Add `pauseAllAutoRefresh()` / `resumeAllAutoRefresh()` to pause and resume auto-refresh across all loaded banner ads (e.g. when showing a full-screen overlay the SDK can't see)
