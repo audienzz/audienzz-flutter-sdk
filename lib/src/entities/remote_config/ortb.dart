@@ -9,7 +9,9 @@ class Ortb {
 
   factory Ortb.fromJson(Map<String, dynamic> json) {
     return Ortb(
-      schain: Schain.fromJson(json['schain'] as Map<String, dynamic>),
+      schain: json['schain'] == null
+          ? null
+          : Schain.fromJson(json['schain'] as Map<String, dynamic>),
       publisherName: json['publisherName'] as String?,
       domain: json['domain'] as String?,
     );

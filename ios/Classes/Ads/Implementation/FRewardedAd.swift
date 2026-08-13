@@ -64,11 +64,11 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
         videoParameters.maxBitrate = videoBitrate.max.intValue
         videoParameters.minBitrate = videoBitrate.min.intValue
         videoParameters.maxDuration = videoDuration.max.intValue
-        videoParameters.maxDuration = videoDuration.min.intValue
+        videoParameters.minDuration = videoDuration.min.intValue
         
         rewardedView = AURewardedView(configId: auConfigId, isLazyLoad: false)
         rewardedView?.frame = CGRect(origin: CGPoint(x: 0, y: 0), size: CGSize(width: rootViewController.view.frame.size.width, height: rootViewController.view.frame.size.height))
-        rewardedView?.backgroundColor = .magenta
+        rewardedView?.backgroundColor = .clear
         rewardedView?.videoParameters = videoParameters
         
         if let customImpOrtbConfig = customImpOrtbConfig {

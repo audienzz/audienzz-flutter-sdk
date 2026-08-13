@@ -161,9 +161,9 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
                 if (!adShown) {
                     result.error("Ad Show Error", "Ad with id $adId failed to show", null)
+                } else {
+                    result.success(null)
                 }
-
-                result.success(null)
             }
 
             "getPlatformAdSize" -> {
