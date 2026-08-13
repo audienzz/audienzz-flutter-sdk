@@ -2,7 +2,7 @@ import Flutter
 import GoogleMobileAds
 import AudienzziOSSDK
 
-class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
+class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDelegate {
     private let adUnitId: String
     private let auConfigId: String
     private let sizes: [FAdSize]
@@ -83,6 +83,20 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
 
     deinit {
         stopSmartRefreshPolling()
+    }
+
+    // MARK: - FDisposableAd
+
+    func dispose() {
+        // Stop the polling timer and Prebid auto-refresh, then remove the
+        // banner from its superview — removeFromSuperview() is AUBannerView's
+        // native destructor. Without this a disposed/refreshing banner keeps
+        // firing Prebid auctions invisibly.
+        stopSmartRefreshPolling()
+        auBannerView?.pauseSmartRefresh()
+        auBannerView?.removeFromSuperview()
+        auBannerView = nil
+        bannerViewInstance = nil
     }
 
     // MARK: - Init
@@ -191,16 +205,29 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         if let customImpOrtbConfig = customImpOrtbConfig {
             auBannerView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
         }
-        auBannerView?.bannerParameters?.api = apiParameters
+
+        // AUBannerView.bannerParameters / .videoParameters are Optional and nil
+        // by default (unlike AUInterstitialView, which instantiates them). The
+        // previous `auBannerView?.bannerParameters?.api = …` optional-chained
+        // into nil, so every banner/video signal (API frameworks, protocols,
+        // placement, playback, bitrate, duration) was silently dropped from the
+        // bid request. Build the parameter objects and assign them whole.
+        let bannerParameters = AUBannerParameters()
+        bannerParameters.api = apiParameters
+        auBannerView?.bannerParameters = bannerParameters
+
+        let videoParameters = AUVideoParameters(mimes: ["video/x-flv", "video/mp4"])
+        videoParameters.api = apiParameters
+        videoParameters.protocols = videoProtocols
+        videoParameters.placement = videoPlacement
+        videoParameters.playbackMethod = videoPlaybackMethods
+        videoParameters.minBitrate = videoBitrate.min.intValue
+        videoParameters.maxBitrate = videoBitrate.max.intValue
+        videoParameters.minDuration = videoDuration.min.intValue
+        videoParameters.maxDuration = videoDuration.max.intValue
+        auBannerView?.videoParameters = videoParameters
+
         auBannerView?.addAdditionalSize(sizes: cgSizes)
-        auBannerView?.videoParameters?.api = apiParameters
-        auBannerView?.videoParameters?.protocols = videoProtocols
-        auBannerView?.videoParameters?.placement = videoPlacement
-        auBannerView?.videoParameters?.playbackMethod = videoPlaybackMethods
-        auBannerView?.videoParameters?.minBitrate = videoBitrate.min.intValue
-        auBannerView?.videoParameters?.maxBitrate = videoBitrate.max.intValue
-        auBannerView?.videoParameters?.minDuration = videoDuration.min.intValue
-        auBannerView?.videoParameters?.maxDuration = videoDuration.max.intValue
         auBannerView?.adUnitConfiguration.adSlot = pbAdSlot
         auBannerView?.adUnitConfiguration?.setGPID(gpId)
 
@@ -262,10 +289,8 @@ class FBannerAd: FBaseAd, FAd, FlutterPlatformView, BannerViewDelegate {
         manager?.onAdOpened(ad: self)
     }
 
-    func bannerViewWillDismissScreen(_ bannerView: BannerView) {
-        manager?.onAdClosed(ad: self)
-    }
-
+    // onAdClosed fires once, on actual dismissal. (Previously both
+    // will-dismiss and did-dismiss mapped to onAdClosed → duplicate event.)
     func bannerViewDidDismissScreen(_ bannerView: BannerView) {
         manager?.onAdClosed(ad: self)
     }

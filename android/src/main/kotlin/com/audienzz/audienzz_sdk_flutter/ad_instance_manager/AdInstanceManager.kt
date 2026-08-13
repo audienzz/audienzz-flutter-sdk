@@ -132,11 +132,10 @@ class AdInstanceManager(private val channel: MethodChannel) {
     fun showAdWithId(id: Int): Boolean {
         val ad = adFor(id) ?: return false
 
-        if (ad is OverlayAd) {
-            ad.show(activity)
-        }
-
-        return true
+        // Return the real show result (false = not an overlay, no activity, not
+        // loaded yet, or already shown) so the plugin can report a show failure
+        // instead of a silent success.
+        return if (ad is OverlayAd) ad.show(activity) else false
     }
 
 

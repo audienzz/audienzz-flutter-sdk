@@ -50,6 +50,12 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         if (pluginBinding == null) {
+            // Reply so the awaiting Dart Future completes instead of hanging.
+            result.error(
+                "NOT_ATTACHED",
+                "Plugin is not attached to a Flutter engine",
+                null
+            )
             return
         }
 
@@ -444,6 +450,9 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        // Tear down every live ad so auctions/refresh loops don't continue with
+        // no Dart side to receive events (add-to-app / multi-engine teardown).
+        adInstanceManager?.disposeAllAds()
         methodChannel?.setMethodCallHandler(null)
     }
 

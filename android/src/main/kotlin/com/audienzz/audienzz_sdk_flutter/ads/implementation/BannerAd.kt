@@ -100,7 +100,10 @@ class BannerAd(
             videoParameters = customVideoParameters
             pbAdSlot = bannerPbAdSlot
             gpid = gpId
-            adSizes.forEach { size ->
+            // The primary size is already set via the AudienzzBannerAdUnit
+            // constructor (adSizes.first()). Only the remaining sizes are
+            // "additional" — adding the first again duplicated it in the request.
+            adSizes.drop(1).forEach { size ->
                 addAdditionalSize(size.width, size.height)
             }
             // refreshTimeInterval arrives in milliseconds from Dart (seconds * 1000).
@@ -159,9 +162,16 @@ class BannerAd(
     }
 
     override fun dispose() {
+        // Stop Prebid auto-refresh before releasing references. Nulling the
+        // handler/unit alone left a pending smart-refresh runnable alive, so a
+        // disposed banner kept running fetchDemand → loadAd() auction loops
+        // (accumulating on every navigation and on hot restart).
+        adViewHandler?.pauseSmartRefresh()
+        bannerAdUnit?.stopAutoRefresh()
+        bannerAdUnit?.destroy()
+        adView?.destroy()
         adViewHandler = null
         bannerAdUnit = null
-        adView?.destroy()
         adView = null
     }
 

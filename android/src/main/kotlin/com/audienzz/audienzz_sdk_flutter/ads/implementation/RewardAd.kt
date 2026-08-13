@@ -33,14 +33,21 @@ class RewardAd(
 ) : OverlayAd() {
     private var rewardedAd: RewardedAd? = null
 
+    // GAM rewarded ads are single-use; guard against a silent second show().
+    private var shown = false
+
     fun setAd(ad: RewardedAd) {
         rewardedAd = ad
     }
 
-    override fun show(activity: Activity?) {
-        activity?.let {
-            rewardedAd?.show(it, userEarnedRewardListener)
+    override fun show(activity: Activity?): Boolean {
+        val ad = rewardedAd
+        if (activity == null || ad == null || shown) {
+            return false
         }
+        ad.show(activity, userEarnedRewardListener)
+        shown = true
+        return true
     }
 
     override fun load() {

@@ -87,6 +87,24 @@ final class RemoteBannerAd extends BannerAd {
       );
       return;
     }
+    // Config-derived fields (adUnitId, sizes, …) are resolved once at
+    // construction. If this ad was built before remote config was available,
+    // they were baked empty even though the config exists now — that would be
+    // a silent no-fill. Surface it instead of loading an unusable request.
+    if (adUnitId.isEmpty || sizes.isEmpty) {
+      log('RemoteBannerAd "$configId" was constructed before remote config '
+          'was available; its ad unit/sizes are empty.');
+      onAdFailedToLoad(
+        this,
+        AdError(
+          code: -1,
+          message: 'RemoteBannerAd "$configId" was constructed before remote '
+              'config was available. Construct it after awaiting '
+              'initializeRemote().',
+        ),
+      );
+      return;
+    }
     return super.load();
   }
 }

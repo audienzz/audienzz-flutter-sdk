@@ -41,14 +41,21 @@ class InterstitialAd(
 ) : OverlayAd() {
     private var interstitialAd: AdManagerInterstitialAd? = null
 
+    // GAM interstitials are single-use; guard against a silent second show().
+    private var shown = false
+
     fun setAd(ad: AdManagerInterstitialAd) {
         interstitialAd = ad
     }
 
-    override fun show(activity: Activity?) {
-        activity?.let {
-            interstitialAd?.show(it)
+    override fun show(activity: Activity?): Boolean {
+        val ad = interstitialAd
+        if (activity == null || ad == null || shown) {
+            return false
         }
+        ad.show(activity)
+        shown = true
+        return true
     }
 
     override fun load() {

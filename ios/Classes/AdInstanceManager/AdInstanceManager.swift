@@ -24,6 +24,10 @@ class AdsCollection<KeyType:  NSCopying & Hashable, ObjectType> {
     func removeAllObjects() {
         storage.removeAll()
     }
+
+    func allObjects() -> [ObjectType] {
+        return Array(storage.values)
+    }
 }
 
 class AdInstanceManager : NSObject {
@@ -61,6 +65,7 @@ class AdInstanceManager : NSObject {
     }
     
     func dispose(adId: NSNumber) {
+        (ads.object(forKey: adId) as? FDisposableAd)?.dispose()
         ads.removeObject(forKey: adId)
     }
     
@@ -122,6 +127,9 @@ class AdInstanceManager : NSObject {
 
     
     func disposeAllAds() {
+        for ad in ads.allObjects() {
+            (ad as? FDisposableAd)?.dispose()
+        }
         ads.removeAllObjects()
     }
 }

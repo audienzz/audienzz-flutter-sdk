@@ -2,7 +2,7 @@ import Flutter
 import GoogleMobileAds
 import AudienzziOSSDK
 
-class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
+class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenContentDelegate {
     private let adUnitId: String
     private let auConfigId: String
     private let rootViewController: UIViewController
@@ -67,20 +67,36 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
     }
     
     //TODO: remove this hack when fixed https://github.com/prebid/prebid-mobile-ios/issues/1135
-    private func createInterstitialORTBConfig(sizes: [CGSize]) -> String {
-        let formatStrings = sizes.map { size in
-            return "{ \"w\": \(Int(size.width)), \"h\": \(Int(size.height)) }"
+    // Merges the #1135 banner.format sizes into the publisher's own
+    // impOrtbConfig instead of overwriting it — a second setImpOrtbConfig call
+    // used to clobber the publisher's deals/floors/first-party data. The
+    // publisher config wins for every key it sets; we only fill in
+    // banner.format when the publisher didn't specify it.
+    private func mergedInterstitialORTBConfig(publisher: String?, sizes: [CGSize]) -> String? {
+        let formats: [[String: Int]] = sizes.map {
+            ["w": Int($0.width), "h": Int($0.height)]
         }
-        
-        let formatArrayString = formatStrings.joined(separator: ", ")
-        
-        return """
-        {
-          "banner": {
-            "format": [ \(formatArrayString) ]
-          }
+
+        var root: [String: Any] = [:]
+        if let publisher = publisher,
+           let data = publisher.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            root = parsed
         }
-        """
+
+        var banner = (root["banner"] as? [String: Any]) ?? [:]
+        if banner["format"] == nil {
+            banner["format"] = formats
+        }
+        root["banner"] = banner
+
+        guard let out = try? JSONSerialization.data(withJSONObject: root),
+              let json = String(data: out, encoding: .utf8) else {
+            // Serialization failed — fall back to the publisher config so at
+            // least the customer's own signals still reach the request.
+            return publisher
+        }
+        return json
     }
     
     private func loadInterstitialAd(gamRequest: AdManagerRequest, adFormat: FAdFormat) {
@@ -101,6 +117,11 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
             videoParameters?.protocols = videoProtocols
             videoParameters?.playbackMethod = videoPlaybackMethods
             videoParameters?.placement = videoPlacement
+            videoParameters?.api = apiParameters
+            videoParameters?.minBitrate = videoBitrate.min.intValue
+            videoParameters?.maxBitrate = videoBitrate.max.intValue
+            videoParameters?.minDuration = videoDuration.min.intValue
+            videoParameters?.maxDuration = videoDuration.max.intValue
             interstitialView = AUInterstitialView(
                 configId: auConfigId,
                 adFormats: adFormats,
@@ -113,6 +134,11 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
             videoParameters?.protocols = videoProtocols
             videoParameters?.playbackMethod = videoPlaybackMethods
             videoParameters?.placement = videoPlacement
+            videoParameters?.api = apiParameters
+            videoParameters?.minBitrate = videoBitrate.min.intValue
+            videoParameters?.maxBitrate = videoBitrate.max.intValue
+            videoParameters?.minDuration = videoDuration.min.intValue
+            videoParameters?.maxDuration = videoDuration.max.intValue
             interstitialView = AUInterstitialView(
                 configId: auConfigId,
                 adFormats: adFormats,
@@ -129,24 +155,22 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
             interstitialView?.videoParameters = params
         }
         
-        if let customImpOrtbConfig = customImpOrtbConfig {
-            interstitialView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
-        }
-        
         let bannerParameters = AUBannerParameters()
         if let sizes = sizes {
             let cgSizes: [CGSize] = sizes.map {
                 CGSize(width: $0.width, height: $0.height)
             }
             bannerParameters.adSizes = cgSizes
-            
+
             //TODO: remove this hack when fixed https://github.com/prebid/prebid-mobile-ios/issues/1135
-            let customOrtb = createInterstitialORTBConfig(sizes: cgSizes)
-            
-            interstitialView?.setImpOrtbConfig(ortbConfig: customOrtb)
-            
+            // Merge the sizes into (not over) the publisher's impOrtbConfig.
+            if let merged = mergedInterstitialORTBConfig(publisher: customImpOrtbConfig, sizes: cgSizes) {
+                interstitialView?.setImpOrtbConfig(ortbConfig: merged)
+            }
+        } else if let customImpOrtbConfig = customImpOrtbConfig {
+            interstitialView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
         }
-        
+
         interstitialView?.bannerParameters = bannerParameters
 
         interstitialView?.createAd(with: gamRequest, adUnitID: adUnitId)
@@ -181,20 +205,42 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
             print("Interstitial Ad failed to show because the ad was not ready.")
         }
     }
-    
+
     func adDidRecordImpression(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdImpression(ad: self)
     }
-    
+
     func adDidRecordClick(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdClicked(ad: self)
     }
-    
+
     func adWillPresentFullScreenContent(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdOpened(ad: self)
     }
-    
+
     func adWillDismissFullScreenContent(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdClosed(ad: self)
+    }
+
+    func adDidDismissFullScreenContent(_ ad: any FullScreenPresentingAd) {
+        // GAM full-screen ads are single-use. Drop the reference so a second
+        // show() reports "not ready" instead of silently no-op-ing.
+        self.interstitialAd = nil
+    }
+
+    func ad(_ ad: any FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: any Error) {
+        // Surface the show failure (previously invisible) and unblock any Dart
+        // flow awaiting onAdClosed, then release the consumed ad.
+        print("Interstitial ad failed to present: \(error.localizedDescription)")
+        self.manager?.onAdClosed(ad: self)
+        self.interstitialAd = nil
+    }
+
+    // MARK: - FDisposableAd
+
+    func dispose() {
+        interstitialView?.removeFromSuperview()
+        interstitialView = nil
+        interstitialAd = nil
     }
 }

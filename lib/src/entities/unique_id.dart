@@ -6,10 +6,13 @@ final class UniqueId {
   });
 
   factory UniqueId.fromMap(Map<dynamic, dynamic> map) {
+    final ext = map['ext'];
     return UniqueId(
       id: map['id'] as String,
       atype: map['atype'] as int?,
-      ext: map['ext'] as Map<String, dynamic>?,
+      // The platform codec delivers Map<Object?, Object?>; a direct
+      // `as Map<String, dynamic>?` cast throws. Convert element-wise.
+      ext: ext == null ? null : Map<String, dynamic>.from(ext as Map),
     );
   }
 

@@ -127,8 +127,8 @@ final class _AudienzzStickyAdWrapperState extends State<AudienzzStickyAdWrapper>
 
   void _attachPosition() {
     if (!mounted) return;
-    final position =
-        widget.scrollController?.position ?? Scrollable.of(context)?.position;
+    final position = widget.scrollController?.position ??
+        Scrollable.maybeOf(context)?.position;
     if (position == null || position == _scrollPosition) return;
     _scrollPosition = position;
     _scrollPosition?.isScrollingNotifier.addListener(_onScrollStateChanged);
@@ -174,10 +174,10 @@ final class _AudienzzStickyAdWrapperState extends State<AudienzzStickyAdWrapper>
 
     final position = _scrollPosition ??
         widget.scrollController?.position ??
-        Scrollable.of(context)?.position;
+        Scrollable.maybeOf(context)?.position;
     if (position == null) return;
 
-    final viewport = RenderAbstractViewport.of(renderBox);
+    final viewport = RenderAbstractViewport.maybeOf(renderBox);
     if (viewport == null) return;
 
     final revealOffset = viewport.getOffsetToReveal(renderBox, 0.0).offset;

@@ -210,8 +210,11 @@ final class AudienzzTargeting {
   }
 
   static Future<Map<String, dynamic>?> getUserExt() async {
+    // The platform codec delivers a Map<Object?, Object?>; a direct
+    // invokeMethod<Map<String, dynamic>> cast throws. invokeMapMethod performs
+    // the element-wise conversion safely.
     return adInstanceManager.methodChannel
-        .invokeMethod<Map<String, dynamic>>('getUserExt');
+        .invokeMapMethod<String, dynamic>('getUserExt');
   }
 
   static Future<void> addUserKeyword(String keyword) async {

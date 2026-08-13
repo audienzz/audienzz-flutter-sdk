@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/audienzz_targeting.dart';
 import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
+import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_publisher_configuration.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:flutter/services.dart';
 
@@ -13,6 +14,12 @@ final class AudienzzSdkFlutter {
   static final _instance = const AudienzzSdkFlutter._().._init();
 
   static AudienzzSdkFlutter get instance => _instance;
+
+  /// Guards the remote-config init path so the native SDK is initialized at
+  /// most once, whether initialization completes on the initial fetch or later
+  /// via background polling. (The class is a const singleton, so this is a
+  /// static field rather than an instance field.)
+  static bool _remoteNativeInitialized = false;
 
   /// Required to initialize the SDK.
   Future<InitializationStatus> initialize({
@@ -37,9 +44,19 @@ final class AudienzzSdkFlutter {
         remoteUrl: remoteUrl,
         publisherId: publisherId,
       );
+    _remoteNativeInitialized = false;
     try {
       await audienzzRemoteConfig.fetchPublisherConfig(
         enablePolling: enablePolling,
+        // If the initial fetch fails with no usable cache, this fires once
+        // background polling later succeeds so the native SDK still gets
+        // initialized instead of the session staying ad-less forever.
+        onPollingSuccess: () {
+          _applyConfigAndInitialize(
+            audienzzRemoteConfig.publisherConfig,
+            isAutomaticPpidEnabled,
+          );
+        },
       );
     } catch (e) {
       log('Audienzz SDK: Remote config unavailable: $e');
@@ -48,7 +65,24 @@ final class AudienzzSdkFlutter {
           : InitializationStatus.fail;
     }
 
-    final config = audienzzRemoteConfig.publisherConfig;
+    return _applyConfigAndInitialize(
+      audienzzRemoteConfig.publisherConfig,
+      isAutomaticPpidEnabled,
+    );
+  }
+
+  /// Applies the publisher config's targeting and initializes the native SDK.
+  /// Idempotent: only the first invocation reaches the native initializer, so
+  /// the initial-fetch path and the background-polling path never double-init.
+  Future<InitializationStatus> _applyConfigAndInitialize(
+    RemotePublisherConfiguration? config,
+    bool isAutomaticPpidEnabled,
+  ) async {
+    if (_remoteNativeInitialized) {
+      return InitializationStatus.success;
+    }
+    _remoteNativeInitialized = true;
+
     if (config != null) {
       final ortb = config.ortb;
       await AudienzzTargeting.setPublisherName(ortb.publisherName);
@@ -56,13 +90,13 @@ final class AudienzzSdkFlutter {
       if (ortb.domain != null) {
         await AudienzzTargeting.setDomain(ortb.domain!);
       }
-      
+
       final advertisingSystemDomain = ortb.schain?.advertisingSystemDomain;
       final sellerId = ortb.schain?.sellerId;
 
       if (advertisingSystemDomain != null && sellerId != null) {
         await setSchainObject('''
-                        { "source": 
+                        { "source":
                             { "schain": {
                                 "ver": "1.0",
                                 "complete": 1,
@@ -74,7 +108,7 @@ final class AudienzzSdkFlutter {
                                     }
                                   ]
                                 }
-                            } 
+                            }
                         }
                     ''');
       }
@@ -98,7 +132,7 @@ final class AudienzzSdkFlutter {
     return adInstanceManager.initialize(
       companyId: config?.ortb.schain?.sellerId ?? '1',
       isAutomaticPpidEnabled: isAutomaticPpidEnabled,
-      prebidServerUrl: audienzzRemoteConfig.publisherConfig?.prebidServer.url,
+      prebidServerUrl: config?.prebidServer.url,
     );
   }
 

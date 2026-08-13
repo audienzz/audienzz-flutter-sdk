@@ -2,7 +2,7 @@ import Flutter
 import GoogleMobileAds
 import AudienzziOSSDK
 
-class FRewardedAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
+class FRewardedAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenContentDelegate {
     private let adUnitId: String
     private let auConfigId: String
     private let apiParameters: [AUApi]
@@ -134,5 +134,27 @@ class FRewardedAd: FBaseAd, FAd, FAdWithoutView, FullScreenContentDelegate {
     
     func adWillDismissFullScreenContent(_ ad: any FullScreenPresentingAd){
         self.manager?.onAdClosed(ad: self)
+    }
+
+    func adDidDismissFullScreenContent(_ ad: any FullScreenPresentingAd) {
+        // GAM full-screen ads are single-use. Drop the reference so a second
+        // show() reports "not ready" instead of silently no-op-ing.
+        self.rewardedAd = nil
+    }
+
+    func ad(_ ad: any FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: any Error) {
+        // Surface the show failure (previously invisible) and unblock any Dart
+        // flow awaiting onAdClosed, then release the consumed ad.
+        print("Rewarded ad failed to present: \(error.localizedDescription)")
+        self.manager?.onAdClosed(ad: self)
+        self.rewardedAd = nil
+    }
+
+    // MARK: - FDisposableAd
+
+    func dispose() {
+        rewardedView?.removeFromSuperview()
+        rewardedView = nil
+        rewardedAd = nil
     }
 }

@@ -9,7 +9,6 @@ import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/exceptions/ad_size_required_exception.dart';
-import 'package:audienzz_sdk_flutter/src/entities/exceptions/reward_item_missing_exception.dart';
 import 'package:audienzz_sdk_flutter/src/entities/exceptions/sdk_initialization_failed_exception.dart';
 import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
 import 'package:audienzz_sdk_flutter/src/entities/reward_item.dart';
@@ -23,7 +22,10 @@ final class AdInstanceManager {
   AdInstanceManager() {
     methodChannel.setMethodCallHandler(
       (call) async {
-        assert(call.method == 'onAdEvent', 'Unsupported ad event');
+        if (call.method != 'onAdEvent') {
+          log('Unsupported ad event method: ${call.method}');
+          return;
+        }
 
         final args = call.arguments as Map<dynamic, dynamic>?;
 
@@ -46,8 +48,12 @@ final class AdInstanceManager {
 
   Ad? adFor(int? adId) => _loadedAds[adId];
 
+  // Look ads up by object identity, not by `==`. `Ad extends Equatable`, so two
+  // distinct instances with identical configuration compare equal — an
+  // equality-based lookup would collide them (a second load() would no-op, and
+  // dispose() could remove the wrong ad's native view).
   int? adIdFor(Ad ad) => _loadedAds.keys.firstWhereOrNull(
-        (key) => _loadedAds[key] == ad,
+        (key) => identical(_loadedAds[key], ad),
       );
 
   final Set<int> _mountedWidgetAdIds = <int>{};
@@ -187,7 +193,11 @@ final class AdInstanceManager {
     final rewardItem = arguments?['rewardItem'] as RewardItem?;
 
     if (rewardItem == null) {
-      throw const RewardItemMissingException();
+      // Throwing here would surface as an unhandled async error inside the
+      // method-channel handler — the app gets neither the reward nor a
+      // catchable error. Log and drop instead.
+      log('$eventName received without a reward item; ignoring');
+      return;
     }
 
     if (ad is RewardedAd) {
@@ -197,9 +207,9 @@ final class AdInstanceManager {
     }
   }
 
-  Future<void> loadBannerAd(BannerAd ad) {
+  Future<void> loadBannerAd(BannerAd ad) async {
     if (adIdFor(ad) != null) {
-      return Future<void>.value();
+      return;
     }
 
     if (ad.sizes.isEmpty) {
@@ -210,99 +220,132 @@ final class AdInstanceManager {
 
     _loadedAds[adId] = ad;
 
-    return methodChannel.invokeMethod<void>(
-      'loadBannerAd',
-      {
-        'adId': adId,
-        'adUnitId': ad.adUnitId,
-        'auConfigId': ad.auConfigId,
-        'adSizes': ad.sizes.toList(),
-        'isAdaptiveSize': ad.isAdaptiveSize,
-        'isLazyLoad': ad.isLazyLoad,
-        'smartRefresh': ad.smartRefresh,
-        'prefetchMargin': ad.prefetchMargin,
-        if (ad.refreshTimeInterval != null)
-          'refreshTimeInterval': ad.refreshTimeInterval,
-        'adFormat': ad.adFormat,
-        'apiParameters': ad.apiParameters.toList(),
-        'protocols': ad.protocols.toList(),
-        'placement': ad.placement,
-        'playbackMethods': ad.playbackMethods.toList(),
-        'videoBitrate': ad.videoBitrate,
-        'videoDuration': ad.videoDuration,
-        if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
-        if (ad.gpId != null) 'gpId': ad.gpId,
-        if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
-      },
-    );
+    try {
+      await methodChannel.invokeMethod<void>(
+        'loadBannerAd',
+        {
+          'adId': adId,
+          'adUnitId': ad.adUnitId,
+          'auConfigId': ad.auConfigId,
+          'adSizes': ad.sizes.toList(),
+          'isAdaptiveSize': ad.isAdaptiveSize,
+          'isLazyLoad': ad.isLazyLoad,
+          'smartRefresh': ad.smartRefresh,
+          'prefetchMargin': ad.prefetchMargin,
+          if (ad.refreshTimeInterval != null)
+            'refreshTimeInterval': ad.refreshTimeInterval,
+          'adFormat': ad.adFormat,
+          'apiParameters': ad.apiParameters.toList(),
+          'protocols': ad.protocols.toList(),
+          'placement': ad.placement,
+          'playbackMethods': ad.playbackMethods.toList(),
+          'videoBitrate': ad.videoBitrate,
+          'videoDuration': ad.videoDuration,
+          if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
+          if (ad.gpId != null) 'gpId': ad.gpId,
+          if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
+        },
+      );
+    } on PlatformException catch (e) {
+      _handleLoadChannelFailure(adId, ad, e);
+    }
   }
 
-  Future<void> loadRewardedAd(RewardedAd ad) {
+  Future<void> loadRewardedAd(RewardedAd ad) async {
     if (adIdFor(ad) != null) {
-      return Future<void>.value();
+      return;
     }
 
     final adId = _nextAdId++;
 
     _loadedAds[adId] = ad;
 
-    return methodChannel.invokeMethod<void>(
-      'loadRewardedAd',
-      {
-        'adId': adId,
-        'adUnitId': ad.adUnitId,
-        'auConfigId': ad.auConfigId,
-        'apiParameters': ad.apiParameters.toList(),
-        'protocols': ad.protocols.toList(),
-        'placement': ad.placement,
-        'playbackMethods': ad.playbackMethods.toList(),
-        'videoBitrate': ad.videoBitrate,
-        'videoDuration': ad.videoDuration,
-        if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
-        if (ad.gpId != null) 'gpId': ad.gpId,
-        if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
-      },
-    );
+    try {
+      await methodChannel.invokeMethod<void>(
+        'loadRewardedAd',
+        {
+          'adId': adId,
+          'adUnitId': ad.adUnitId,
+          'auConfigId': ad.auConfigId,
+          'apiParameters': ad.apiParameters.toList(),
+          'protocols': ad.protocols.toList(),
+          'placement': ad.placement,
+          'playbackMethods': ad.playbackMethods.toList(),
+          'videoBitrate': ad.videoBitrate,
+          'videoDuration': ad.videoDuration,
+          if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
+          if (ad.gpId != null) 'gpId': ad.gpId,
+          if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
+        },
+      );
+    } on PlatformException catch (e) {
+      _handleLoadChannelFailure(adId, ad, e);
+    }
   }
 
-  Future<void> loadInterstitialAd(InterstitialAd ad) {
+  Future<void> loadInterstitialAd(InterstitialAd ad) async {
     if (adIdFor(ad) != null) {
-      return Future<void>.value();
+      return;
     }
 
     final adId = _nextAdId++;
 
     _loadedAds[adId] = ad;
 
-    return methodChannel.invokeMethod<void>(
-      'loadInterstitialAd',
-      {
-        'adId': adId,
-        'adUnitId': ad.adUnitId,
-        'auConfigId': ad.auConfigId,
-        'adFormat': ad.adFormat,
-        'apiParameters': ad.apiParameters.toList(),
-        'protocols': ad.protocols.toList(),
-        'placement': ad.placement,
-        'playbackMethods': ad.playbackMethods.toList(),
-        'videoBitrate': ad.videoBitrate,
-        'videoDuration': ad.videoDuration,
-        'minSizePercentage': ad.minSizePercentage,
-        if (ad.sizes.isNotEmpty) 'adSizes': ad.sizes.toList(),
-        if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
-        if (ad.gpId != null) 'gpId': ad.gpId,
-        if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
-      },
+    try {
+      await methodChannel.invokeMethod<void>(
+        'loadInterstitialAd',
+        {
+          'adId': adId,
+          'adUnitId': ad.adUnitId,
+          'auConfigId': ad.auConfigId,
+          'adFormat': ad.adFormat,
+          'apiParameters': ad.apiParameters.toList(),
+          'protocols': ad.protocols.toList(),
+          'placement': ad.placement,
+          'playbackMethods': ad.playbackMethods.toList(),
+          'videoBitrate': ad.videoBitrate,
+          'videoDuration': ad.videoDuration,
+          'minSizePercentage': ad.minSizePercentage,
+          if (ad.sizes.isNotEmpty) 'adSizes': ad.sizes.toList(),
+          if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
+          if (ad.gpId != null) 'gpId': ad.gpId,
+          if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
+        },
+      );
+    } on PlatformException catch (e) {
+      _handleLoadChannelFailure(adId, ad, e);
+    }
+  }
+
+  /// Undo a failed native load: drop the registry entry (so a retry actually
+  /// re-loads instead of early-returning "already registered") and surface the
+  /// failure through the ad's own `onAdFailedToLoad` callback.
+  void _handleLoadChannelFailure(int adId, Ad ad, PlatformException e) {
+    _loadedAds.remove(adId);
+    final error = AdError(
+      code: int.tryParse(e.code) ?? -1,
+      message: e.message ?? 'Failed to load ad',
     );
+    if (ad is BannerAd) {
+      ad.onAdFailedToLoad(ad, error);
+    } else if (ad is RewardedAd) {
+      ad.onAdFailedToLoad(ad, error);
+    } else if (ad is InterstitialAd) {
+      ad.onAdFailedToLoad(ad, error);
+    }
   }
 
   Future<void> showAdWithoutView(AdWithoutView ad) async {
     final adId = adIdFor(ad);
 
-    assert(
-      adId != null,
-      '$Ad has not been loaded or has already been disposed.',
-    );
+    // A real throw, not an assert: asserts are stripped in release builds, so
+    // an unloaded ad would otherwise send {'adId': null} to the native side.
+    if (adId == null) {
+      throw StateError(
+        'Ad has not been loaded or has already been disposed.',
+      );
+    }
 
     return methodChannel.invokeMethod<void>(
       'showAdWithoutView',
@@ -313,10 +356,11 @@ final class AdInstanceManager {
   Future<AdSize?> getPlatformAdSize(BannerAd ad) async {
     final adId = adIdFor(ad);
 
-    assert(
-      adId != null,
-      '$Ad has not been loaded or has already been disposed.',
-    );
+    if (adId == null) {
+      throw StateError(
+        'Ad has not been loaded or has already been disposed.',
+      );
+    }
 
     return methodChannel.invokeMethod<AdSize?>(
       'getPlatformAdSize',

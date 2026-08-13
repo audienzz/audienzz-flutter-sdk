@@ -27,9 +27,20 @@ class AudienzzRemoteConfig {
   Timer? _retryTimer;
   int _retryCount = 0;
 
+  /// Invoked once config becomes available via background polling (i.e. after
+  /// the initial fetch failed with no usable cache). Lets the caller run the
+  /// full "apply targeting + initialize native SDK" path that the early
+  /// `fallbackPolling` return skipped — otherwise polling would only refresh
+  /// config and the native SDK would never initialize (zero ads all session).
+  void Function()? _onPollingSuccess;
+
   RemotePublisherConfiguration? get publisherConfig => _publisherConfig;
 
   List<RemoteAdConfiguration>? get adUnitConfigs => _adUnitConfigs;
+
+  /// Namespaces the on-device cache so a publisher/endpoint switch can't serve
+  /// another config for the cache lifetime.
+  String get _cacheScope => '${_publisherId}__$_remoteUrl';
 
   void configureRemote({
     required String remoteUrl,
@@ -40,7 +51,11 @@ class AudienzzRemoteConfig {
     _publisherId = publisherId;
   }
 
-  Future<void> fetchPublisherConfig({bool enablePolling = true}) async {
+  Future<void> fetchPublisherConfig({
+    bool enablePolling = true,
+    void Function()? onPollingSuccess,
+  }) async {
+    _onPollingSuccess = onPollingSuccess;
     if (_remoteUrl == null) {
       log('Audienzz Remote Config missing remote url');
       throw Exception('AudienzzRemoteConfigError.missingRemoteUrl');
@@ -60,21 +75,25 @@ class AudienzzRemoteConfig {
     } catch (e) {
       log('Audienzz Remote Config fetch failed: $e');
 
-      if (await _remoteConfigCache.isCacheValid()) {
-        _adUnitConfigs = await _remoteConfigCache.loadAdUnitConfigs();
-        _publisherConfig = await _remoteConfigCache.loadPublisherConfig();
+      if (await _remoteConfigCache.isCacheValid(_cacheScope)) {
+        _adUnitConfigs =
+            await _remoteConfigCache.loadAdUnitConfigs(_cacheScope);
+        _publisherConfig =
+            await _remoteConfigCache.loadPublisherConfig(_cacheScope);
 
         log('Audienzz Remote Config using valid cached config');
         return;
       }
 
-      final staleAdUnitConfigs = await _remoteConfigCache.loadAdUnitConfigs();
+      final staleAdUnitConfigs =
+          await _remoteConfigCache.loadAdUnitConfigs(_cacheScope);
       if (staleAdUnitConfigs == null) {
         if (enablePolling) _startBackgroundPolling();
         rethrow;
       }
       _adUnitConfigs = staleAdUnitConfigs;
-      _publisherConfig = await _remoteConfigCache.loadPublisherConfig();
+      _publisherConfig =
+          await _remoteConfigCache.loadPublisherConfig(_cacheScope);
 
       log('Audienzz Remote Config using stale cached config');
     }
@@ -97,6 +116,7 @@ class AudienzzRemoteConfig {
     await _remoteConfigCache.save(
       publisherConfig: publisherConfig,
       adUnitConfigs: adUnitConfigs,
+      scope: _cacheScope,
     );
 
     _publisherConfig = publisherConfig;
@@ -116,6 +136,10 @@ class AudienzzRemoteConfig {
         await _fetchAndPopulate();
         log('Audienzz Remote Config: background retry succeeded');
         _cancelRetryTimer();
+        // Config is now available — run the deferred init path so the native
+        // SDK actually initializes (the initial fetch failed and returned
+        // fallbackPolling before reaching adInstanceManager.initialize()).
+        _onPollingSuccess?.call();
       } catch (e) {
         log('Audienzz Remote Config: background retry failed: $e');
         _startBackgroundPolling();

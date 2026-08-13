@@ -35,13 +35,18 @@ class CachedConfig {
 }
 
 class RemoteConfigCache {
-  static const String _remotePublisherConfigKey =
-      'remote_publisher_configuration';
+  static const String _keyPrefix = 'remote_publisher_configuration';
   static const Duration _cacheTTL = Duration(hours: 24);
+
+  /// Namespaces the cache entry by [scope] (publisher id + remote URL) so that
+  /// switching publisher or endpoint can't serve another publisher's config
+  /// for up to 24h.
+  String _keyFor(String scope) => '${_keyPrefix}_$scope';
 
   Future<void> save({
     required RemotePublisherConfiguration publisherConfig,
     required List<RemoteAdConfiguration> adUnitConfigs,
+    required String scope,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final cachedConfig = CachedConfig(
@@ -50,32 +55,34 @@ class RemoteConfigCache {
       timestamp: DateTime.now(),
     );
     await prefs.setString(
-      _remotePublisherConfigKey,
+      _keyFor(scope),
       jsonEncode(cachedConfig.toJson()),
     );
   }
 
-  Future<List<RemoteAdConfiguration>?> loadAdUnitConfigs() async {
-    final cachedConfig = await _loadFromCache();
+  Future<List<RemoteAdConfiguration>?> loadAdUnitConfigs(String scope) async {
+    final cachedConfig = await _loadFromCache(scope);
     return cachedConfig?.adUnitConfigs;
   }
 
-  Future<RemotePublisherConfiguration?> loadPublisherConfig() async {
-    final cachedConfig = await _loadFromCache();
+  Future<RemotePublisherConfiguration?> loadPublisherConfig(
+    String scope,
+  ) async {
+    final cachedConfig = await _loadFromCache(scope);
     return cachedConfig?.publisherConfig;
   }
 
-  Future<bool> isCacheValid() async {
-    final cachedConfig = await _loadFromCache();
+  Future<bool> isCacheValid(String scope) async {
+    final cachedConfig = await _loadFromCache(scope);
     if (cachedConfig == null) {
       return false;
     }
     return DateTime.now().difference(cachedConfig.timestamp) < _cacheTTL;
   }
 
-  Future<CachedConfig?> _loadFromCache() async {
+  Future<CachedConfig?> _loadFromCache(String scope) async {
     final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_remotePublisherConfigKey);
+    final jsonString = prefs.getString(_keyFor(scope));
     if (jsonString == null) {
       return null;
     }

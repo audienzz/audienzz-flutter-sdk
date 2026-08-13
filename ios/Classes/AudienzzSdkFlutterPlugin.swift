@@ -34,7 +34,11 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         registrar.addApplicationDelegate(instance)
     }
 
-    var rootController: UIViewController {
+    // Optional — do NOT force-unwrap. Scene-based / add-to-app hosts can call
+    // channel methods before a root view controller exists; force-unwrapping on
+    // every call (the old behaviour) crashed those hosts even for methods that
+    // don't need a root controller (targeting, initialize, …).
+    var rootController: UIViewController? {
         var root = UIApplication.shared.delegate?.window??.rootViewController
 
         if root == nil {
@@ -46,15 +50,13 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             #endif
         }
 
-        return root!
+        return root
     }
 
     public func handle(
         _ call: FlutterMethodCall,
         result: @escaping FlutterResult
     ) {
-        let rootViewController = rootController
-
         switch call.method {
         case "_init":
             manager.disposeAllAds()
@@ -71,7 +73,11 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 AUTargeting.shared.setBridgeTargeting(key: "au_flutter_v", value: flutterSdkVersion)
 
                 if let prebidServerUrl = args["prebidServerUrl"] as? String {
-                     try? Prebid.initializeSDK(serverURL: prebidServerUrl)
+                    do {
+                        try Prebid.initializeSDK(serverURL: prebidServerUrl)
+                    } catch {
+                        print("Audienzz: Prebid.initializeSDK(serverURL:) failed for \(prebidServerUrl): \(error.localizedDescription)")
+                    }
                 }
 
                 result(AudienzzInitializationStatus.success)
@@ -105,6 +111,17 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                     FlutterError(
                         code: "Load Banner Ad Error",
                         message: "Missing or unexpected call parameters",
+                        details: nil
+                    )
+                )
+                return
+            }
+
+            guard let rootViewController = rootController else {
+                result(
+                    FlutterError(
+                        code: "Load Banner Ad Error",
+                        message: "No root view controller available",
                         details: nil
                     )
                 )
@@ -173,6 +190,17 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 return
             }
 
+            guard let rootViewController = rootController else {
+                result(
+                    FlutterError(
+                        code: "Rewarded Ad Loading Error",
+                        message: "No root view controller available",
+                        details: nil
+                    )
+                )
+                return
+            }
+
             let pbAdSlot = args["pbAdSlot"] as? String
             let gpId = args["gpId"] as? String
             let customImpOrtbConfig = args["impOrtbConfig"] as? String
@@ -217,6 +245,17 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                     FlutterError(
                         code: "Interstitial Ad Loading Error",
                         message: "Missing or unexpected call parameters",
+                        details: nil
+                    )
+                )
+                return
+            }
+
+            guard let rootViewController = rootController else {
+                result(
+                    FlutterError(
+                        code: "Interstitial Ad Loading Error",
+                        message: "No root view controller available",
                         details: nil
                     )
                 )
