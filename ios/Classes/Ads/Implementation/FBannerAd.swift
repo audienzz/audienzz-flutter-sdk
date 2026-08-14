@@ -38,6 +38,12 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private var smartRefreshTimer: Timer?
     private var smartRefreshWasVisible = false
 
+    // Set by the Dart layer via pauseAutoRefresh()/resumeAutoRefresh(). While
+    // true, the visibility poll below is suppressed so it can't auto-resume an
+    // ad the publisher explicitly paused — this is how a same-route overlay
+    // (OverlayEntry / modal) that the native geometry poll can't see is honored.
+    private var isManuallyPaused = false
+
     private func startSmartRefreshPolling() {
         smartRefreshTimer?.invalidate()
         smartRefreshTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -51,6 +57,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     }
 
     private func checkSmartRefreshVisibility() {
+        // A manual pause wins over geometric visibility — never auto-resume an
+        // ad the publisher paused explicitly (e.g. behind an overlay).
+        guard !isManuallyPaused else { return }
         guard let view = auBannerView, let window = view.window else {
             // View left the window — treat as hidden.
             if smartRefreshWasVisible {
@@ -97,6 +106,31 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         auBannerView?.removeFromSuperview()
         auBannerView = nil
         bannerViewInstance = nil
+    }
+
+    // MARK: - Manual pause / resume (Dart-driven)
+    //
+    // Called from the plugin when the Dart visibility layer detects a condition
+    // the native geometry poll cannot — most importantly a same-route overlay
+    // covering the ad. pause() suppresses the poll and stops Prebid auto-refresh;
+    // resume() hands control back to the poll (or resumes directly when smart
+    // refresh polling isn't running, e.g. a plain auto-refresh banner).
+
+    func pauseAutoRefresh() {
+        isManuallyPaused = true
+        smartRefreshWasVisible = false
+        auBannerView?.pauseSmartRefresh()
+    }
+
+    func resumeAutoRefresh() {
+        isManuallyPaused = false
+        if smartRefresh {
+            // Re-evaluate now instead of waiting up to 0.5s for the next tick;
+            // this also preserves the stale-aware resume timing.
+            checkSmartRefreshVisibility()
+        } else {
+            auBannerView?.resumeSmartRefresh()
+        }
     }
 
     // MARK: - Init

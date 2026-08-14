@@ -176,6 +176,28 @@ final banner = BannerAd(
 >
 > **`RemoteBannerAd`** always has `smartRefresh` enabled — it is unconditionally set to `true` from remote configuration and cannot be disabled per-instance.
 
+#### Manual pause / resume
+
+The visibility layer auto-pauses refresh for scroll position, `Navigator` routes and app backgrounding. It **cannot** detect a same-route cover — an `OverlayEntry`, a modal barrier, a custom widget stacked on top — because Flutter exposes no occlusion signal for platform views. When you show such an overlay, pause refresh yourself and resume it when the overlay is dismissed. Both APIs take effect on Android and iOS.
+
+Pause / resume a **specific** banner via its `BannerAd` instance:
+
+```dart
+banner.pauseAutoRefresh();  // e.g. an overlay now covers this ad
+banner.resumeAutoRefresh(); // overlay dismissed
+```
+
+Pause / resume **every** loaded banner at once via the SDK singleton — handy for a full-screen overlay that covers all ads:
+
+```dart
+await AudienzzSdkFlutter.instance.pauseAllAutoRefresh();
+await AudienzzSdkFlutter.instance.resumeAllAutoRefresh();
+```
+
+Resume is stale-aware: it keeps the existing refresh cycle rather than restarting the interval from zero.
+
+> **Note:** These methods act on banner auto-refresh only, and require the banner to have been loaded with a `refreshTimeInterval`. They work whether or not `smartRefresh` is enabled.
+
 Examples
 ========
 You can find examples of practical implementation here:
@@ -522,7 +544,7 @@ API Reference
 | `sizes`               | `Set<AdSize>`                                | Required. Ad sizes for the bid request. At least one required.          |
 | `isAdaptiveSize`      | `bool`                                       | If true, ad size is adaptive. Default: false.                           |
 | `refreshTimeInterval` | `int?`                                       | Refresh time in milliseconds. Optional.                                 |
-| `isLazyLoad`          | `bool`                                       | If true, defers ad loading until the view is visible. Default: `true`.  |
+| `isLazyLoad`          | `bool`                                       | If true, defers ad loading until the view is visible. Requires `smartRefresh: true` (coerced off otherwise). Default: `false`. |
 | `prefetchMargin`      | `int`                                        | Logical pixels before the view enters the viewport at which the demand fetch begins. Maps to `prefetchMarginPoints` on iOS and `prefetchMarginDp` on Android. Has no practical effect inside `ListView`/`GridView`. Default: `200`. |
 | `smartRefresh`        | `bool`                                       | If true, pauses auto-refresh when < 20 % of the ad height is visible and resumes — with stale-aware timing — when it returns. Requires `refreshTimeInterval`. Default: `false`. |
 | `adFormat`            | `AdFormat`                                   | Desired ad format (banner, video, or both). Default: `AdFormat.banner`. |
@@ -543,6 +565,8 @@ API Reference
 | `onAdImpression`      | `void Function(BannerAd ad)?`                | Callback when ad is visible for 1s.                                     |
 | `getPlatformAdSize()` | `Future<AdSize?>`                            | Gets the ad size assigned on the platform.                              |
 | `load()`              | `Future<void>`                               | Loads the ad.                                                           |
+| `pauseAutoRefresh()`  | `Future<void>`                               | Pauses auto-refresh for this banner (e.g. when an overlay covers it). Requires `refreshTimeInterval`. |
+| `resumeAutoRefresh()` | `Future<void>`                               | Resumes auto-refresh for this banner, with stale-aware timing.          |
 
 ## InterstitialAd (extends AdWithoutView)
 | Property/Method     | Type                                               | Description                                                   |

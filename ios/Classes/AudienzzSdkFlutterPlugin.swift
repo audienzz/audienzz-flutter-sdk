@@ -341,9 +341,24 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 )
             }
 
-        case "pauseBannerAutoRefresh", "resumeBannerAutoRefresh":
-            // iOS smart refresh is driven by FBannerAd's 0.5s polling timer which
-            // uses UIKit frame coordinates — no action needed from the Dart layer.
+        case "pauseBannerAutoRefresh":
+            // The Dart layer pauses a specific banner (e.g. when a same-route
+            // overlay covers it — a case the native geometry poll can't detect).
+            if let args = call.arguments as? [String: Any],
+               let adId = args["adId"] as? NSNumber,
+               let bannerAd = manager.ad(for: adId) as? FBannerAd
+            {
+                bannerAd.pauseAutoRefresh()
+            }
+            result(nil)
+
+        case "resumeBannerAutoRefresh":
+            if let args = call.arguments as? [String: Any],
+               let adId = args["adId"] as? NSNumber,
+               let bannerAd = manager.ad(for: adId) as? FBannerAd
+            {
+                bannerAd.resumeAutoRefresh()
+            }
             result(nil)
 
         case "setUserLatLng":
