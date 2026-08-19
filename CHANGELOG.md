@@ -1,3 +1,20 @@
+## 0.1.9
+
+* Honor `pauseAutoRefresh()` / `resumeAutoRefresh()` (and the all-ads variants) on iOS: a manual pause — e.g. when a same-route overlay covers the banner, which the native geometry poll can't detect — is no longer auto-resumed by the visibility poll within half a second (Android already honored these)
+* Fix remote-config cold start: when the initial config fetch failed with no usable cache, the native SDK was never initialized (zero ads for the whole session even after connectivity returned) — background polling now completes initialization once config becomes available
+* Fix iOS banner ads dropping all bid signals: `bannerParameters` / `videoParameters` (API frameworks, protocols, placement, playback, bitrate, duration) were assigned into an uninitialized object and silently discarded — they now reach the bid request
+* Fix iOS rewarded video sending `maxduration = 1s` (a copy-paste set `maxDuration` twice); `minDuration` is now set correctly
+* Fix iOS interstitial overwriting the publisher's `impOrtbConfig` with the multisize workaround — the sizes are now merged into the publisher config instead of replacing it; interstitial video requests also carry API/bitrate/duration signals
+* Fix a schain-less remote config throwing during decode (`schain` is optional)
+* Fix ad lookup colliding two identically-configured ads (registry now keys by object identity)
+* Fix a failed native ad load leaving the ad registered forever and silently no-opping retries — the failure now surfaces through `onAdFailedToLoad`
+* Fix Android `showAdWithoutView` replying twice on a failed show (raised `IllegalStateException`); failed full-screen shows are now surfaced instead of silently reported as success, with a single-use guard against a second show
+* Fix disposed banners continuing to run Prebid auctions: dispose now stops auto-refresh and tears down the banner view/timers on both platforms; iOS full-screen ads no longer leak their view/handler/GAM ad
+* Fix `StickyAdWrapper` crashing when used outside a scrollable
+* Fix `getUserExt()` and external-ID decoding throwing on the platform map type
+* Namespace the remote-config cache by publisher id + URL so switching publisher/endpoint can't serve a stale config
+* Surface show/present failures for full-screen formats on both platforms instead of hanging or misreporting them; iOS `rootViewController` resolution no longer force-crashes scene-based / add-to-app hosts
+
 ## 0.1.8
 
 * Fix iOS external user IDs (EIDs) never reaching the bid request: the values were stored under the `uniqueIds` key but the native SDK reads `uids`, so `user.ext.eids` went out with no IDs on iOS (Android was unaffected). EIDs now serialize correctly, restoring iOS demand/fill for publishers using external identity
