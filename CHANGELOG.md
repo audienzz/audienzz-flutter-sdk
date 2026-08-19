@@ -14,6 +14,7 @@
 * Fix `getUserExt()` and external-ID decoding throwing on the platform map type
 * Namespace the remote-config cache by publisher id + URL so switching publisher/endpoint can't serve a stale config
 * Surface show/present failures for full-screen formats on both platforms instead of hanging or misreporting them; iOS `rootViewController` resolution no longer force-crashes scene-based / add-to-app hosts
+* Bump native dependencies to AudienzziOSSDK 0.2.7 and com.audienzz:sdk 0.1.7, which carry the corresponding native audit fixes
 
 ## 0.1.8
 
