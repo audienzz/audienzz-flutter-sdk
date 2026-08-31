@@ -68,6 +68,11 @@ class _MyAppState extends State<MyApp> {
   Future<void> initializeSdk() async {
     await _requestTrackingAuthorization();
 
+    // Single-host Flutter app: turn off native auto screen tracking (it would collapse every route
+    // into one) and report routes explicitly (see the ListTile onTap + the 'home' report below).
+    // Must run before initialize.
+    await AudienzzSdkFlutter.instance.setAutoScreenTracking(false);
+
     final InitializationStatus status;
     if (useRemoteConfiguration) {
       status = await AudienzzSdkFlutter.instance.initializeRemote(
@@ -83,6 +88,9 @@ class _MyAppState extends State<MyApp> {
     }
 
     log(status.toString());
+
+    // Report the initial screen for per-route page-impression analytics.
+    await AudienzzSdkFlutter.instance.onScreenResumed('home');
 
     await AudienzzSdkFlutter.instance.setSchainObject("""
                         { "source": 
@@ -180,15 +188,20 @@ class _NavigationTile extends StatelessWidget {
       title: Text(title, style: const TextStyle(fontSize: 14)),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.chevron_right, size: 18),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (ctx) => Scaffold(
-            appBar: AppBar(title: Text(title)),
-            body: pageBuilder(ctx),
+      onTap: () {
+        // Report the destination screen (its title is the route key here); on return we re-report
+        // 'home' so its ads are grouped under a fresh page impression.
+        AudienzzSdkFlutter.instance.onScreenResumed(title);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (ctx) => Scaffold(
+              appBar: AppBar(title: Text(title)),
+              body: pageBuilder(ctx),
+            ),
           ),
-        ),
-      ),
+        ).then((_) => AudienzzSdkFlutter.instance.onScreenResumed('home'));
+      },
     );
   }
 }

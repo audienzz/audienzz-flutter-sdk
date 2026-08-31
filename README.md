@@ -518,6 +518,67 @@ API Reference
 | Method                                   | Parameters                                                         | Description                                                                                                                                    |
 |------------------------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
 | `AudienzzSdkFlutter.instance.initialize` | `{required String companyId, bool isAutomaticPpidEnabled = false}` | Initializes the SDK. Automatic Ppid could be enabled or disabled. Returns `InitializationStatus`. Must be called before using any ad features. |
+| `AudienzzSdkFlutter.instance.setAutoScreenTracking` | `bool enabled` | Enable/disable native automatic screen tracking. Call **before** `initialize`. See [Screen tracking](#screen-tracking-analytics). |
+| `AudienzzSdkFlutter.instance.onScreenResumed` | `String routeKey` | Report the active screen by route key — fires a `pageImpression`. See [Screen tracking](#screen-tracking-analytics). |
+
+## Screen tracking (analytics)
+
+The SDK ties ad events to the screen the user is on: entering an ad-bearing screen fires a
+`pageImpression` and starts a fresh page-impression id that groups every ad event on that visit.
+
+The native SDK tracks screens **automatically**, but that model watches native
+Activities/ViewControllers — and a Flutter app runs inside **one** `FlutterActivity` /
+`FlutterViewController`, so auto-tracking would collapse *every* Dart route into a single coarse
+impression. So in Flutter you drive it explicitly by your navigation route:
+
+1. Turn native auto-tracking **off** once, before init.
+2. Report each ad-bearing route on navigation.
+
+```dart
+// 1. Disable native auto-tracking BEFORE initialize (single-host app).
+await AudienzzSdkFlutter.instance.setAutoScreenTracking(false);
+await AudienzzSdkFlutter.instance.initialize(companyId: 'YOUR_COMPANY_ID');
+
+// 2. Report the active screen on each navigation to an ad-bearing route.
+await AudienzzSdkFlutter.instance.onScreenResumed('home');
+```
+
+Report from a single place with a `RouteObserver` instead of inside each screen:
+
+```dart
+final RouteObserver<PageRoute<dynamic>> audienzzRouteObserver =
+    RouteObserver<PageRoute<dynamic>>();
+
+// Register it on your MaterialApp: navigatorObservers: [audienzzRouteObserver]
+
+class _AdScreenState extends State<AdScreen> with RouteAware {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) audienzzRouteObserver.subscribe(this, route);
+  }
+
+  @override
+  void didPush() => AudienzzSdkFlutter.instance.onScreenResumed('home');     // navigated to
+  @override
+  void didPopNext() => AudienzzSdkFlutter.instance.onScreenResumed('home');  // returned to
+
+  @override
+  void dispose() {
+    audienzzRouteObserver.unsubscribe(this);
+    super.dispose();
+  }
+}
+```
+
+Notes:
+- The `routeKey` is any stable per-screen string (your route name works well). It's the screen
+  identity in analytics.
+- `setAutoScreenTracking(false)` must be called **before** `initialize` to take effect. Leaving
+  auto-tracking on emits one page impression for the single host screen.
+- This is analytics only. Screen-aware ad *reload* is a native-app feature; Flutter banners already
+  reload on return because the platform view is disposed on navigate.
 
 ## Ad Base Classes
 
