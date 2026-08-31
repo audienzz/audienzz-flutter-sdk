@@ -152,6 +152,31 @@ final class AudienzzSdkFlutter {
     );
   }
 
+  /// Enable/disable native automatic screen tracking.
+  ///
+  /// Native auto-tracking is ON, but a Flutter app has a single host Activity /
+  /// UIViewController, so it collapses every Dart route into one coarse page
+  /// impression. Call `setAutoScreenTracking(false)` **before** [initialize]
+  /// and report each route with [onScreenResumed] for per-route analytics.
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setAutoScreenTracking(bool enabled) {
+    return adInstanceManager.methodChannel.invokeMethod(
+      'setAutoScreenTracking',
+      {'enabled': enabled},
+    );
+  }
+
+  /// Report the active screen by an opaque [routeKey] (your navigation route
+  /// name). Fires a `pageImpression` and starts a fresh page-impression id
+  /// that ties all ad events on this screen visit together. Call on each
+  /// navigation to an ad-bearing screen — e.g. from a [RouteObserver].
+  Future<void> onScreenResumed(String routeKey) {
+    return adInstanceManager.methodChannel.invokeMethod(
+      'onScreenResumed',
+      {'routeKey': routeKey},
+    );
+  }
+
   /// Pauses Prebid auto-refresh for ALL currently loaded banner ads.
   ///
   /// Smart-refresh banners auto-pause for scroll visibility, Navigator routes,

@@ -848,6 +848,25 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         case "getPpid":
             result(PPIDManager.shared.getPPID())
 
+        // Native auto screen tracking is ON by default, but a Flutter app has a single host
+        // UIViewController — so it would collapse every Dart route into one coarse page impression.
+        // Call before initialize() and report routes explicitly via onScreenResumed.
+        case "setAutoScreenTracking":
+            if let args = call.arguments as? [String: Any],
+               let enabled = args["enabled"] as? Bool {
+                Audienzz.shared.autoScreenTracking = enabled
+            }
+            result(nil)
+
+        // Report the active screen by an opaque route key; fires a pageImpression + a fresh
+        // page-impression id tying this visit's ad events together.
+        case "onScreenResumed":
+            if let args = call.arguments as? [String: Any],
+               let routeKey = args["routeKey"] as? String {
+                Audienzz.shared.onScreenResumed(routeKey)
+            }
+            result(nil)
+
         case "setAppVolume":
             if let args = call.arguments as? [String: Any],
                let volume = args["volume"] as? Double {

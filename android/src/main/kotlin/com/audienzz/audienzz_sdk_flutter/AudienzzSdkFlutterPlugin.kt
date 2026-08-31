@@ -445,6 +445,24 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
+            // Native auto screen tracking is ON by default, but a Flutter app has a single host
+            // Activity — so it would collapse every Dart route into one coarse page impression.
+            // Call before initialize() and report routes explicitly via onScreenResumed.
+            "setAutoScreenTracking" -> {
+                AudienzzPrebidMobile.autoScreenTracking = call.argument<Boolean>("enabled") ?: true
+                result.success(null)
+            }
+
+            // Report the active screen by an opaque route key; fires a pageImpression + a fresh
+            // page-impression id tying this visit's ad events together.
+            "onScreenResumed" -> {
+                val routeKey = call.argument<String>("routeKey")
+                if (routeKey != null) {
+                    AudienzzPrebidMobile.onScreenResumed(routeKey)
+                }
+                result.success(null)
+            }
+
             else -> result.notImplemented()
         }
     }
