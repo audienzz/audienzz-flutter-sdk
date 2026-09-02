@@ -112,16 +112,33 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     _evaluateVisibility();
   }
 
-  /// Broadcast target for `onScreenResumed`: reload this banner if it's currently
-  /// on screen. In a single-host app the on-screen banners are the active
-  /// screen's, so this reproduces the native "screen change → reload" without
-  /// re-auctioning ads on background tabs/routes.
+  /// Set by the `onScreenResumed` broadcast when the ad isn't on screen yet;
+  /// the visibility poll performs the reload once it becomes visible.
+  bool _pendingScreenResumeReload = false;
+
+  /// Broadcast target for `onScreenResumed`: reload this banner when it's the
+  /// active screen's on-screen ad. If it isn't on screen yet — the incoming
+  /// tab/route may still be animating in — defer to [_evaluateVisibility] so the
+  /// reload lands once the ad becomes visible instead of being dropped. In a
+  /// single-host app the on-screen banners are the active screen's, so this
+  /// reproduces the native "screen change → reload" without re-auctioning ads on
+  /// background tabs/routes.
   void _reloadOnScreenResume() {
     final banner = _smartRefreshBanner;
     if (banner == null || !mounted) return;
-    if (adInstanceManager.adIdFor(banner) == null) return;
-    if (!_isOnScreen()) return;
-    banner.reload();
+    final adId = adInstanceManager.adIdFor(banner);
+    if (adId == null) return;
+    if (_isOnScreen()) {
+      if (kDebugMode) {
+        debugPrint('AudienzzReload → reload now (adId=$adId, on screen)');
+      }
+      banner.reload();
+    } else {
+      if (kDebugMode) {
+        debugPrint('AudienzzReload → deferred (adId=$adId, off screen)');
+      }
+      _pendingScreenResumeReload = true;
+    }
   }
 
   /// Whether at least [_visibleThreshold] of the ad's height is in the viewport.
@@ -162,6 +179,18 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
 
     final routeIsCurrent = _route?.isCurrent ?? true;
     final onScreen = fraction >= _visibleThreshold;
+
+    // A screen-resume reload that arrived while the ad was still animating in
+    // (e.g. the incoming tab) fires now that it's on screen — once.
+    if (_pendingScreenResumeReload && onScreen) {
+      _pendingScreenResumeReload = false;
+      if (kDebugMode) {
+        final adId = adInstanceManager.adIdFor(banner);
+        debugPrint('AudienzzReload → deferred reload fired (adId=$adId, now on screen)');
+      }
+      banner.reload();
+    }
+
     // Only worth a hit-test when the ad is geometrically on screen.
     final occluded = onScreen && _isOccludedAtCenter(renderBox);
     final shouldBeActive =

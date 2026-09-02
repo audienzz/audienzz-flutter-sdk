@@ -59,15 +59,22 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     init = initializeSdk();
   }
 
-  /// Fires once per tab change: report the now-active tab as a screen. That one
-  /// call fires a fresh page impression AND reloads the tab's on-screen
-  /// smart-refresh banners (handled by the SDK), so a returning tab shows a new
-  /// creative immediately — no manual per-ad reload needed.
+  /// Fires once per tab change: report the now-active tab as a screen (fresh page
+  /// impression) and reload that tab's banner ads. A Flutter banner is a platform
+  /// view that can't be re-auctioned in place, so we RECREATE the ad here — which
+  /// blanks the slot (placeholder) during the reload and shows a fresh creative,
+  /// matching the native screen-change reload. This is the recommended pattern for
+  /// screens whose ads stay mounted (tabs); stack routes that unmount reload for
+  /// free on remount.
   void _onTabChanged() {
     final i = _tabController.index;
     if (i == _lastTab) return;
     _lastTab = i;
     AudienzzSdkFlutter.instance.onScreenResumed(_tabKeys[i]);
+    if (i == 0) {
+      _loader46?.reload();
+      _loader48?.reload();
+    }
   }
 
   @override
@@ -99,6 +106,11 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     // into one) and report routes explicitly (see the ListTile onTap + the 'home' report below).
     // Must run before initialize.
     await AudienzzSdkFlutter.instance.setAutoScreenTracking(false);
+    // Opt into smart-refresh v2 (directional viewport gate) instead of the legacy 20% gate,
+    // and blank the slot during a screen-resume reload — parity with the native iOS/Android SDKs.
+    // Both override backend config for the session; call before creating banners.
+    await AudienzzSdkFlutter.instance.setSmartRefreshV2Enabled(true);
+    await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
 
     final InitializationStatus status;
     if (useRemoteConfiguration) {

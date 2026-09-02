@@ -869,6 +869,22 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             }
             result(nil)
 
+        // Force smart-refresh v2 on/off, overriding the backend smartRefreshV2 config.
+        case "setSmartRefreshV2Enabled":
+            if let args = call.arguments as? [String: Any],
+               let enabled = args["enabled"] as? Bool {
+                Audienzz.shared.smartRefreshV2Override = enabled
+            }
+            result(nil)
+
+        // When true, a banner blanks its slot during a screen-resume reload.
+        case "setBlankOnScreenReload":
+            if let args = call.arguments as? [String: Any],
+               let enabled = args["enabled"] as? Bool {
+                Audienzz.shared.blankOnScreenReload = enabled
+            }
+            result(nil)
+
         // Report the active screen by an opaque route key; fires a pageImpression + a fresh
         // page-impression id tying this visit's ad events together.
         case "onScreenResumed":

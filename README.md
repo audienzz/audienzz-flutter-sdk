@@ -519,7 +519,10 @@ API Reference
 |------------------------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
 | `AudienzzSdkFlutter.instance.initialize` | `{required String companyId, bool isAutomaticPpidEnabled = false}` | Initializes the SDK. Automatic Ppid could be enabled or disabled. Returns `InitializationStatus`. Must be called before using any ad features. |
 | `AudienzzSdkFlutter.instance.setAutoScreenTracking` | `bool enabled` | Enable/disable native automatic screen tracking. Call **before** `initialize`. See [Screen tracking](#screen-tracking-analytics). |
-| `AudienzzSdkFlutter.instance.onScreenResumed` | `String routeKey` | Report the active screen by route key — fires a `pageImpression`. See [Screen tracking](#screen-tracking-analytics). |
+| `AudienzzSdkFlutter.instance.onScreenResumed` | `String routeKey` | Report the active screen by route key — fires a `pageImpression`. See [Reload on screen resume](#reload-on-screen-resume). |
+| `AudienzzSdkFlutter.instance.setSmartRefreshV2Enabled` | `bool enabled` | Force smart-refresh v2 (directional viewport gate) on/off, overriding backend config. Call **before** creating banners. |
+| `AudienzzSdkFlutter.instance.setBlankOnScreenReload` | `bool enabled` | Blank a native banner's slot during a screen-resume reload (default `false`). Call **before** creating banners. |
+| `AudienzzSdkFlutter.instance.setAppVolume` | `double volume` | Set the global ad audio volume for all ad types (`0.0`–`1.0`, `0.0` = muted). The SDK defaults to muted. |
 
 ## Screen tracking (analytics)
 
@@ -577,8 +580,35 @@ Notes:
   identity in analytics.
 - `setAutoScreenTracking(false)` must be called **before** `initialize` to take effect. Leaving
   auto-tracking on emits one page impression for the single host screen.
-- This is analytics only. Screen-aware ad *reload* is a native-app feature; Flutter banners already
-  reload on return because the platform view is disposed on navigate.
+
+### Reload on screen resume
+
+`onScreenResumed(routeKey)` fires the page impression. To also show a fresh creative when a
+route/tab becomes active again, **recreate** the banner on that screen — a Flutter banner is a
+platform view whose texture does not refresh on an in-place re-auction, so recreating (dispose then
+load a new ad) is what produces a new creative. Recreating also blanks the slot for a frame while
+the new ad loads, matching the native `blankOnScreenReload`.
+
+```dart
+// e.g. from a TabController listener, when tab 0 becomes active again:
+void _onTabChanged(int index) {
+  AudienzzSdkFlutter.instance.onScreenResumed(_tabKeys[index]); // analytics
+  if (index == 0) _bannerLoader.reload();                       // dispose -> fresh load
+}
+```
+
+See the example's tab handler and `RemoteBannerAdLoader.reload()` for a complete pattern.
+
+Two optional session-wide toggles tune smart-refresh (call **before** creating banners):
+
+```dart
+// Use the v2 directional viewport gate (top fully on screen, at most half off the
+// bottom) instead of the legacy 20%-visible gate. Overrides backend config.
+await AudienzzSdkFlutter.instance.setSmartRefreshV2Enabled(true);
+
+// Blank a native banner's slot during a screen-resume reload (default false).
+await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
+```
 
 ## Ad Base Classes
 

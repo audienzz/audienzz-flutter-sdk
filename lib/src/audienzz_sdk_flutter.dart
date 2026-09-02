@@ -166,19 +166,48 @@ final class AudienzzSdkFlutter {
     );
   }
 
+  /// Force smart-refresh v2 on/off, overriding the backend `smartRefreshV2`
+  /// config for the rest of the session. v2 uses the directional viewport gate
+  /// (top fully on screen, at most half off the bottom); v1 uses the legacy
+  /// ≥20%-visible gate. Call before creating banners. Omit to defer to backend.
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setSmartRefreshV2Enabled(bool enabled) {
+    return adInstanceManager.methodChannel.invokeMethod(
+      'setSmartRefreshV2Enabled',
+      {'enabled': enabled},
+    );
+  }
+
+  /// When true, a banner blanks its slot during a screen-resume reload
+  /// (native `blankOnScreenReload`). Default false. Call before creating
+  /// banners.
+  ///
+  /// NOTE: the Flutter reload path recreates the platform view, so the slot
+  /// already blanks for a frame regardless; this flag additionally drives the
+  /// native banners' own reload behavior for parity with iOS/Android.
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setBlankOnScreenReload(bool enabled) {
+    return adInstanceManager.methodChannel.invokeMethod(
+      'setBlankOnScreenReload',
+      {'enabled': enabled},
+    );
+  }
+
   /// Report the active screen by an opaque [routeKey] (your navigation route
   /// name). Fires a `pageImpression` and starts a fresh page-impression id
   /// that ties all ad events on this screen visit together. Call on each
   /// navigation to an ad-bearing screen — e.g. from a [RouteObserver].
-  Future<void> onScreenResumed(String routeKey) async {
-    await adInstanceManager.methodChannel.invokeMethod(
+  Future<void> onScreenResumed(String routeKey) {
+    // Analytics only: fire the page impression. A Flutter banner is a platform
+    // view whose texture does NOT refresh on an in-place re-auction, so the SDK
+    // cannot reliably reload it from here. To reload on screen change, the app
+    // recreates its banner ad on that screen (dispose -> fresh load) — which also
+    // blanks the slot during the reload, matching the native behavior. See the
+    // example's tab handler.
+    return adInstanceManager.methodChannel.invokeMethod(
       'onScreenResumed',
       {'routeKey': routeKey},
     );
-    // Parity with native: a resumed screen reloads its on-screen smart-refresh
-    // banners, so a returning route/tab shows a fresh creative under the new
-    // page impression. Off-screen (background tab/route) banners are skipped.
-    adInstanceManager.notifyScreenResumedReload();
   }
 
   /// Pauses Prebid auto-refresh for ALL currently loaded banner ads.

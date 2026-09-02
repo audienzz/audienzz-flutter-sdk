@@ -72,12 +72,20 @@ class RemoteBannerAdLoader extends ChangeNotifier {
     _ad = null;
     isLoaded = false;
     errorMessage = null;
+    // Show the empty placeholder for a frame (slot blanks, like the native
+    // blankOnScreenReload), then start the fresh auction.
     notifyListeners();
-    _createAndLoad();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed) return;
+      _createAndLoad();
+    });
   }
+
+  bool _disposed = false;
 
   @override
   void dispose() {
+    _disposed = true;
     _ad?.dispose();
     _ad = null;
     super.dispose();

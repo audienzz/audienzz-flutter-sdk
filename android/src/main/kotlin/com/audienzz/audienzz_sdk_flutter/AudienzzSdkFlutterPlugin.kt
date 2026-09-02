@@ -461,6 +461,18 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
+            // Force smart-refresh v2 on/off, overriding the backend smartRefreshV2 config.
+            "setSmartRefreshV2Enabled" -> {
+                AudienzzPrebidMobile.smartRefreshV2Override = call.argument<Boolean>("enabled") ?: false
+                result.success(null)
+            }
+
+            // When true, a banner blanks its slot during a screen-resume reload.
+            "setBlankOnScreenReload" -> {
+                AudienzzPrebidMobile.blankOnScreenReload = call.argument<Boolean>("enabled") ?: false
+                result.success(null)
+            }
+
             // Report the active screen by an opaque route key; fires a pageImpression + a fresh
             // page-impression id tying this visit's ad events together.
             "onScreenResumed" -> {
