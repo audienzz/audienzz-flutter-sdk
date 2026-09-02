@@ -50,7 +50,10 @@ class RemoteBannerAdLoader extends ChangeNotifier {
         _ad = null; // null BEFORE notifying so build() sees consistent state
         notifyListeners();
         ad.dispose();
-        print('RemoteBannerAdLoader [$configId] failed: $error');
+        print(
+          'RemoteBannerAdLoader [$configId] failed: '
+          'code=${error?.code} message=${error?.message}',
+        );
       },
       onAdClicked: (_) {},
       onAdOpened: (_) {},
@@ -59,6 +62,18 @@ class RemoteBannerAdLoader extends ChangeNotifier {
     );
     _ad!.load();
     print('RemoteBannerAdLoader [$configId] load() called');
+  }
+
+  /// Dispose the current ad and start a fresh auction. Used when the ad's
+  /// screen (e.g. a tab) becomes active again, mirroring the native
+  /// screen-change reload — a fresh creative under the new page impression.
+  void reload() {
+    _ad?.dispose();
+    _ad = null;
+    isLoaded = false;
+    errorMessage = null;
+    notifyListeners();
+    _createAndLoad();
   }
 
   @override

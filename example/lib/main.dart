@@ -29,16 +29,29 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   late final Future<void> init;
   bool useRemoteConfiguration = true;
 
   RemoteBannerAdLoader? _loader46;
   RemoteBannerAdLoader? _loader48;
 
+  // Tab = screen. Each tab is reported as its own screen so switching tabs fires
+  // a fresh page impression, and the incoming tab's ads reload immediately —
+  // the Flutter analogue of the native screen-change reload.
+  late final TabController _tabController;
+  int _lastTab = 0;
+  static const List<String> _tabKeys = [
+    'Regular example',
+    'List example',
+    'Legacy (v0.0.10)',
+  ];
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this)
+      ..addListener(_onTabChanged);
     _initializeSdk();
   }
 
@@ -46,8 +59,21 @@ class _MyAppState extends State<MyApp> {
     init = initializeSdk();
   }
 
+  /// Fires once per tab change: report the now-active tab as a screen. That one
+  /// call fires a fresh page impression AND reloads the tab's on-screen
+  /// smart-refresh banners (handled by the SDK), so a returning tab shows a new
+  /// creative immediately — no manual per-ad reload needed.
+  void _onTabChanged() {
+    final i = _tabController.index;
+    if (i == _lastTab) return;
+    _lastTab = i;
+    AudienzzSdkFlutter.instance.onScreenResumed(_tabKeys[i]);
+  }
+
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
     _loader46?.dispose();
     _loader48?.dispose();
     super.dispose();
@@ -129,30 +155,27 @@ class _MyAppState extends State<MyApp> {
       builder: (_, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
           return MaterialApp(
-            home: DefaultTabController(
-              length: 3,
-              child: Scaffold(
-                appBar: AppBar(
-                  title: TabBar(
-                    tabs: [
-                      Tab(text: "Regular example"),
-                      Tab(text: "List example"),
-                      Tab(text: "Legacy (v0.0.10)"),
-                    ],
-                  ),
-                  actions: const [],
-                ),
-                body: TabBarView(
-                  children: [
-                    AdsPages(
-                      useRemoteConfiguration: useRemoteConfiguration,
-                      loader46: _loader46,
-                      loader48: _loader48,
-                    ),
-                    ListWithAdsExample(),
-                    LegacyBannerAdExample(),
+            home: Scaffold(
+              appBar: AppBar(
+                title: TabBar(
+                  controller: _tabController,
+                  tabs: [
+                    for (final key in _tabKeys) Tab(text: key),
                   ],
                 ),
+                actions: const [],
+              ),
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  AdsPages(
+                    useRemoteConfiguration: useRemoteConfiguration,
+                    loader46: _loader46,
+                    loader48: _loader48,
+                  ),
+                  ListWithAdsExample(),
+                  LegacyBannerAdExample(),
+                ],
               ),
             ),
           );

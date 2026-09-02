@@ -170,11 +170,15 @@ final class AudienzzSdkFlutter {
   /// name). Fires a `pageImpression` and starts a fresh page-impression id
   /// that ties all ad events on this screen visit together. Call on each
   /// navigation to an ad-bearing screen — e.g. from a [RouteObserver].
-  Future<void> onScreenResumed(String routeKey) {
-    return adInstanceManager.methodChannel.invokeMethod(
+  Future<void> onScreenResumed(String routeKey) async {
+    await adInstanceManager.methodChannel.invokeMethod(
       'onScreenResumed',
       {'routeKey': routeKey},
     );
+    // Parity with native: a resumed screen reloads its on-screen smart-refresh
+    // banners, so a returning route/tab shows a fresh creative under the new
+    // page impression. Off-screen (background tab/route) banners are skipped.
+    adInstanceManager.notifyScreenResumedReload();
   }
 
   /// Pauses Prebid auto-refresh for ALL currently loaded banner ads.

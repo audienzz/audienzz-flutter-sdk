@@ -170,6 +170,11 @@ class BannerAd extends AdWithView {
   Future<void> resumeAutoRefresh() =>
       adInstanceManager.resumeBannerAutoRefresh(this);
 
+  /// Force a fresh auction now, regardless of the refresh timer. Triggered by
+  /// the SDK when this banner's screen becomes active again (see
+  /// `AudienzzSdkFlutter.onScreenResumed`); also usable for a manual reload.
+  Future<void> reload() => adInstanceManager.reloadBanner(this);
+
   @override
   List<Object?> get props => [
         adUnitId,

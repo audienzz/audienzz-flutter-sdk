@@ -10,4 +10,7 @@ final class AdError {
 
   /// Descriptive message for the error
   final String message;
+
+  @override
+  String toString() => 'AdError(code: $code, message: $message)';
 }

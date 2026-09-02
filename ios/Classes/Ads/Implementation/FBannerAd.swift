@@ -133,6 +133,15 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         }
     }
 
+    /// Force a fresh auction now, ignoring the stale-aware refresh timing — used
+    /// by the `onScreenResumed` reload broadcast. The Dart layer only calls this
+    /// for on-screen banners, so the visibility poll keeps it active afterwards.
+    func forceReload() {
+        isManuallyPaused = false
+        smartRefreshWasVisible = smartRefresh
+        auBannerView?.reloadAd()
+    }
+
     // MARK: - Init
 
     init(

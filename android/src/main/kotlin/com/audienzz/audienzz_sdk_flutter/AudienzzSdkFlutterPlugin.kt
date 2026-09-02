@@ -201,6 +201,14 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
+            "reloadBanner" -> {
+                // Force a fresh auction now — used when this banner's screen
+                // (route or tab) becomes active again (onScreenResumed broadcast).
+                val ad = adInstanceManager?.adFor(call.argument<Int>("adId")!!)
+                (ad as? com.audienzz.audienzz_sdk_flutter.ads.implementation.BannerAd)?.forceReload()
+                result.success(null)
+            }
+
             "setUserLatLng" -> audienzzTargetingWrapper.setUserLatLng(call, result)
             "getUserLatLng" -> audienzzTargetingWrapper.getUserLatLng(result)
 

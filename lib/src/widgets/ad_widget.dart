@@ -79,6 +79,10 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
 
     if (_smartRefreshBanner != null) {
       WidgetsBinding.instance.addObserver(this);
+      // Reload this banner when a screen/route/tab becomes active again (fired by
+      // AudienzzSdkFlutter.onScreenResumed) — but only if it's currently on
+      // screen, so hidden tabs don't burn an auction.
+      adInstanceManager.addScreenResumeReloader(_reloadOnScreenResume);
       _visibilityTimer = Timer.periodic(
         _pollInterval,
         (_) {
@@ -93,6 +97,7 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     _visibilityTimer?.cancel();
     if (_smartRefreshBanner != null) {
       WidgetsBinding.instance.removeObserver(this);
+      adInstanceManager.removeScreenResumeReloader(_reloadOnScreenResume);
     }
     final adId = adInstanceManager.adIdFor(widget.ad);
     if (adId != null) {
@@ -105,6 +110,33 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appResumed = state == AppLifecycleState.resumed;
     _evaluateVisibility();
+  }
+
+  /// Broadcast target for `onScreenResumed`: reload this banner if it's currently
+  /// on screen. In a single-host app the on-screen banners are the active
+  /// screen's, so this reproduces the native "screen change → reload" without
+  /// re-auctioning ads on background tabs/routes.
+  void _reloadOnScreenResume() {
+    final banner = _smartRefreshBanner;
+    if (banner == null || !mounted) return;
+    if (adInstanceManager.adIdFor(banner) == null) return;
+    if (!_isOnScreen()) return;
+    banner.reload();
+  }
+
+  /// Whether at least [_visibleThreshold] of the ad's height is in the viewport.
+  bool _isOnScreen() {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return false;
+    final size = renderBox.size;
+    if (size.height == 0) return false;
+    final position = renderBox.localToGlobal(Offset.zero);
+    final widgetRect = position & size;
+    final visibleHeight = (Offset.zero & _screenSize)
+        .intersect(widgetRect)
+        .height
+        .clamp(0.0, size.height);
+    return visibleHeight / size.height >= _visibleThreshold;
   }
 
   /// Decide whether auto-refresh should be running and push the transition to
@@ -172,10 +204,29 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     final result = HitTestResult();
     WidgetsBinding.instance.hitTestInView(result, center, view.viewId);
     if (result.path.isEmpty) return false;
-    for (final entry in result.path) {
-      if (entry.target == box) return false; // ad reachable → not occluded
+
+    // The ad's own render-object chain (itself + ancestors). A hit that lands on
+    // any of these means nothing foreign covers the ad — it's either the ad
+    // itself or one of the scrollables/gesture layers CONTAINING it. The latter
+    // matters on iOS: while a finger is down the UiKitView drops out of the hit
+    // path and the enclosing scrollable's gesture layer is hit instead, which
+    // previously read as "occluded" and paused a fully-visible ad mid-scroll.
+    final ownChain = <RenderObject>{};
+    RenderObject? node = box;
+    while (node != null) {
+      ownChain.add(node);
+      final parent = node.parent;
+      node = parent is RenderObject ? parent : null;
     }
-    return true; // something on top absorbed the hit
+    for (final entry in result.path) {
+      final target = entry.target;
+      if (target is RenderObject && ownChain.contains(target)) {
+        return false; // ad or one of its ancestors reachable → not occluded
+      }
+    }
+    // A real overlay (e.g. OverlayEntry) is a SIBLING subtree, not an ancestor,
+    // so it won't be in ownChain — such a genuine cover still pauses refresh.
+    return true;
   }
 
   @override

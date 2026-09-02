@@ -161,6 +161,12 @@ class BannerAd(
         adViewHandler?.resumeSmartRefresh()
     }
 
+    /// Force a fresh auction now, ignoring the stale-aware refresh timing — used
+    /// by the onScreenResumed reload broadcast (only for on-screen banners).
+    fun forceReload() {
+        adViewHandler?.reloadAd()
+    }
+
     override fun dispose() {
         // Stop Prebid auto-refresh before releasing references. Nulling the
         // handler/unit alone left a pending smart-refresh runnable alive, so a

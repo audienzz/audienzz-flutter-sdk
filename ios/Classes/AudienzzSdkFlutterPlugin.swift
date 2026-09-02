@@ -361,6 +361,17 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             }
             result(nil)
 
+        case "reloadBanner":
+            // Force a fresh auction now — used when this banner's screen (route
+            // or tab) becomes active again (onScreenResumed broadcast).
+            if let args = call.arguments as? [String: Any],
+               let adId = args["adId"] as? NSNumber,
+               let bannerAd = manager.ad(for: adId) as? FBannerAd
+            {
+                bannerAd.forceReload()
+            }
+            result(nil)
+
         case "setUserLatLng":
             targetingWrapper.setUserLatLng(call, result: result)
 

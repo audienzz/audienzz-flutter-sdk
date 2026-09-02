@@ -64,6 +64,27 @@ final class AdInstanceManager {
 
   void unmountWidgetAdId(int adId) => _mountedWidgetAdIds.remove(adId);
 
+  /// Reload callbacks registered by mounted smart-refresh [AdWidget]s. Each one
+  /// reloads its banner if it is currently on screen — see
+  /// [notifyScreenResumedReload].
+  final Set<void Function()> _screenResumeReloaders = <void Function()>{};
+
+  void addScreenResumeReloader(void Function() reload) =>
+      _screenResumeReloaders.add(reload);
+
+  void removeScreenResumeReloader(void Function() reload) =>
+      _screenResumeReloaders.remove(reload);
+
+  /// Ask every mounted smart-refresh banner to reload if it is currently on
+  /// screen. Invoked by [AudienzzSdkFlutter.onScreenResumed] after the page
+  /// impression fires, so a returning route/tab shows a fresh creative —
+  /// the Flutter analogue of the native screen-change reload.
+  void notifyScreenResumedReload() {
+    for (final reload in _screenResumeReloaders.toList()) {
+      reload();
+    }
+  }
+
   final methodChannel = MethodChannel(
     Constants.methodChannelName,
     StandardMethodCodec(AdMessageCodec()),
@@ -396,6 +417,17 @@ final class AdInstanceManager {
     if (adId == null) return Future<void>.value();
     return methodChannel.invokeMethod<void>(
       'resumeBannerAutoRefresh',
+      {'adId': adId},
+    );
+  }
+
+  /// Force a fresh auction now for [ad], regardless of the refresh timer —
+  /// calls the native `AUBannerView.reloadAd()` / `AudienzzAdViewHandler.reloadAd()`.
+  Future<void> reloadBanner(BannerAd ad) {
+    final adId = adIdFor(ad);
+    if (adId == null) return Future<void>.value();
+    return methodChannel.invokeMethod<void>(
+      'reloadBanner',
       {'adId': adId},
     );
   }
