@@ -17,6 +17,7 @@ import 'package:audienzz_sdk_flutter_example/pages/always_in_tree_banner_example
 import 'package:audienzz_sdk_flutter_example/pages/article_in_content_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/overlay_detection_test.dart';
 import 'package:audienzz_sdk_flutter_example/pages/scroll_render_test_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/test_screen_example.dart';
 import 'package:flutter/material.dart';
 
 void main() => runApp(const MyApp());
@@ -297,6 +298,11 @@ final class AdsPages extends StatelessWidget {
                     letterSpacing: 1.1,
                   ),
                 ),
+              ),
+              _NavigationTile(
+                title: 'Test Screen',
+                subtitle: 'One banner on its own screen — for screen-tracking logs',
+                pageBuilder: (_) => const TestScreenExample(),
               ),
               _NavigationTile(
                 title: 'Always-in-tree Banner Pattern',
