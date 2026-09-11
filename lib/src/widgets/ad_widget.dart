@@ -5,6 +5,7 @@ import 'package:audienzz_sdk_flutter/src/ads/base/ad_with_view.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/banner_ad.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -303,30 +304,44 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
         surfaceFactory: (_, controller) {
           return AndroidViewSurface(
             controller: controller as AndroidViewController,
-            gestureRecognizers: const {},
-            // transparent — not opaque — is the correct choice for TLHC
-            // (initAndroidView) inside scrollable content.
+            // Two settings together make the banner reliably clickable while
+            // still letting the page scroll when a drag starts on the ad.
             //
-            // With opaque + empty gestureRecognizers, AndroidViewGestureRecognizer
-            // has no sub-recognizers, so on PointerDown it calls
-            // resolve(GestureDisposition.accepted) immediately — claiming the
-            // gesture before SingleChildScrollView's drag recognizer can even
-            // evaluate movement direction. Every scroll that starts on the ad
-            // is swallowed by the platform view and the page stops scrolling.
+            // hitTestBehavior: opaque
+            //   With TLHC (initAndroidView) the embedded AdManagerAdView is
+            //   composited UNDER Flutter's surface, which consumes all touches.
+            //   Flutter forwards pointer events to the embedded view only when
+            //   its render box is in the hit-test path — and only opaque (or
+            //   translucent) put it there. `transparent` removes it from the
+            //   hit test entirely (see RenderAndroidView.hitTest), so the ad
+            //   gets NO touch events and taps never reach it. That is why the
+            //   ad was completely dead before.
             //
-            // With transparent, Flutter's hit test skips the platform view
-            // entirely, so SingleChildScrollView wins vertical drag gestures
-            // and scroll is smooth.
-            //
-            // Ad clicks are NOT lost: with TLHC (initAndroidView) the
-            // AdManagerAdView lives in the real Android view hierarchy. Android's
-            // input system dispatches taps to it directly, independently of
-            // Flutter's hit test result. The onAdClicked callback still fires.
-            //
-            // A bonus: opaque was also causing event duplication — Flutter
-            // injected synthetic events AND Android dispatched native events to
-            // the same view simultaneously. transparent eliminates that.
-            hitTestBehavior: PlatformViewHitTestBehavior.transparent,
+            // gestureRecognizers: Tap + LongPress
+            //   An EMPTY set gives the platform view only a passive recognizer
+            //   that wins the gesture arena solely when every other recognizer
+            //   rejects. Inside a ListView/ScrollView the scrollable's
+            //   vertical-drag recognizer competes too, so a tap with even a few
+            //   pixels of finger drift is claimed as a drag and the click is
+            //   swallowed — the "sometimes not clickable" symptom.
+            //   Registering Tap (and LongPress) makes the platform view an
+            //   ACTIVE competitor for those gestures: a tap is forwarded to the
+            //   ad even amid slight movement, while a real vertical drag still
+            //   goes to the scrollable. We deliberately do NOT use
+            //   EagerGestureRecognizer — it claims on pointer-down and would
+            //   swallow scrolls that begin on the ad.
+            // NB: each Factory must carry the CONCRETE recognizer type as its
+            // type argument. Flutter keys the set by Factory<T>.type (== T), so
+            // two Factory<OneSequenceGestureRecognizer> entries collapse to one
+            // type and trip the "multiple factories for the same type"
+            // assertion. Covariance still lets these fit the declared set type.
+            gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{
+              Factory<TapGestureRecognizer>(TapGestureRecognizer.new),
+              Factory<LongPressGestureRecognizer>(
+                LongPressGestureRecognizer.new,
+              ),
+            },
+            hitTestBehavior: PlatformViewHitTestBehavior.opaque,
           );
         },
         onCreatePlatformView: (params) {
