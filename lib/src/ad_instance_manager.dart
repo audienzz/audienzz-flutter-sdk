@@ -76,7 +76,7 @@ final class AdInstanceManager {
       _screenResumeReloaders.remove(reload);
 
   /// Ask every mounted smart-refresh banner to reload if it is currently on
-  /// screen. Invoked by [AudienzzSdkFlutter.onScreenResumed] after the page
+  /// screen. Invoked by [AudienzzSdkFlutter.pageImpression] after the page
   /// impression fires, so a returning route/tab shows a fresh creative —
   /// the Flutter analogue of the native screen-change reload.
   void notifyScreenResumedReload() {

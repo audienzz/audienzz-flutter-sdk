@@ -7,6 +7,7 @@ import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_publisher_configuration.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 final class AudienzzSdkFlutter {
   const AudienzzSdkFlutter._();
@@ -152,20 +153,6 @@ final class AudienzzSdkFlutter {
     );
   }
 
-  /// Enable/disable native automatic screen tracking.
-  ///
-  /// Native auto-tracking is ON, but a Flutter app has a single host Activity /
-  /// UIViewController, so it collapses every Dart route into one coarse page
-  /// impression. Call `setAutoScreenTracking(false)` **before** [initialize]
-  /// and report each route with [onScreenResumed] for per-route analytics.
-  // ignore: avoid_positional_boolean_parameters
-  Future<void> setAutoScreenTracking(bool enabled) {
-    return adInstanceManager.methodChannel.invokeMethod(
-      'setAutoScreenTracking',
-      {'enabled': enabled},
-    );
-  }
-
   /// Force smart-refresh v2 on/off, overriding the backend `smartRefreshV2`
   /// config for the rest of the session. v2 uses the directional viewport gate
   /// (top fully on screen, at most half off the bottom); v1 uses the legacy
@@ -193,11 +180,18 @@ final class AudienzzSdkFlutter {
     );
   }
 
-  /// Report the active screen by an opaque [routeKey] (your navigation route
-  /// name). Fires a `pageImpression` and starts a fresh page-impression id
-  /// that ties all ad events on this screen visit together. Call on each
-  /// navigation to an ad-bearing screen — e.g. from a [RouteObserver].
-  Future<void> onScreenResumed(String routeKey) {
+  /// Report an ad-bearing screen, dialog, or popup. Pass a [context] (the
+  /// screen name is derived from its route's `settings.name`, else the
+  /// enclosing widget type) and/or an explicit [name]; at least one is
+  /// required. Fires a `pageImpression` and a fresh page-impression id that
+  /// ties all ad events on this visit together. Call it on each navigation to
+  /// an ad-bearing screen — e.g. from a [RouteObserver] or a route's `build`.
+  Future<void> pageImpression({BuildContext? context, String? name}) {
+    assert(
+      context != null || name != null,
+      'pageImpression requires a context or a name',
+    );
+    final screenName = name ?? _deriveScreenName(context!);
     // Analytics only: fire the page impression. A Flutter banner is a platform
     // view whose texture does NOT refresh on an in-place re-auction, so the SDK
     // cannot reliably reload it from here. To reload on screen change, the app
@@ -205,10 +199,17 @@ final class AudienzzSdkFlutter {
     // blanks the slot during the reload, matching the native behavior. See the
     // example's tab handler.
     return adInstanceManager.methodChannel.invokeMethod(
-      'onScreenResumed',
-      {'routeKey': routeKey},
+      'pageImpression',
+      {'name': screenName},
     );
   }
+
+  /// Derive a stable screen name from a [BuildContext]: the current route's
+  /// `settings.name` when set (named routes / go_router), else the enclosing
+  /// widget's type.
+  String _deriveScreenName(BuildContext context) =>
+      ModalRoute.of(context)?.settings.name ??
+      context.widget.runtimeType.toString();
 
   /// Pauses Prebid auto-refresh for ALL currently loaded banner ads.
   ///
