@@ -22,6 +22,28 @@ import 'package:flutter/material.dart';
 
 void main() => runApp(const MyApp());
 
+/// Reports every pushed/returned Navigator route as a screen automatically — add
+/// it once to `MaterialApp.navigatorObservers` and name your routes via
+/// `RouteSettings(name: ...)`; no per-screen `pageImpression` call is needed.
+/// This is the idiomatic Flutter way to report screens without names at each site.
+class AudienzzNavigatorObserver extends NavigatorObserver {
+  void _report(Route<dynamic>? route) {
+    if (route is! PageRoute) return;
+    final name = route.settings.name;
+    if (name != null) {
+      AudienzzSdkFlutter.instance.pageImpression(name: name);
+    }
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _report(route);
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _report(previousRoute); // report the screen we returned to
+}
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -35,6 +57,9 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
 
   RemoteBannerAdLoader? _loader46;
   RemoteBannerAdLoader? _loader48;
+
+  // Reports pushed/returned routes automatically (see AudienzzNavigatorObserver).
+  final _navObserver = AudienzzNavigatorObserver();
 
   // Tab = screen. Each tab is reported as its own screen so switching tabs fires
   // a fresh page impression, and the incoming tab's ads reload immediately —
@@ -70,7 +95,9 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     final i = _tabController.index;
     if (i == _lastTab) return;
     _lastTab = i;
-    AudienzzSdkFlutter.instance.onScreenResumed(_tabKeys[i]);
+    // Tabs live inside ONE Navigator route, so the RouteObserver can't see them —
+    // report them explicitly by key. (Pushed pages are reported automatically.)
+    AudienzzSdkFlutter.instance.pageImpression(name: _tabKeys[i]);
     if (i == 0) {
       _loader46?.reload();
       _loader48?.reload();
@@ -102,10 +129,8 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   Future<void> initializeSdk() async {
     await _requestTrackingAuthorization();
 
-    // Single-host Flutter app: turn off native auto screen tracking (it would collapse every route
-    // into one) and report routes explicitly (see the ListTile onTap + the 'home' report below).
-    // Must run before initialize.
-    await AudienzzSdkFlutter.instance.setAutoScreenTracking(false);
+    // Report each ad-bearing route explicitly via pageImpression (see the ListTile onTap + the
+    // 'home' report below).
     // Opt into smart-refresh v2 (directional viewport gate) instead of the legacy 20% gate,
     // and blank the slot during a screen-resume reload — parity with the native iOS/Android SDKs.
     // Both override backend config for the session; call before creating banners.
@@ -128,8 +153,8 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
 
     log(status.toString());
 
-    // Report the initial screen for per-route page-impression analytics.
-    await AudienzzSdkFlutter.instance.onScreenResumed('home');
+    // The initial route is reported automatically by AudienzzNavigatorObserver
+    // once the MaterialApp builds — no explicit pageImpression here.
 
     await AudienzzSdkFlutter.instance.setSchainObject("""
                         { "source": 
@@ -167,6 +192,8 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
       builder: (_, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
           return MaterialApp(
+            // The observer auto-reports every named route pushed/returned below.
+            navigatorObservers: [_navObserver],
             home: Scaffold(
               appBar: AppBar(
                 title: TabBar(
@@ -225,18 +252,18 @@ class _NavigationTile extends StatelessWidget {
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.chevron_right, size: 18),
       onTap: () {
-        // Report the destination screen (its title is the route key here); on return we re-report
-        // 'home' so its ads are grouped under a fresh page impression.
-        AudienzzSdkFlutter.instance.onScreenResumed(title);
+        // Name the route; AudienzzNavigatorObserver reports the screen on push and
+        // reports the revealed screen again on return — no pageImpression call here.
         Navigator.push(
           context,
           MaterialPageRoute(
+            settings: RouteSettings(name: title),
             builder: (ctx) => Scaffold(
               appBar: AppBar(title: Text(title)),
               body: pageBuilder(ctx),
             ),
           ),
-        ).then((_) => AudienzzSdkFlutter.instance.onScreenResumed('home'));
+        );
       },
     );
   }

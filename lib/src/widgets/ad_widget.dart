@@ -81,7 +81,7 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     if (_smartRefreshBanner != null) {
       WidgetsBinding.instance.addObserver(this);
       // Reload this banner when a screen/route/tab becomes active again (fired by
-      // AudienzzSdkFlutter.onScreenResumed) — but only if it's currently on
+      // AudienzzSdkFlutter.pageImpression) — but only if it's currently on
       // screen, so hidden tabs don't burn an auction.
       adInstanceManager.addScreenResumeReloader(_reloadOnScreenResume);
       _visibilityTimer = Timer.periodic(
@@ -113,11 +113,11 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     _evaluateVisibility();
   }
 
-  /// Set by the `onScreenResumed` broadcast when the ad isn't on screen yet;
+  /// Set by the `pageImpression` broadcast when the ad isn't on screen yet;
   /// the visibility poll performs the reload once it becomes visible.
   bool _pendingScreenResumeReload = false;
 
-  /// Broadcast target for `onScreenResumed`: reload this banner when it's the
+  /// Broadcast target for `pageImpression`: reload this banner when it's the
   /// active screen's on-screen ad. If it isn't on screen yet — the incoming
   /// tab/route may still be animating in — defer to [_evaluateVisibility] so the
   /// reload lands once the ad becomes visible instead of being dropped. In a

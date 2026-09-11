@@ -363,7 +363,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "reloadBanner":
             // Force a fresh auction now — used when this banner's screen (route
-            // or tab) becomes active again (onScreenResumed broadcast).
+            // or tab) becomes active again (pageImpression broadcast).
             if let args = call.arguments as? [String: Any],
                let adId = args["adId"] as? NSNumber,
                let bannerAd = manager.ad(for: adId) as? FBannerAd
@@ -859,15 +859,6 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         case "getPpid":
             result(PPIDManager.shared.getPPID())
 
-        // Native auto screen tracking is ON by default, but a Flutter app has a single host
-        // UIViewController — so it would collapse every Dart route into one coarse page impression.
-        // Call before initialize() and report routes explicitly via onScreenResumed.
-        case "setAutoScreenTracking":
-            if let args = call.arguments as? [String: Any],
-               let enabled = args["enabled"] as? Bool {
-                Audienzz.shared.autoScreenTracking = enabled
-            }
-            result(nil)
 
         // Force smart-refresh v2 on/off, overriding the backend smartRefreshV2 config.
         case "setSmartRefreshV2Enabled":
@@ -887,10 +878,10 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         // Report the active screen by an opaque route key; fires a pageImpression + a fresh
         // page-impression id tying this visit's ad events together.
-        case "onScreenResumed":
+        case "pageImpression":
             if let args = call.arguments as? [String: Any],
-               let routeKey = args["routeKey"] as? String {
-                Audienzz.shared.onScreenResumed(routeKey)
+               let name = args["name"] as? String {
+                Audienzz.shared.pageImpression(name)
             }
             result(nil)
 

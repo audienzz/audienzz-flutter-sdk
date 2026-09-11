@@ -162,7 +162,7 @@ class BannerAd(
     }
 
     /// Force a fresh auction now, ignoring the stale-aware refresh timing — used
-    /// by the onScreenResumed reload broadcast (only for on-screen banners).
+    /// by the pageImpression reload broadcast (only for on-screen banners).
     fun forceReload() {
         adViewHandler?.reloadAd()
     }

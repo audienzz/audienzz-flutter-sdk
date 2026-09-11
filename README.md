@@ -518,32 +518,25 @@ API Reference
 | Method                                   | Parameters                                                         | Description                                                                                                                                    |
 |------------------------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
 | `AudienzzSdkFlutter.instance.initialize` | `{required String companyId, bool isAutomaticPpidEnabled = false}` | Initializes the SDK. Automatic Ppid could be enabled or disabled. Returns `InitializationStatus`. Must be called before using any ad features. |
-| `AudienzzSdkFlutter.instance.setAutoScreenTracking` | `bool enabled` | Enable/disable native automatic screen tracking. Call **before** `initialize`. See [Screen tracking](#screen-tracking-analytics). |
-| `AudienzzSdkFlutter.instance.onScreenResumed` | `String routeKey` | Report the active screen by route key — fires a `pageImpression`. See [Reload on screen resume](#reload-on-screen-resume). |
+| `AudienzzSdkFlutter.instance.pageImpression` | `{BuildContext? context, String? name}` | Report an ad-bearing screen/dialog — fires a `pageImpression`. Call on each such screen. See [Reload on screen resume](#reload-on-screen-resume). |
 | `AudienzzSdkFlutter.instance.setSmartRefreshV2Enabled` | `bool enabled` | Force smart-refresh v2 (directional viewport gate) on/off, overriding backend config. Call **before** creating banners. |
 | `AudienzzSdkFlutter.instance.setBlankOnScreenReload` | `bool enabled` | Blank a native banner's slot during a screen-resume reload (default `false`). Call **before** creating banners. |
 | `AudienzzSdkFlutter.instance.setAppVolume` | `double volume` | Set the global ad audio volume for all ad types (`0.0`–`1.0`, `0.0` = muted). The SDK defaults to muted. |
 
 ## Screen tracking (analytics)
 
-The SDK ties ad events to the screen the user is on: entering an ad-bearing screen fires a
+The SDK ties ad events to the screen the user is on: reporting an ad-bearing screen fires a
 `pageImpression` and starts a fresh page-impression id that groups every ad event on that visit.
 
-The native SDK tracks screens **automatically**, but that model watches native
-Activities/ViewControllers — and a Flutter app runs inside **one** `FlutterActivity` /
-`FlutterViewController`, so auto-tracking would collapse *every* Dart route into a single coarse
-impression. So in Flutter you drive it explicitly by your navigation route:
-
-1. Turn native auto-tracking **off** once, before init.
-2. Report each ad-bearing route on navigation.
+You report screens **explicitly** by their navigation route — call `pageImpression` on each
+ad-bearing screen (there is no automatic tracking; the same call is used on every Audienzz SDK).
+Pass a `context` (the name is derived from the route/widget) and/or an explicit `name`:
 
 ```dart
-// 1. Disable native auto-tracking BEFORE initialize (single-host app).
-await AudienzzSdkFlutter.instance.setAutoScreenTracking(false);
 await AudienzzSdkFlutter.instance.initialize(companyId: 'YOUR_COMPANY_ID');
 
-// 2. Report the active screen on each navigation to an ad-bearing route.
-await AudienzzSdkFlutter.instance.onScreenResumed('home');
+// Report the active screen on each navigation to an ad-bearing route.
+await AudienzzSdkFlutter.instance.pageImpression(name: 'home');
 ```
 
 Report from a single place with a `RouteObserver` instead of inside each screen:
@@ -563,9 +556,9 @@ class _AdScreenState extends State<AdScreen> with RouteAware {
   }
 
   @override
-  void didPush() => AudienzzSdkFlutter.instance.onScreenResumed('home');     // navigated to
+  void didPush() => AudienzzSdkFlutter.instance.pageImpression(name: 'home');     // navigated to
   @override
-  void didPopNext() => AudienzzSdkFlutter.instance.onScreenResumed('home');  // returned to
+  void didPopNext() => AudienzzSdkFlutter.instance.pageImpression(name: 'home');  // returned to
 
   @override
   void dispose() {
@@ -576,14 +569,12 @@ class _AdScreenState extends State<AdScreen> with RouteAware {
 ```
 
 Notes:
-- The `routeKey` is any stable per-screen string (your route name works well). It's the screen
+- The screen name is any stable per-screen string (your route name works well). It's the screen
   identity in analytics.
-- `setAutoScreenTracking(false)` must be called **before** `initialize` to take effect. Leaving
-  auto-tracking on emits one page impression for the single host screen.
 
 ### Reload on screen resume
 
-`onScreenResumed(routeKey)` fires the page impression. To also show a fresh creative when a
+`pageImpression(name: ...)` fires the page impression. To also show a fresh creative when a
 route/tab becomes active again, **recreate** the banner on that screen — a Flutter banner is a
 platform view whose texture does not refresh on an in-place re-auction, so recreating (dispose then
 load a new ad) is what produces a new creative. Recreating also blanks the slot for a frame while
@@ -592,7 +583,7 @@ the new ad loads, matching the native `blankOnScreenReload`.
 ```dart
 // e.g. from a TabController listener, when tab 0 becomes active again:
 void _onTabChanged(int index) {
-  AudienzzSdkFlutter.instance.onScreenResumed(_tabKeys[index]); // analytics
+  AudienzzSdkFlutter.instance.pageImpression(name: _tabKeys[index]); // analytics
   if (index == 0) _bannerLoader.reload();                       // dispose -> fresh load
 }
 ```

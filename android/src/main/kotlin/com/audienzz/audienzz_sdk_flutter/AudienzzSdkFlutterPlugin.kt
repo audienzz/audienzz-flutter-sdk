@@ -203,7 +203,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
             "reloadBanner" -> {
                 // Force a fresh auction now — used when this banner's screen
-                // (route or tab) becomes active again (onScreenResumed broadcast).
+                // (route or tab) becomes active again (pageImpression broadcast).
                 val ad = adInstanceManager?.adFor(call.argument<Int>("adId")!!)
                 (ad as? com.audienzz.audienzz_sdk_flutter.ads.implementation.BannerAd)?.forceReload()
                 result.success(null)
@@ -453,14 +453,6 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
-            // Native auto screen tracking is ON by default, but a Flutter app has a single host
-            // Activity — so it would collapse every Dart route into one coarse page impression.
-            // Call before initialize() and report routes explicitly via onScreenResumed.
-            "setAutoScreenTracking" -> {
-                AudienzzPrebidMobile.autoScreenTracking = call.argument<Boolean>("enabled") ?: true
-                result.success(null)
-            }
-
             // Force smart-refresh v2 on/off, overriding the backend smartRefreshV2 config.
             "setSmartRefreshV2Enabled" -> {
                 AudienzzPrebidMobile.smartRefreshV2Override = call.argument<Boolean>("enabled") ?: false
@@ -475,10 +467,10 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
             // Report the active screen by an opaque route key; fires a pageImpression + a fresh
             // page-impression id tying this visit's ad events together.
-            "onScreenResumed" -> {
-                val routeKey = call.argument<String>("routeKey")
-                if (routeKey != null) {
-                    AudienzzPrebidMobile.onScreenResumed(routeKey)
+            "pageImpression" -> {
+                val name = call.argument<String>("name")
+                if (name != null) {
+                    AudienzzPrebidMobile.pageImpression(name)
                 }
                 result.success(null)
             }
