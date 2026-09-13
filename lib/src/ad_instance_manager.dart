@@ -93,7 +93,6 @@ final class AdInstanceManager {
 
   Future<InitializationStatus> initialize({
     required String companyId,
-    required bool isAutomaticPpidEnabled,
     String? prebidServerUrl,
   }) async {
     try {
@@ -102,7 +101,6 @@ final class AdInstanceManager {
         'initialize',
         {
           'companyId': companyId,
-          'isAutomaticPpidEnabled': isAutomaticPpidEnabled,
           if (prebidServerUrl != null) 'prebidServerUrl': prebidServerUrl,
         },
       );

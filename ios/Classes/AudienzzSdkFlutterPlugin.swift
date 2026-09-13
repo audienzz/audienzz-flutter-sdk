@@ -64,10 +64,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             
         case "initialize":
             if let args = call.arguments as? [String: Any],
-               let companyId = args["companyId"] as? String,
-               let isAutomaticPpidEnabled = args["isAutomaticPpidEnabled"] as? Bool
+               let companyId = args["companyId"] as? String
             {
-                Audienzz.shared.configureSDK(companyId: companyId, enablePPID: isAutomaticPpidEnabled)
+                Audienzz.shared.configureSDK(companyId: companyId)
                 AudienzzGAMUtils.shared.initializeGAM()
                 Audienzz.shared.setAppVolume(0.0)
                 AUTargeting.shared.setBridgeTargeting(key: "au_flutter_v", value: flutterSdkVersion)
@@ -847,16 +846,11 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             }
             result(nil)
             
-        case "isAutomaticPpidEnabled":
-            result(PPIDManager.shared.getAutomaticPpidEnabled())
-            
-        case "setAutomaticPpidEnabled":
-            if let args = call.arguments as? [String: Any],
-               let isAutomaticPpidEnabled = args["isAutomaticPpidEnabled"] as? Bool {
-                PPIDManager.shared.setAutomaticPpidEnabled(isAutomaticPpidEnabled)
-            }
+        case "setPublisherPpid":
+            let args = call.arguments as? [String: Any]
+            PPIDManager.shared.setPublisherPPID(args?["ppid"] as? String)
             result(nil)
-            
+
         case "getPpid":
             result(PPIDManager.shared.getPPID())
 

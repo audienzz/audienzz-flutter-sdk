@@ -25,11 +25,9 @@ final class AudienzzSdkFlutter {
   /// Required to initialize the SDK.
   Future<InitializationStatus> initialize({
     required String companyId,
-    bool isAutomaticPpidEnabled = false,
   }) {
     return adInstanceManager.initialize(
       companyId: companyId,
-      isAutomaticPpidEnabled: isAutomaticPpidEnabled,
     );
   }
 
@@ -37,7 +35,6 @@ final class AudienzzSdkFlutter {
   Future<InitializationStatus> initializeRemote({
     required String publisherId,
     required String remoteUrl,
-    bool isAutomaticPpidEnabled = false,
     bool enablePolling = true,
   }) async {
     final audienzzRemoteConfig = AudienzzRemoteConfig.instance
@@ -53,10 +50,7 @@ final class AudienzzSdkFlutter {
         // background polling later succeeds so the native SDK still gets
         // initialized instead of the session staying ad-less forever.
         onPollingSuccess: () {
-          _applyConfigAndInitialize(
-            audienzzRemoteConfig.publisherConfig,
-            isAutomaticPpidEnabled,
-          );
+          _applyConfigAndInitialize(audienzzRemoteConfig.publisherConfig);
         },
       );
     } catch (e) {
@@ -66,10 +60,7 @@ final class AudienzzSdkFlutter {
           : InitializationStatus.fail;
     }
 
-    return _applyConfigAndInitialize(
-      audienzzRemoteConfig.publisherConfig,
-      isAutomaticPpidEnabled,
-    );
+    return _applyConfigAndInitialize(audienzzRemoteConfig.publisherConfig);
   }
 
   /// Applies the publisher config's targeting and initializes the native SDK.
@@ -77,7 +68,6 @@ final class AudienzzSdkFlutter {
   /// the initial-fetch path and the background-polling path never double-init.
   Future<InitializationStatus> _applyConfigAndInitialize(
     RemotePublisherConfiguration? config,
-    bool isAutomaticPpidEnabled,
   ) async {
     if (_remoteNativeInitialized) {
       return InitializationStatus.success;
@@ -132,7 +122,6 @@ final class AudienzzSdkFlutter {
 
     return adInstanceManager.initialize(
       companyId: config?.ortb.schain?.sellerId ?? '1',
-      isAutomaticPpidEnabled: isAutomaticPpidEnabled,
       prebidServerUrl: config?.prebidServer.url,
     );
   }

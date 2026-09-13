@@ -102,7 +102,7 @@ First of all, SDK needs to be initialized. It's done asynchronously, so after ca
 is triggered with `InitializationStatus.success`, SDK is ready to be used.
 
 ```dart
- final status = await AudienzzSdkFlutter.instance.initialize(companyId: 'CompanyID', isAutomaticPpidEnabled: false);
+ final status = await AudienzzSdkFlutter.instance.initialize(companyId: 'CompanyID');
 
  if (status == InitializationStatus.success) {
    // SDK is ready to be used
@@ -312,7 +312,6 @@ Before using remote configuration ads, ensure the SDK is properly initialized:
 final status = await AudienzzSdkFlutter.instance.initializeRemote(
   publisherId: 'YOUR_PUBLISHER_ID', // Will be provided for you
   remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1/', // Audienzz remote config URL
-  isAutomaticPpidEnabled: false
 );
 
 if (status == InitializationStatus.success) {
@@ -506,8 +505,7 @@ PpidManager
 ------------------------------------
 | Method                    | Parameters                        | Description                                                                                                                              |
 |---------------------------|-----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `isAutomaticPpidEnabled`  |                                   | Used to get current status of automatic PPID usage (if true - PPID is generated and used with all requests, if false - PPID is not used) |
-| `setAutomaticPpidEnabled` | `isAutomaticPpidEnabled: Boolean` | Used to enable or disable automatic PPID usage                                                                                           |
+| `setPublisherPpid`        | `String? ppid`                    | Supply your own PPID (e.g. a hashed e-mail). Takes precedence over the SDK-generated one; pass `null` to clear and fall back to it.       |
 | `getPpid`                 |                                   | Used to obtain current PPID if automaticPpid is enabled                                                                                  |
 
 API Reference
@@ -517,7 +515,7 @@ API Reference
 
 | Method                                   | Parameters                                                         | Description                                                                                                                                    |
 |------------------------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| `AudienzzSdkFlutter.instance.initialize` | `{required String companyId, bool isAutomaticPpidEnabled = false}` | Initializes the SDK. Automatic Ppid could be enabled or disabled. Returns `InitializationStatus`. Must be called before using any ad features. |
+| `AudienzzSdkFlutter.instance.initialize` | `{required String companyId}` | Initializes the SDK. A PPID is generated, persisted and attached to every ad request automatically. Returns `InitializationStatus`. Must be called before using any ad features. |
 | `AudienzzSdkFlutter.instance.pageImpression` | `{BuildContext? context, String? name}` | Report an ad-bearing screen/dialog — fires a `pageImpression`. Call on each such screen. See [Reload on screen resume](#reload-on-screen-resume). |
 | `AudienzzSdkFlutter.instance.setSmartRefreshV2Enabled` | `bool enabled` | Force smart-refresh v2 (directional viewport gate) on/off, overriding backend config. Call **before** creating banners. |
 | `AudienzzSdkFlutter.instance.setBlankOnScreenReload` | `bool enabled` | Blank a native banner's slot during a screen-resume reload (default `false`). Call **before** creating banners. |
@@ -840,7 +838,6 @@ ListView(
 | `AdMessageCodecReadingException`    | Thrown if there is an error reading ad message codec.  |
 | `AdSizeRequiredException`           | Thrown if ad size is required but missing.             |
 | `RewardItemMissingException`        | Thrown if a reward item is missing in a rewarded ad.   |
-| `FailedToGetAutomaticPpidException` | Thrown if automatic PPID status could not be obtained. |
 
 License
 ========
