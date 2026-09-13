@@ -178,7 +178,12 @@ class BannerAd(
         // handler/unit alone left a pending smart-refresh runnable alive, so a
         // disposed banner kept running fetchDemand → loadAd() auction loops
         // (accumulating on every navigation and on hot restart).
-        adViewHandler?.pauseSmartRefresh()
+        // destroy() — not just pauseSmartRefresh() — is what deregisters the handler from the page
+        // coordinator and from AppForegroundMonitor. Pausing alone left the handler globally
+        // reachable through the foreground listener, retaining the GAM view and its Activity, and
+        // left it in the coordinator registry so a later page impression could reload a slot that
+        // no longer exists.
+        adViewHandler?.destroy()
         bannerAdUnit?.stopAutoRefresh()
         bannerAdUnit?.destroy()
         adView?.destroy()

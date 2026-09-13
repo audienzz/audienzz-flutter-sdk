@@ -238,10 +238,25 @@ final class AdInstanceManager {
   /// ad before ever calling `pageImpression`, which the native side reports.
   String? currentPage;
 
+  /// The page reported by the most recent page impression, alongside a counter.
+  /// [AdWidget] listens and remounts only when the reported page is its own.
+  String? lastReportedPage;
+
   /// Bumped on every page impression. [AdWidget] rebuilds its platform view
   /// when this changes, so a recreated ad gets a fresh texture — an in-place
   /// re-auction does not repaint an AndroidViewSurface / UiKitView on its own.
   final ValueNotifier<int> pageEpoch = ValueNotifier<int>(0);
+
+  /// The page each ad was created under, so an [AdWidget] can tell whether a
+  /// page impression is for ITS page. Matching on `ModalRoute.isCurrent`
+  /// instead would remount whichever route happens to be on top when the
+  /// notification arrives, which is not necessarily the page being reported.
+  final Map<int, String?> _adPages = <int, String?>{};
+
+  String? pageFor(Ad ad) {
+    final adId = adIdFor(ad);
+    return adId == null ? null : _adPages[adId];
+  }
 
   Future<void> loadBannerAd(BannerAd ad) async {
     if (adIdFor(ad) != null) {
@@ -255,6 +270,15 @@ final class AdInstanceManager {
     final adId = _nextAdId++;
 
     _loadedAds[adId] = ad;
+    _adPages[adId] = currentPage;
+    if (currentPage == null) {
+      log(
+        'Ad created before any pageImpression() call. Page-scoped release and '
+        'reload cannot work for it: call AudienzzSdkFlutter.instance'
+        '.pageImpression() for this screen BEFORE creating its ads.',
+        name: 'AudienzzSdkFlutter',
+      );
+    }
 
     try {
       await methodChannel.invokeMethod<void>(
@@ -407,6 +431,7 @@ final class AdInstanceManager {
 
   Future<void> disposeAd(Ad ad) {
     final adId = adIdFor(ad);
+    _adPages.remove(adId);
     final disposedAd = _loadedAds.remove(adId);
 
     if (disposedAd == null) {

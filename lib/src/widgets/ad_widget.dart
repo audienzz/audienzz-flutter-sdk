@@ -75,7 +75,12 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
-    if (!(_route?.isCurrent ?? true)) {
+    // Remount only when the page being reported is THIS ad's page. Testing
+    // `ModalRoute.isCurrent` instead would remount whichever route happens to
+    // be on top when the notification arrives — e.g. reporting "A" while B is
+    // still on top remounted B and left A un-repaired.
+    final adPage = adInstanceManager.pageFor(widget.ad);
+    if (adPage == null || adPage != adInstanceManager.lastReportedPage) {
       return;
     }
     final epoch = adInstanceManager.pageEpoch.value;

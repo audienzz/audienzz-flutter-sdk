@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
 
@@ -185,17 +186,38 @@ final class AudienzzSdkFlutter {
     // AdWidgets on the active route to rebuild their platform view so a
     // recreated ad shows its new creative.
     adInstanceManager.currentPage = screenName;
+    adInstanceManager.lastReportedPage = screenName;
     adInstanceManager.pageEpoch.value++;
-    // Analytics only: fire the page impression. A Flutter banner is a platform
-    // view whose texture does NOT refresh on an in-place re-auction, so the SDK
-    // cannot reliably reload it from here. To reload on screen change, the app
-    // recreates its banner ad on that screen (dispose -> fresh load) — which also
-    // blanks the slot during the reload, matching the native behavior. See the
-    // example's tab handler.
+    _observeForegroundReimpression();
+    // Native releases the other pages' banners and re-auctions this page's; the
+    // epoch bump above then remounts this page's platform views, because an
+    // in-place re-auction does not repaint an AndroidViewSurface / UiKitView.
     return adInstanceManager.methodChannel.invokeMethod(
       'pageImpression',
       {'name': screenName},
     );
+  }
+
+  /// Re-report the current page from Dart when the app returns to the
+  /// foreground.
+  ///
+  /// The native SDKs fire their own foreground page impression, but that path
+  /// never reaches Dart, so the platform views would not remount and a restored
+  /// app would keep showing the pre-background creative. Reporting from here
+  /// instead cancels the native pending one (it is scheduled with a short delay
+  /// precisely so an explicit report wins) and keeps a single owner.
+  void _observeForegroundReimpression() {
+    if (_lifecycleObserver != null) {
+      return;
+    }
+    final observer = _AudienzzLifecycleObserver(() {
+      final page = adInstanceManager.currentPage;
+      if (page != null) {
+        unawaited(pageImpression(name: page));
+      }
+    });
+    _lifecycleObserver = observer;
+    WidgetsBinding.instance.addObserver(observer);
   }
 
   /// Derive a stable screen name from a [BuildContext]: the current route's
@@ -236,5 +258,23 @@ final class AudienzzSdkFlutter {
       'setAppVolume',
       {'volume': volume.clamp(0.0, 1.0)},
     );
+  }
+}
+
+/// Registered once, on the first page impression. Library-private because
+/// [AudienzzSdkFlutter] has a `const` constructor and cannot hold state.
+_AudienzzLifecycleObserver? _lifecycleObserver;
+
+/// Fires [onResumed] when the app returns to the foreground.
+final class _AudienzzLifecycleObserver with WidgetsBindingObserver {
+  _AudienzzLifecycleObserver(this.onResumed);
+
+  final VoidCallback onResumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      onResumed();
+    }
   }
 }
