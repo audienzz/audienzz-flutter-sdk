@@ -159,6 +159,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 pbAdSlot: pbAdSlot,
                 gpId: gpId,
                 customImpOrtbConfig: customImpOrtbConfig,
+                pageKey: args["pageKey"] as? String,
                 rootViewController: rootViewController,
                 adId: adId,
                 manager: manager

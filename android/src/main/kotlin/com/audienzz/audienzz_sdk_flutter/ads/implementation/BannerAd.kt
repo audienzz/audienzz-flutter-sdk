@@ -40,6 +40,7 @@ class BannerAd(
     private val bannerPbAdSlot: String?,
     private val gpId: String?,
     private val customImpOrtbConfig: String?,
+    private val pageKey: String?,
     private val adListener: AdListener?,
     private val context: Context,
 ) : Ad() {
@@ -115,6 +116,11 @@ class BannerAd(
         currentAdView?.let { adView ->
             val handler = AudienzzAdViewHandler(adView, adUnit)
             adViewHandler = handler
+            // A Flutter banner lives in the single FlutterActivity, so the native page coordinator
+            // cannot tell one route's ads from another's by host identity. Tag the handler with the
+            // route key reported to pageImpression so it matches by value instead — this is what
+            // makes page-scoped release/recreate work for Flutter at all.
+            handler.setScreen(pageKey)
             handler.load(
                 withLazyLoading = isLazyLoad,
                 prefetchMarginDp = prefetchMarginDp,

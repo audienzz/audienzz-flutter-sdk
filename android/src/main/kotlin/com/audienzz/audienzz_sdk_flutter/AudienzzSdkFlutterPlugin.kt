@@ -97,6 +97,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<String?>("pbAdSlot"),
                     call.argument<String?>("gpId"),
                     call.argument<String?>("impOrtbConfig"),
+                    call.argument<String?>("pageKey"),
                     adInstanceManager?.createBannerAdListener(adId),
                     context,
                 )

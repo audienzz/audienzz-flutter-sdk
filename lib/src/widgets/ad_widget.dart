@@ -59,6 +59,32 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
   Size _screenSize = Size.zero;
   ModalRoute<dynamic>? _route;
 
+  /// Page epoch this platform view was built for. Bumping it re-keys the
+  /// platform view, forcing Flutter to tear it down and build a new one: an
+  /// in-place re-auction does NOT repaint an AndroidViewSurface or UiKitView,
+  /// so without this a recreated ad would keep showing the old creative.
+  /// Only advanced for the route that is current, so kept-mounted routes
+  /// don't churn their platform views on every page impression.
+  int _viewEpoch = 0;
+
+  /// Stable per-ad key component, so re-keying only ever affects this ad.
+  String get _adKeySuffix =>
+      '${adInstanceManager.adIdFor(widget.ad)}:$_viewEpoch';
+
+  void _onPageEpochChanged() {
+    if (!mounted) {
+      return;
+    }
+    if (!(_route?.isCurrent ?? true)) {
+      return;
+    }
+    final epoch = adInstanceManager.pageEpoch.value;
+    if (epoch == _viewEpoch) {
+      return;
+    }
+    setState(() => _viewEpoch = epoch);
+  }
+
   /// The ad as a smart-refresh banner, or null when smart refresh doesn't apply.
   BannerAd? get _smartRefreshBanner {
     final ad = widget.ad;
@@ -78,6 +104,9 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
       _adLoadNotCalled = true;
     }
 
+    _viewEpoch = adInstanceManager.pageEpoch.value;
+    adInstanceManager.pageEpoch.addListener(_onPageEpochChanged);
+
     if (_smartRefreshBanner != null) {
       WidgetsBinding.instance.addObserver(this);
       // Reload this banner when a screen/route/tab becomes active again (fired by
@@ -95,6 +124,15 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    // Pause BEFORE cancelling the poll. The timer is the only thing that can
+    // pause this banner, so unmounting while it was resumed (the normal case
+    // when navigating away from a visible ad) used to leave the native
+    // auto-refresh running forever against a detached ad view — auctions and
+    // GAM loads that could never become impressions. Page-scoping catches this
+    // too, but only once the app reports the next pageImpression; this is the
+    // backstop that does not depend on that.
+    _smartRefreshBanner?.pauseAutoRefresh();
+    adInstanceManager.pageEpoch.removeListener(_onPageEpochChanged);
     _visibilityTimer?.cancel();
     if (_smartRefreshBanner != null) {
       WidgetsBinding.instance.removeObserver(this);
@@ -300,6 +338,7 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     }
     if (defaultTargetPlatform == TargetPlatform.android) {
       return PlatformViewLink(
+        key: ValueKey<String>('audienzz-ad-$_adKeySuffix'),
         viewType: Constants.nativeViewName,
         surfaceFactory: (_, controller) {
           return AndroidViewSurface(
@@ -392,6 +431,7 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     }
 
     return UiKitView(
+      key: ValueKey<String>('audienzz-ad-$_adKeySuffix'),
       viewType: Constants.nativeViewName,
       creationParams: adInstanceManager.adIdFor(widget.ad),
       layoutDirection: TextDirection.ltr,

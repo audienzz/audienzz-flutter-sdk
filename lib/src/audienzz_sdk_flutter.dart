@@ -192,6 +192,11 @@ final class AudienzzSdkFlutter {
       'pageImpression requires a context or a name',
     );
     final screenName = name ?? _deriveScreenName(context!);
+    // Stamp every ad created from here on with this page, and force mounted
+    // AdWidgets on the active route to rebuild their platform view so a
+    // recreated ad shows its new creative.
+    adInstanceManager.currentPage = screenName;
+    adInstanceManager.pageEpoch.value++;
     // Analytics only: fire the page impression. A Flutter banner is a platform
     // view whose texture does NOT refresh on an in-place re-auction, so the SDK
     // cannot reliably reload it from here. To reload on screen change, the app

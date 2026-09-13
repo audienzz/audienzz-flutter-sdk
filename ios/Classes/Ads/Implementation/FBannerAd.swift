@@ -21,6 +21,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private let pbAdSlot: String?
     private let gpId: String?
     private let customImpOrtbConfig: String?
+    private let pageKey: String?
     private let rootViewController: UIViewController
     var auBannerView: AUBannerView?
 
@@ -163,6 +164,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         pbAdSlot: String?,
         gpId: String?,
         customImpOrtbConfig: String?,
+        pageKey: String?,
         rootViewController: UIViewController,
         adId: NSNumber,
         manager: AdInstanceManager
@@ -185,6 +187,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         self.pbAdSlot = pbAdSlot
         self.gpId = gpId
         self.customImpOrtbConfig = customImpOrtbConfig
+        self.pageKey = pageKey
         self.rootViewController = rootViewController
         self.manager = manager
         super.init(adId: adId)
@@ -231,6 +234,12 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
             adFormats: bannerAdFormat,
             isLazyLoad: isLazyLoad
         )
+        // A Flutter banner lives in the single FlutterViewController, so the native page
+        // coordinator cannot tell one route's ads from another's by host identity. Tag the view with
+        // the route key reported to pageImpression so it matches by value instead — this is what
+        // makes page-scoped release/recreate work for Flutter at all. Must precede createAd, which
+        // is where the ad joins the current page.
+        if let pageKey { auBannerView?.setScreen(pageKey) }
         auBannerView?.frame = CGRect(origin: .zero, size: CGSize(width: mainSize.width, height: mainSize.height))
         auBannerView?.backgroundColor = .clear
         // Always set smartRefresh = false on AUBannerView in Flutter.

@@ -14,6 +14,7 @@ import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
 import 'package:audienzz_sdk_flutter/src/entities/reward_item.dart';
 import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 final adInstanceManager = AdInstanceManager();
@@ -228,6 +229,22 @@ final class AdInstanceManager {
     }
   }
 
+  /// The page name reported by the most recent `pageImpression`, stamped onto
+  /// every banner created afterwards so the native page coordinator can tell
+  /// this screen's ads from the previous screen's.
+  ///
+  /// A Flutter banner lives in the single FlutterActivity /
+  /// FlutterViewController, so native host-screen resolution (Fragment /
+  /// Activity / UIViewController identity) can never match a route key on its
+  /// own — the key has to travel with the ad. `null` means the app created an
+  /// ad before ever calling `pageImpression`, which the native side reports.
+  String? currentPage;
+
+  /// Bumped on every page impression. [AdWidget] rebuilds its platform view
+  /// when this changes, so a recreated ad gets a fresh texture — an in-place
+  /// re-auction does not repaint an AndroidViewSurface / UiKitView on its own.
+  final ValueNotifier<int> pageEpoch = ValueNotifier<int>(0);
+
   Future<void> loadBannerAd(BannerAd ad) async {
     if (adIdFor(ad) != null) {
       return;
@@ -248,6 +265,7 @@ final class AdInstanceManager {
           'adId': adId,
           'adUnitId': ad.adUnitId,
           'auConfigId': ad.auConfigId,
+          if (currentPage != null) 'pageKey': currentPage,
           'adSizes': ad.sizes.toList(),
           'isAdaptiveSize': ad.isAdaptiveSize,
           'isLazyLoad': ad.isLazyLoad,
