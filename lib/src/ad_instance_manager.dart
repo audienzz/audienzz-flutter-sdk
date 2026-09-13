@@ -242,6 +242,10 @@ final class AdInstanceManager {
   /// [AdWidget] listens and remounts only when the reported page is its own.
   String? lastReportedPage;
 
+  /// When the last page impression was reported, so the foreground observer can
+  /// tell whether the app already reported one itself.
+  DateTime? lastPageImpressionAt;
+
   /// Bumped on every page impression. [AdWidget] rebuilds its platform view
   /// when this changes, so a recreated ad gets a fresh texture — an in-place
   /// re-auction does not repaint an AndroidViewSurface / UiKitView on its own.

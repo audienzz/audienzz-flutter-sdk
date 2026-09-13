@@ -187,6 +187,7 @@ final class AudienzzSdkFlutter {
     // recreated ad shows its new creative.
     adInstanceManager.currentPage = screenName;
     adInstanceManager.lastReportedPage = screenName;
+    adInstanceManager.lastPageImpressionAt = DateTime.now();
     adInstanceManager.pageEpoch.value++;
     _observeForegroundReimpression();
     // Native releases the other pages' banners and re-auctions this page's; the
@@ -212,9 +213,18 @@ final class AudienzzSdkFlutter {
     }
     final observer = _AudienzzLifecycleObserver(() {
       final page = adInstanceManager.currentPage;
-      if (page != null) {
-        unawaited(pageImpression(name: page));
+      if (page == null) {
+        return;
       }
+      // Don't double-report. The app may report on resume too, and both would
+      // reach native as explicit reports, which cancelling the native automatic
+      // one cannot deduplicate.
+      final last = adInstanceManager.lastPageImpressionAt;
+      if (last != null &&
+          DateTime.now().difference(last) < const Duration(milliseconds: 400)) {
+        return;
+      }
+      unawaited(pageImpression(name: page));
     });
     _lifecycleObserver = observer;
     WidgetsBinding.instance.addObserver(observer);
@@ -271,9 +281,20 @@ final class _AudienzzLifecycleObserver with WidgetsBindingObserver {
 
   final VoidCallback onResumed;
 
+  /// Only a real background → foreground round trip counts as a new page view.
+  /// `resumed` alone also follows `inactive` — Control Centre, a permission
+  /// prompt, an incoming call — none of which should burn an auction. This
+  /// mirrors the native iOS didEnterBackground check.
+  bool _wasBackgrounded = false;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      _wasBackgrounded = true;
+      return;
+    }
+    if (state == AppLifecycleState.resumed && _wasBackgrounded) {
+      _wasBackgrounded = false;
       onResumed();
     }
   }
