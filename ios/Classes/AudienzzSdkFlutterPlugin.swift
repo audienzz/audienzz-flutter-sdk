@@ -15,6 +15,17 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         super.init()
     }
 
+    /// Forward every native page impression to Dart — including the automatic one fired on
+    /// returning to the foreground, which never passes through the Dart API. Native owns foreground
+    /// reporting; Dart just advances its page epoch so mounted AdWidgets remount their platform views.
+    private func observeNativePageImpressions(_ channel: FlutterMethodChannel) {
+        Audienzz.shared.pageImpressionObserver = { name in
+            DispatchQueue.main.async {
+                channel.invokeMethod("onPageImpression", arguments: ["name": name])
+            }
+        }
+    }
+
     public static func register(with registrar: FlutterPluginRegistrar) {
         let messenger = registrar.messenger()
         let instance = AudienzzSdkFlutterPlugin(binaryMessenger: messenger)
@@ -32,6 +43,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         registrar.publish(instance)
         registrar.addMethodCallDelegate(instance, channel: channel)
         registrar.addApplicationDelegate(instance)
+        instance.observeNativePageImpressions(channel)
     }
 
     // Optional — do NOT force-unwrap. Scene-based / add-to-app hosts can call

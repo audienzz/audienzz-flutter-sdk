@@ -185,16 +185,13 @@ final class AudienzzSdkFlutter {
     // Stamp every ad created from here on with this page, and force mounted
     // AdWidgets on the active route to rebuild their platform view so a
     // recreated ad shows its new creative.
-    // An explicit report always wins over a pending automatic foreground one,
-    // in either order: this cancels a scheduled one, and the observer schedules
-    // rather than firing so a report arriving afterwards cancels it too.
-    _pendingForegroundReport?.cancel();
-    _pendingForegroundReport = null;
+    // Set synchronously so ads created right after this call are stamped with
+    // the right page. The epoch bump that drives remounting happens when native
+    // echoes the impression back, so it advances exactly once per real
+    // transition — including the automatic one on foreground, which never
+    // passes through here.
     adInstanceManager.currentPage = screenName;
-    adInstanceManager.lastReportedPage = screenName;
-    adInstanceManager.lastPageImpressionAt = DateTime.now();
     adInstanceManager.pageEpoch.value++;
-    _observeForegroundReimpression();
     // Native releases the other pages' banners and re-auctions this page's; the
     // epoch bump above then remounts this page's platform views, because an
     // in-place re-auction does not repaint an AndroidViewSurface / UiKitView.
@@ -202,42 +199,6 @@ final class AudienzzSdkFlutter {
       'pageImpression',
       {'name': screenName},
     );
-  }
-
-  /// Re-report the current page from Dart when the app returns to the
-  /// foreground.
-  ///
-  /// The native SDKs fire their own foreground page impression, but that path
-  /// never reaches Dart, so the platform views would not remount and a restored
-  /// app would keep showing the pre-background creative. Reporting from here
-  /// instead cancels the native pending one (it is scheduled with a short delay
-  /// precisely so an explicit report wins) and keeps a single owner.
-  void _observeForegroundReimpression() {
-    if (_lifecycleObserver != null) {
-      return;
-    }
-    final observer = _AudienzzLifecycleObserver(() {
-      final page = adInstanceManager.currentPage;
-      if (page == null) {
-        return;
-      }
-      // Schedule rather than report immediately, and let an app's own resume
-      // report cancel it. A backward-looking timestamp check only covers
-      // publisher-first ordering; after a long background the observer would
-      // run first and the publisher's handler would then report the same page,
-      // and both reach native as explicit calls. This mirrors what the native
-      // SDKs do with their own automatic re-impression.
-      _pendingForegroundReport?.cancel();
-      _pendingForegroundReport = Timer(
-        const Duration(milliseconds: 400),
-        () {
-          _pendingForegroundReport = null;
-          unawaited(pageImpression(name: page));
-        },
-      );
-    });
-    _lifecycleObserver = observer;
-    WidgetsBinding.instance.addObserver(observer);
   }
 
   /// Derive a stable screen name from a [BuildContext]: the current route's
@@ -281,34 +242,3 @@ final class AudienzzSdkFlutter {
   }
 }
 
-/// Registered once, on the first page impression. Library-private because
-/// [AudienzzSdkFlutter] has a `const` constructor and cannot hold state.
-_AudienzzLifecycleObserver? _lifecycleObserver;
-
-/// Pending automatic foreground report, cancellable by an explicit one.
-Timer? _pendingForegroundReport;
-
-/// Fires [onResumed] when the app returns to the foreground.
-final class _AudienzzLifecycleObserver with WidgetsBindingObserver {
-  _AudienzzLifecycleObserver(this.onResumed);
-
-  final VoidCallback onResumed;
-
-  /// Only a real background → foreground round trip counts as a new page view.
-  /// `resumed` alone also follows `inactive` — Control Centre, a permission
-  /// prompt, an incoming call — none of which should burn an auction. This
-  /// mirrors the native iOS didEnterBackground check.
-  bool _wasBackgrounded = false;
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
-      _wasBackgrounded = true;
-      return;
-    }
-    if (state == AppLifecycleState.resumed && _wasBackgrounded) {
-      _wasBackgrounded = false;
-      onResumed();
-    }
-  }
-}

@@ -23,6 +23,23 @@ final class AdInstanceManager {
   AdInstanceManager() {
     methodChannel.setMethodCallHandler(
       (call) async {
+        // Native owns page impressions, including the automatic one on
+        // returning to the foreground. Dart used to observe app lifecycle and
+        // report one itself, which meant two independent owners each
+        // scheduling and de-duplicating — no ordering of the two came out
+        // right. Now the epoch only ever advances here, once per real native
+        // page impression, so mounted AdWidgets remount exactly once.
+        if (call.method == 'onPageImpression') {
+          final args = call.arguments as Map<dynamic, dynamic>?;
+          final name = args?['name'] as String?;
+          if (name != null) {
+            lastReportedPage = name;
+            currentPage = name;
+            lastPageImpressionAt = DateTime.now();
+            pageEpoch.value++;
+          }
+          return;
+        }
         if (call.method != 'onAdEvent') {
           log('Unsupported ad event method: ${call.method}');
           return;

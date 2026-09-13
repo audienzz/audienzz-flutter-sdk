@@ -42,6 +42,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
         )
         methodChannel?.setMethodCallHandler(this)
         adInstanceManager = AdInstanceManager(methodChannel!!)
+        observeNativePageImpressions()
         flutterPluginBinding.platformViewRegistry.registerViewFactory(
             NATIVE_VIEW_NAME,
             PlatformViewFactoryWrapper(adInstanceManager!!)
@@ -472,7 +473,21 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
         }
     }
 
+    /**
+     * Forward every native page impression to Dart — including the automatic one fired on returning
+     * to the foreground, which never passes through the Dart API. Native owns foreground reporting;
+     * Dart just advances its page epoch so mounted AdWidgets remount their platform views.
+     */
+    private fun observeNativePageImpressions() {
+        AudienzzPrebidMobile.pageImpressionObserver = { name ->
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                methodChannel?.invokeMethod("onPageImpression", mapOf("name" to name))
+            }
+        }
+    }
+
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        AudienzzPrebidMobile.pageImpressionObserver = null
         // Tear down every live ad so auctions/refresh loops don't continue with
         // no Dart side to receive events (add-to-app / multi-engine teardown).
         adInstanceManager?.disposeAllAds()
