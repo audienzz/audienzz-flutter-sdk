@@ -185,6 +185,11 @@ final class AudienzzSdkFlutter {
     // Stamp every ad created from here on with this page, and force mounted
     // AdWidgets on the active route to rebuild their platform view so a
     // recreated ad shows its new creative.
+    // An explicit report always wins over a pending automatic foreground one,
+    // in either order: this cancels a scheduled one, and the observer schedules
+    // rather than firing so a report arriving afterwards cancels it too.
+    _pendingForegroundReport?.cancel();
+    _pendingForegroundReport = null;
     adInstanceManager.currentPage = screenName;
     adInstanceManager.lastReportedPage = screenName;
     adInstanceManager.lastPageImpressionAt = DateTime.now();
@@ -216,15 +221,20 @@ final class AudienzzSdkFlutter {
       if (page == null) {
         return;
       }
-      // Don't double-report. The app may report on resume too, and both would
-      // reach native as explicit reports, which cancelling the native automatic
-      // one cannot deduplicate.
-      final last = adInstanceManager.lastPageImpressionAt;
-      if (last != null &&
-          DateTime.now().difference(last) < const Duration(milliseconds: 400)) {
-        return;
-      }
-      unawaited(pageImpression(name: page));
+      // Schedule rather than report immediately, and let an app's own resume
+      // report cancel it. A backward-looking timestamp check only covers
+      // publisher-first ordering; after a long background the observer would
+      // run first and the publisher's handler would then report the same page,
+      // and both reach native as explicit calls. This mirrors what the native
+      // SDKs do with their own automatic re-impression.
+      _pendingForegroundReport?.cancel();
+      _pendingForegroundReport = Timer(
+        const Duration(milliseconds: 400),
+        () {
+          _pendingForegroundReport = null;
+          unawaited(pageImpression(name: page));
+        },
+      );
     });
     _lifecycleObserver = observer;
     WidgetsBinding.instance.addObserver(observer);
@@ -274,6 +284,9 @@ final class AudienzzSdkFlutter {
 /// Registered once, on the first page impression. Library-private because
 /// [AudienzzSdkFlutter] has a `const` constructor and cannot hold state.
 _AudienzzLifecycleObserver? _lifecycleObserver;
+
+/// Pending automatic foreground report, cancellable by an explicit one.
+Timer? _pendingForegroundReport;
 
 /// Fires [onResumed] when the app returns to the foreground.
 final class _AudienzzLifecycleObserver with WidgetsBindingObserver {
