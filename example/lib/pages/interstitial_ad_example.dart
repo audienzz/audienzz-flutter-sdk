@@ -12,7 +12,8 @@ class InterstitialAdExample extends StatefulWidget {
 }
 
 class _InterstitialAdExampleState extends State<InterstitialAdExample> {
-  InterstitialAd? _ad;
+  late final InterstitialAd _ad;
+  late final InterstitialPresentationController _controller;
   bool _loading = false;
   bool _showing = false;
   String? _error;
@@ -20,21 +21,14 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
   void _terminal(InterstitialAd ad, [AdError? error]) {
     if (!mounted || !identical(ad, _ad)) return;
     setState(() {
-      _ad = null;
       _showing = false;
       _error = error?.message;
     });
   }
 
-  Future<void> _load() async {
-    if (_loading || _showing || _ad?.isReady == true) return;
-    // Reserve the load before awaiting disposal, so rapid taps cannot create two preloads.
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    await _ad?.dispose();
-    if (!mounted) return;
+  @override
+  void initState() {
+    super.initState();
     final InterstitialAd ad;
     if (widget.configId != null) {
       ad = RemoteInterstitialAd(
@@ -59,45 +53,59 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
               debugPrint('Interstitial ${event.loadId}: ${event.name}'));
     }
     _ad = ad;
+    _controller = InterstitialPresentationController(ad: ad);
+  }
+
+  Future<void> _load() async {
+    if (_loading || _showing || _controller.isReady) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      await ad
-          .load(); // Resolves on Google readiness, not method-channel acknowledgement.
+      await _controller.preload();
     } catch (error) {
-      if (mounted && identical(_ad, ad)) {
+      if (mounted) {
         setState(() {
-          _ad = null;
           _error = error.toString();
         });
       }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
         });
+      }
     }
   }
 
   Future<void> _show() async {
-    final ad = _ad;
-    if (ad == null || !ad.isReady || _showing) return;
+    if (!_controller.isReady || _showing) return;
     setState(() {
       _showing = true;
     });
     try {
-      await ad.show();
+      final submitted = await _controller.showAtOpportunity(eligible: true);
+      if (!submitted && mounted) {
+        setState(() {
+          _showing = false;
+        });
+      }
       // Native owns presentation until its terminal event. Never dispose/reload here.
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _showing = false;
           _error = error.toString();
         });
+      }
     }
   }
 
   @override
   void dispose() {
-    _ad?.dispose(); // During presentation this defers cleanup until its terminal event.
+    _controller
+        .dispose(); // During presentation this defers cleanup until its terminal event.
     super.dispose();
   }
 
@@ -107,10 +115,10 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
         if (_error != null) Text(_error!),
         ElevatedButton(
             onPressed:
-                _loading || _showing || _ad?.isReady == true ? null : _load,
+                _loading || _showing || _controller.isReady ? null : _load,
             child: Text(_loading ? 'Loading…' : 'Load interstitial')),
         ElevatedButton(
-            onPressed: _ad?.isReady == true && !_showing ? _show : null,
+            onPressed: _controller.isReady && !_showing ? _show : null,
             child: const Text('Show at this transition')),
       ]));
 }

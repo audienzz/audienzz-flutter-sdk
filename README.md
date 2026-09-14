@@ -276,12 +276,19 @@ final interstitial = InterstitialAd(
   onAdFailedToShow: (_, error) => debugPrint('Presentation failed: $error'),
   onLifecycleEvent: (_, event) => debugPrint('${event.loadId}: ${event.name}'),
 );
-try {
-  await interstitial.load(); // Waits until Google reports ready.
-  // Only show if the publisher's intended transition is still valid.
-  await interstitial.show();
-} catch (error) {
-  debugPrint('Interstitial could not load/show: $error');
+// Retain this controller outside transient route widgets; one per logical placement.
+final controller = InterstitialPresentationController(ad: interstitial);
+
+Future<void> prepareNextOpportunity() async {
+  try { await controller.preload(); }
+  catch (error) { debugPrint('Preload failed: $error'); }
+}
+
+Future<void> onEligibleTransition(bool publisherAllowsAd) async {
+  try {
+    final submitted = await controller.showAtOpportunity(eligible: publisherAllowsAd);
+    // false means skipped. No late load completion will show this opportunity.
+  } catch (error) { debugPrint('Presentation failed: $error'); }
 }
 ```
 
@@ -408,13 +415,16 @@ final remoteInterstitial = RemoteInterstitialAd(
   },
 );
 
-try {
-  await remoteInterstitial.load(); // Google readiness, not request dispatch.
-  // Show only at a still-valid natural transition chosen by the publisher.
-  await remoteInterstitial.show();
-} catch (error) {
-  debugPrint('Remote interstitial could not load/show: $error');
+final controller = InterstitialPresentationController(ad: remoteInterstitial);
+// Preload ahead of a likely opportunity; catch load failures.
+Future<void> prepare() async {
+  try { await controller.preload(); }
+  catch (error) { debugPrint('Preload failed: $error'); }
 }
+// Called separately at the actual transition, after checking publisher frequency caps.
+Future<bool> showAtTransition(bool publisherAllowsAd) =>
+    controller.showAtOpportunity(eligible: publisherAllowsAd);
+// Handle errors from showAtTransition and dispose the controller when no longer needed.
 ```
 
 Targeting basics
@@ -912,3 +922,27 @@ flow, so loading a Flutter interstitial does not unexpectedly present it.
 
 These changes improve correctness; a higher render rate alone does not demonstrate more revenue.
 Compare impressions and revenue per session alongside unused preloads and presentation failures.
+
+
+### Recommended interstitial presentation controller
+
+`InterstitialPresentationController` works with original and remote interstitials. Retain one
+controller per logical placement outside transient page widgets, and use it exclusively to load,
+show and dispose its ad. `preload()` shares an outstanding load and keeps ready inventory.
+`showAtOpportunity(eligible: ...)` immediately skips if the publisher disallows the opportunity,
+the ad is unavailable/expired, Flutter is inactive, or another interstitial in this engine is
+presenting. A skipped opportunity is never queued, including across foreground or page changes.
+The ready ad remains available for a later explicit opportunity; no extra request is issued.
+
+A true result means the native show command was accepted. Use `onAdOpened`, `onAdImpression`,
+`onAdFailedToShow` and `onAdClosed` for the actual outcome. Presentation errors still throw.
+The controller does not infer your frequency cap or own other SDKs' fullscreen ads: compute
+`eligible` at the transition, including your own modal/ad policy. Preloading has no implicit
+publisher eligibility decision. Check that policy before requesting too, when possible.
+
+There is no scheduled show, arbitrary wait period, or dependency on banner smart refresh.
+`dispose()` during presentation preserves callbacks until dismissal/failure. Repeated preload
+calls after dismissal may prepare the next opportunity; never request it just to raise render rate.
+`opportunitySkipped` lifecycle events include a reason when a load is registered. Google iOS
+interstitial load failures now preserve their original error code and domain; Android load events
+also carry their error domain.

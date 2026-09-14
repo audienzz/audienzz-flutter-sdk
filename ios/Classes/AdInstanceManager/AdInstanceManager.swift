@@ -90,12 +90,14 @@ class AdInstanceManager : NSObject {
         channel.invokeMethod("onAdEvent", arguments: arguments)
     }
     
-    func onAdFailedToLoad(ad: FAd, error: FAdError) {
-        channel.invokeMethod("onAdEvent", arguments: [
+    func onAdFailedToLoad(ad: FAd, error: FAdError, domain: String? = nil) {
+        var arguments: [String: Any] = [
             "adId":ad.adId,
             "eventName":"onAdFailedToLoad",
             "adError":error,
-        ])
+        ]
+        if let domain { arguments["errorDomain"] = domain }
+        channel.invokeMethod("onAdEvent", arguments: arguments)
     }
     
     func onAdClicked(ad: FAd){

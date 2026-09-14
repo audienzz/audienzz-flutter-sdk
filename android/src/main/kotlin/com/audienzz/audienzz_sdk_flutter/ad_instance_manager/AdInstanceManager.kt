@@ -79,6 +79,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
             AD_ID_KEY to adId,
             EVENT_NAME_KEY to ON_AD_FAILED_TO_LOAD_EVENT,
             AD_ERROR_KEY to adError,
+            "errorDomain" to adError.domain,
         )
 
         invokeOnAdEvent(args)

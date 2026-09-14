@@ -193,7 +193,9 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
                     self.interstitialView?.connectHandler(AUInterstitialEventHandler(adUnit: ad))
                     self.manager?.onAdLoaded(ad: self, responseId: ad.responseInfo.responseIdentifier)
                 } else {
-                    self.manager?.onAdFailedToLoad(ad: self, error: FAdError(code: 1, message: error?.localizedDescription ?? ""))
+                    let failure = (error as NSError?) ?? NSError(domain: "audienzz", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Google returned neither an interstitial nor an error."])
+                    self.manager?.onAdFailedToLoad(ad: self, error: FAdError(error: failure), domain: failure.domain)
                     print("Failed to load interstitial ad with error: \(String(describing: error?.localizedDescription))")
                 }
             }

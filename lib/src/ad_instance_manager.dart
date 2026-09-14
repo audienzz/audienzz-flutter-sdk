@@ -78,6 +78,16 @@ final class AdInstanceManager {
   @visibleForTesting
   DateTime Function() interstitialClock = DateTime.now;
 
+  bool get hasPresentingInterstitial => _interstitialLoads.values
+      .any((state) => state.phase == _InterstitialPhase.presenting);
+
+  void recordInterstitialOpportunitySkipped(InterstitialAd ad, String reason) {
+    final state = _interstitialLoads[adIdFor(ad)];
+    if (state != null) {
+      _interstitialEvent(ad, state, 'opportunitySkipped', reason: reason);
+    }
+  }
+
   bool isInterstitialReady(InterstitialAd ad) {
     final state = _interstitialLoads[adIdFor(ad)];
     return state?.phase == _InterstitialPhase.ready &&
