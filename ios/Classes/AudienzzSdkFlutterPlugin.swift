@@ -84,6 +84,12 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             if let args = call.arguments as? [String: Any],
                let companyId = args["companyId"] as? String
             {
+                // Flutter fetches the publisher config in Dart, so the native SDK never sees it and
+                // cannot read these itself. Absent values stay nil and native keeps its default.
+                Audienzz.shared.applyBackendPpidConfig(
+                    ppidEnabled: args["ppidEnabled"] as? Bool,
+                    automaticPpidEnabled: args["automaticPpidEnabled"] as? Bool
+                )
                 Audienzz.shared.configureSDK(companyId: companyId)
                 AudienzzGAMUtils.shared.initializeGAM()
                 Audienzz.shared.setAppVolume(0.0)

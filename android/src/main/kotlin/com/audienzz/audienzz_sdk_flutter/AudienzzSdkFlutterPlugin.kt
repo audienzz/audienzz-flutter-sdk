@@ -68,12 +68,20 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
-            "initialize" -> audienzzSdkWrapper.initialize(
-                context,
-                call.argument<String>("companyId")!!,
-                call.argument<String?>("prebidServerUrl"),
-                result
-            )
+            "initialize" -> {
+                // Flutter fetches the publisher config in Dart, so the native SDK never sees it and
+                // cannot read these itself. Absent values stay null and native keeps its default.
+                AudienzzPrebidMobile.applyBackendPpidConfig(
+                    ppidEnabled = call.argument<Boolean?>("ppidEnabled"),
+                    automaticPpidEnabled = call.argument<Boolean?>("automaticPpidEnabled"),
+                )
+                audienzzSdkWrapper.initialize(
+                    context,
+                    call.argument<String>("companyId")!!,
+                    call.argument<String?>("prebidServerUrl"),
+                    result
+                )
+            }
 
             "loadBannerAd" -> {
                 val adId = call.argument<Int>("adId")!!
