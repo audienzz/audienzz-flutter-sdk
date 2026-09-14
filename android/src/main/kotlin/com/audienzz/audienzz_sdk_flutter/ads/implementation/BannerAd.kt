@@ -154,17 +154,15 @@ class BannerAd(
     }
 
     fun pauseAutoRefresh() {
-        // Delegate to the handler so it can also cancel any pending scheduled
-        // refresh runnable (the plain stopAutoRefresh() on bannerAdUnit would
-        // leave a postDelayed Runnable alive and it would fire despite the pause).
-        adViewHandler?.pauseSmartRefresh()
+        adViewHandler?.stopAutoRefresh()
     }
 
     fun resumeAutoRefresh() {
-        // Stale-aware resume: if elapsed time since last fetch >= refresh interval
-        // the handler force-fetches demand immediately instead of restarting the
-        // 30 s timer from zero (which is what bannerAdUnit.resumeAutoRefresh() does).
-        adViewHandler?.resumeSmartRefresh()
+        adViewHandler?.resumeAutoRefresh()
+    }
+
+    fun setViewportVisible(visible: Boolean) {
+        if (visible) adViewHandler?.resumeSmartRefresh() else adViewHandler?.pauseSmartRefresh()
     }
 
     /// Force a fresh auction now, ignoring the stale-aware refresh timing — used

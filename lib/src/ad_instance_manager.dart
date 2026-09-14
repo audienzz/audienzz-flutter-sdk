@@ -465,6 +465,18 @@ final class AdInstanceManager {
     );
   }
 
+  /// Internal widget visibility signal, independent of the publisher pause API.
+  Future<void> setBannerViewportVisible(BannerAd ad, {required bool visible}) {
+    final adId = adIdFor(ad);
+    if (adId == null) {
+      return Future<void>.value();
+    }
+    return methodChannel.invokeMethod<void>(
+      'setBannerViewportVisible',
+      {'adId': adId, 'visible': visible},
+    );
+  }
+
   Future<void> pauseBannerAutoRefresh(BannerAd ad) {
     final adId = adIdFor(ad);
     if (adId == null) return Future<void>.value();

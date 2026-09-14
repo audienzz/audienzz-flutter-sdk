@@ -132,7 +132,12 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     // GAM loads that could never become impressions. Page-scoping catches this
     // too, but only once the app reports the next pageImpression; this is the
     // backstop that does not depend on that.
-    _smartRefreshBanner?.pauseAutoRefresh();
+    final banner = _smartRefreshBanner;
+    if (banner != null) {
+      unawaited(
+        adInstanceManager.setBannerViewportVisible(banner, visible: false),
+      );
+    }
     adInstanceManager.pageEpoch.removeListener(_onPageEpochChanged);
     _visibilityTimer?.cancel();
     if (_smartRefreshBanner != null) {
@@ -182,7 +187,9 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
 
     if (!shouldBeActive && !_refreshPaused) {
       _refreshPaused = true;
-      banner.pauseAutoRefresh();
+      unawaited(
+        adInstanceManager.setBannerViewportVisible(banner, visible: false),
+      );
       if (kDebugMode) {
         debugPrint(
           'AudienzzSmartRefresh → PAUSE '
@@ -193,7 +200,9 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
       }
     } else if (shouldBeActive && _refreshPaused) {
       _refreshPaused = false;
-      banner.resumeAutoRefresh();
+      unawaited(
+        adInstanceManager.setBannerViewportVisible(banner, visible: true),
+      );
       if (kDebugMode) {
         debugPrint(
           'AudienzzSmartRefresh → RESUME '

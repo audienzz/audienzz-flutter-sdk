@@ -365,6 +365,15 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 )
             }
 
+        case "setBannerViewportVisible":
+            if let args = call.arguments as? [String: Any],
+               let adId = args["adId"] as? NSNumber,
+               let visible = args["visible"] as? Bool,
+               let bannerAd = manager.ad(for: adId) as? FBannerAd {
+                bannerAd.setViewportVisible(visible)
+            }
+            result(nil)
+
         case "pauseBannerAutoRefresh":
             // The Dart layer pauses a specific banner (e.g. when a same-route
             // overlay covers it — a case the native geometry poll can't detect).

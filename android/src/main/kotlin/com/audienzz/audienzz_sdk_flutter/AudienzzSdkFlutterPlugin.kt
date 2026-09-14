@@ -198,6 +198,12 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
+            "setBannerViewportVisible" -> {
+                val ad = adInstanceManager?.adFor(call.argument<Int>("adId")!!)
+                (ad as? BannerAd)?.setViewportVisible(call.argument<Boolean>("visible") == true)
+                result.success(null)
+            }
+
             "pauseBannerAutoRefresh" -> {
                 val ad = adInstanceManager?.adFor(call.argument<Int>("adId")!!)
                 (ad as? com.audienzz.audienzz_sdk_flutter.ads.implementation.BannerAd)?.pauseAutoRefresh()

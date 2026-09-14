@@ -160,13 +160,11 @@ class BannerAd extends AdWithView {
   @override
   Future<void> load() => adInstanceManager.loadBannerAd(this);
 
-  /// Pause Prebid auto-refresh — called by the Flutter visibility layer when
-  /// less than 20% of the ad height is visible in the viewport.
+  /// Publisher pause. Scrolling, foregrounding and page impressions do not undo it.
   Future<void> pauseAutoRefresh() =>
       adInstanceManager.pauseBannerAutoRefresh(this);
 
-  /// Resume Prebid auto-refresh — called by the Flutter visibility layer when
-  /// at least 20% of the ad height becomes visible again.
+  /// Clear the publisher pause. Visibility, page and foreground gates still apply.
   Future<void> resumeAutoRefresh() =>
       adInstanceManager.resumeBannerAutoRefresh(this);
 

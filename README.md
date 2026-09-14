@@ -866,3 +866,12 @@ License
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+
+
+## Publisher pause and smart-refresh visibility
+
+`BannerAd.pauseAutoRefresh()` is a durable publisher pause. Only `BannerAd.resumeAutoRefresh()` clears it. Scrolling, returning to the app and `pageImpression` do not implicitly resume a publisher-paused banner.
+
+`AdWidget` sends its visibility/overlay/unmount state through a separate internal channel operation (`setBannerViewportVisible`). Publishers should let `AdWidget` manage visibility and use the public pause API only for their own pause policy. Both native plugin implementations preserve these independent reasons.
+
+Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The updated native SDKs must be released and the bridge dependency pins updated before publishing this bridge; verification against local native checkouts does not make the currently published native versions compatible.
