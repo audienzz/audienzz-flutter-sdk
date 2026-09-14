@@ -157,7 +157,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<VideoDuration>("videoDuration")!!,
                     call.argument<String?>("pbAdSlot"),
                     call.argument<String?>("gpId"),
-                    call.argument<List<AdSize>>("adSizes")!!,
+                    call.argument<List<AdSize>>("adSizes") ?: emptyList(),
                     call.argument<String?>("impOrtbConfig"),
                     context,
                     adInstanceManager!!.createInterstitialAdLoadedListener(adId),
@@ -175,7 +175,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 val adShown = adInstanceManager?.showAdWithId(adId) == true
 
                 if (!adShown) {
-                    result.error("Ad Show Error", "Ad with id $adId failed to show", null)
+                    result.error("-1", (adInstanceManager?.adFor(adId) as? InterstitialAd)?.showError ?: "Ad with id $adId failed to show", "audienzz")
                 } else {
                     result.success(null)
                 }

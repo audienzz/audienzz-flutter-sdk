@@ -65,20 +65,29 @@ class AdInstanceManager : NSObject {
     }
     
     func dispose(adId: NSNumber) {
+        if let interstitial = ads.object(forKey: adId) as? FInterstitialAd, interstitial.isPresenting { return }
         (ads.object(forKey: adId) as? FDisposableAd)?.dispose()
         ads.removeObject(forKey: adId)
     }
     
-    func showAd(withId adId: NSNumber) {
-        let ad = ad(for: adId) as? FAdWithoutView
-        ad?.show()
+    func showAd(withId adId: NSNumber) -> FlutterError? {
+        if let interstitial = ad(for: adId) as? FInterstitialAd { return interstitial.showIfReady() }
+        guard let ad = ad(for: adId) as? FAdWithoutView else {
+            return FlutterError(code: "-1", message: "No fullscreen ad for this ID.", details: "audienzz")
+        }
+        ad.show()
+        return nil
     }
     
-    func onAdLoaded(ad: FAd) {
-        channel.invokeMethod("onAdEvent", arguments: [
-            "adId":ad.adId,
-            "eventName":"onAdLoaded",
-        ])
+    func onAdFailedToShow(ad: FAd, error: FAdError, domain: String) {
+        channel.invokeMethod("onAdEvent", arguments: ["adId": ad.adId,
+            "eventName": "onAdFailedToShow", "adError": error, "errorDomain": domain])
+    }
+
+    func onAdLoaded(ad: FAd, responseId: String? = nil) {
+        var arguments: [String: Any] = ["adId": ad.adId, "eventName": "onAdLoaded"]
+        if let responseId { arguments["responseId"] = responseId }
+        channel.invokeMethod("onAdEvent", arguments: arguments)
     }
     
     func onAdFailedToLoad(ad: FAd, error: FAdError) {

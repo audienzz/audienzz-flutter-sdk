@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:audienzz_sdk_flutter/src/ads/base/ad.dart';
@@ -11,6 +12,7 @@ import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/exceptions/ad_size_required_exception.dart';
 import 'package:audienzz_sdk_flutter/src/entities/exceptions/sdk_initialization_failed_exception.dart';
 import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
+import 'package:audienzz_sdk_flutter/src/entities/interstitial_ad_event.dart';
 import 'package:audienzz_sdk_flutter/src/entities/reward_item.dart';
 import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
 import 'package:collection/collection.dart';
@@ -41,8 +43,7 @@ final class AdInstanceManager {
           //
           // A null currentPage means the impression originated natively (the
           // automatic foreground one), which is always current.
-          if (name != null &&
-              (currentPage == null || currentPage == name)) {
+          if (name != null && (currentPage == null || currentPage == name)) {
             lastReportedPage = name;
             lastPageImpressionAt = DateTime.now();
             pageEpoch.value++;
@@ -72,6 +73,18 @@ final class AdInstanceManager {
 
   int _nextAdId = 0;
   final _loadedAds = <int, Ad>{};
+  final _interstitialLoads = <int, _InterstitialLoad>{};
+
+  @visibleForTesting
+  DateTime Function() interstitialClock = DateTime.now;
+
+  bool isInterstitialReady(InterstitialAd ad) {
+    final state = _interstitialLoads[adIdFor(ad)];
+    return state?.phase == _InterstitialPhase.ready &&
+        state!.loadedAt != null &&
+        interstitialClock().difference(state.loadedAt!) <
+            const Duration(hours: 1);
+  }
 
   Ad? adFor(int? adId) => _loadedAds[adId];
 
@@ -133,6 +146,10 @@ final class AdInstanceManager {
   }
 
   void _onAdEvent(Ad ad, String eventName, Map<dynamic, dynamic>? arguments) {
+    if (ad is InterstitialAd) {
+      _onInterstitialEvent(ad, eventName, arguments);
+      return;
+    }
     return switch (eventName) {
       'onAdLoaded' => _invokeOnAdLoaded(ad, eventName),
       'onAdFailedToLoad' => _invokeOnAdFailedToLoad(ad, eventName, arguments),
@@ -365,39 +382,167 @@ final class AdInstanceManager {
     }
   }
 
-  Future<void> loadInterstitialAd(InterstitialAd ad) async {
-    if (adIdFor(ad) != null) {
-      return;
+  Future<void> loadInterstitialAd(InterstitialAd ad) {
+    var existing = _interstitialLoads[adIdFor(ad)];
+    if (existing?.phase == _InterstitialPhase.ready &&
+        !isInterstitialReady(ad)) {
+      _releaseInterstitial(ad, existing!, 'expired');
+      existing = null;
     }
-
+    if (existing != null) {
+      if (existing.phase == _InterstitialPhase.presenting) {
+        return Future.error(
+            StateError('The interstitial is still presenting.'));
+      }
+      return existing.ready.future;
+    }
     final adId = _nextAdId++;
-
+    final state = _InterstitialLoad(adId);
     _loadedAds[adId] = ad;
+    _interstitialLoads[adId] = state;
+    state.timeout = Timer(const Duration(seconds: 120), () {
+      _failInterstitialLoad(
+          ad,
+          state,
+          const AdError(
+              code: -1,
+              domain: 'audienzz',
+              message: 'Interstitial load timed out after 120 seconds.'));
+    });
+    _interstitialEvent(ad, state, 'loadRequested');
+    unawaited(methodChannel.invokeMethod<void>(
+      'loadInterstitialAd',
+      {
+        'adId': adId,
+        'adUnitId': ad.adUnitId,
+        'auConfigId': ad.auConfigId,
+        'adFormat': ad.adFormat,
+        'apiParameters': ad.apiParameters.toList(),
+        'protocols': ad.protocols.toList(),
+        'placement': ad.placement,
+        'playbackMethods': ad.playbackMethods.toList(),
+        'videoBitrate': ad.videoBitrate,
+        'videoDuration': ad.videoDuration,
+        'minSizePercentage': ad.minSizePercentage,
+        if (ad.sizes.isNotEmpty) 'adSizes': ad.sizes.toList(),
+        if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
+        if (ad.gpId != null) 'gpId': ad.gpId,
+        if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
+      },
+    ).then<void>((_) {}, onError: (Object error, StackTrace stack) {
+      _failInterstitialLoad(ad, state, _interstitialError(error));
+    }));
+    return state.ready.future;
+  }
 
-    try {
-      await methodChannel.invokeMethod<void>(
-        'loadInterstitialAd',
-        {
-          'adId': adId,
-          'adUnitId': ad.adUnitId,
-          'auConfigId': ad.auConfigId,
-          'adFormat': ad.adFormat,
-          'apiParameters': ad.apiParameters.toList(),
-          'protocols': ad.protocols.toList(),
-          'placement': ad.placement,
-          'playbackMethods': ad.playbackMethods.toList(),
-          'videoBitrate': ad.videoBitrate,
-          'videoDuration': ad.videoDuration,
-          'minSizePercentage': ad.minSizePercentage,
-          if (ad.sizes.isNotEmpty) 'adSizes': ad.sizes.toList(),
-          if (ad.pbAdSlot != null) 'pbAdSlot': ad.pbAdSlot,
-          if (ad.gpId != null) 'gpId': ad.gpId,
-          if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
-        },
-      );
-    } on PlatformException catch (e) {
-      _handleLoadChannelFailure(adId, ad, e);
+  AdError _interstitialError(Object error) => error is AdError
+      ? error
+      : AdError(
+          code:
+              error is PlatformException ? int.tryParse(error.code) ?? -1 : -1,
+          domain: error is PlatformException && error.details is String
+              ? error.details as String
+              : 'audienzz',
+          message: error is PlatformException
+              ? error.message ?? error.code
+              : error.toString());
+
+  void _interstitialEvent(
+      InterstitialAd ad, _InterstitialLoad state, String name,
+      {String? reason, AdError? error}) {
+    ad.onLifecycleEvent?.call(
+        ad,
+        InterstitialAdEvent(
+            loadId: state.id,
+            name: name,
+            timestamp: interstitialClock(),
+            responseId: state.responseId,
+            loadAgeMillis: state.loadedAt == null
+                ? null
+                : interstitialClock()
+                    .difference(state.loadedAt!)
+                    .inMilliseconds,
+            reason: reason,
+            error: error));
+  }
+
+  void _failInterstitialLoad(
+      InterstitialAd ad, _InterstitialLoad state, AdError error) {
+    if (_interstitialLoads[state.id] != state ||
+        state.phase != _InterstitialPhase.loading) return;
+    state.timeout?.cancel();
+    // Remove the old generation before callbacks, so retrying from a callback works.
+    _releaseInterstitial(ad, state, 'loadFailed', error: error);
+    state.ready.completeError(error);
+    ad.onAdFailedToLoad(ad, error);
+  }
+
+  void _releaseInterstitial(
+      InterstitialAd ad, _InterstitialLoad state, String reason,
+      {AdError? error}) {
+    state.timeout?.cancel();
+    _interstitialLoads.remove(state.id);
+    _loadedAds.remove(state.id);
+    unawaited(
+        methodChannel.invokeMethod<void>('disposeAd', {'adId': state.id}));
+    if (reason == 'loadFailed' ||
+        reason == 'showFailed' ||
+        reason == 'dismissed') {
+      _interstitialEvent(ad, state, reason, error: error);
     }
+    _interstitialEvent(ad, state, 'disposed', reason: reason);
+  }
+
+  void _onInterstitialEvent(
+      InterstitialAd ad, String name, Map<dynamic, dynamic>? args) {
+    final state = _interstitialLoads[adIdFor(ad)];
+    if (state == null) return;
+    final rawError = args?['adError'] as AdError?;
+    final error = AdError(
+        code: rawError?.code ?? -1,
+        message: rawError?.message ?? 'Interstitial presentation failed.',
+        domain: args?['errorDomain'] as String?);
+    switch (name) {
+      case 'onAdLoaded':
+        if (state.phase != _InterstitialPhase.loading) return;
+        state.timeout?.cancel();
+        state.phase = _InterstitialPhase.ready;
+        state.loadedAt = interstitialClock();
+        state.responseId = args?['responseId'] as String?;
+        state.ready.complete();
+        _interstitialEvent(ad, state, 'loaded');
+        ad.onAdLoaded(ad);
+      case 'onAdFailedToLoad':
+        _failInterstitialLoad(ad, state, error);
+      case 'onAdFailedToShow':
+        _failInterstitialShow(ad, state, error);
+      case 'onAdOpened':
+        if (state.phase != _InterstitialPhase.presenting || state.opened)
+          return;
+        state.opened = true;
+        _interstitialEvent(ad, state, 'presented');
+        ad.onAdOpened?.call(ad);
+      case 'onAdImpression':
+        if (state.phase != _InterstitialPhase.presenting || state.impression)
+          return;
+        state.impression = true;
+        _interstitialEvent(ad, state, 'impression');
+        ad.onAdImpression?.call(ad);
+      case 'onAdClosed':
+        if (state.phase != _InterstitialPhase.presenting) return;
+        _releaseInterstitial(ad, state, 'dismissed');
+        ad.onAdClosed?.call(ad);
+      case 'onAdClicked':
+        if (state.phase == _InterstitialPhase.presenting)
+          ad.onAdClicked?.call(ad);
+    }
+  }
+
+  void _failInterstitialShow(
+      InterstitialAd ad, _InterstitialLoad state, AdError error) {
+    if (_interstitialLoads[state.id] != state) return;
+    _releaseInterstitial(ad, state, 'showFailed', error: error);
+    ad.onAdFailedToShow?.call(ad, error);
   }
 
   /// Undo a failed native load: drop the registry entry (so a retry actually
@@ -429,6 +574,23 @@ final class AdInstanceManager {
       );
     }
 
+    if (ad is InterstitialAd) {
+      final state = _interstitialLoads[adId];
+      if (state?.phase != _InterstitialPhase.ready) {
+        throw StateError(
+            'Interstitial is not ready or is already presenting. Await load() first.');
+      }
+      state!.phase = _InterstitialPhase.presenting;
+      _interstitialEvent(ad, state, 'showAttempted');
+      try {
+        await methodChannel
+            .invokeMethod<void>('showAdWithoutView', {'adId': adId});
+      } on PlatformException catch (error) {
+        _failInterstitialShow(ad, state, _interstitialError(error));
+        rethrow;
+      }
+      return;
+    }
     return methodChannel.invokeMethod<void>(
       'showAdWithoutView',
       {'adId': adId},
@@ -452,6 +614,21 @@ final class AdInstanceManager {
 
   Future<void> disposeAd(Ad ad) {
     final adId = adIdFor(ad);
+    if (ad is InterstitialAd) {
+      final state = _interstitialLoads[adId];
+      if (state == null) return Future.value();
+      if (state.phase == _InterstitialPhase.presenting) {
+        _interstitialEvent(ad, state, 'disposeDeferred',
+            reason: 'presentationInProgress');
+      } else {
+        _releaseInterstitial(ad, state, 'publisher');
+        if (!state.ready.isCompleted) {
+          state.ready.completeError(
+              StateError('Interstitial disposed while loading.'));
+        }
+      }
+      return Future.value();
+    }
     _adPages.remove(adId);
     final disposedAd = _loadedAds.remove(adId);
 
@@ -529,4 +706,18 @@ final class AdInstanceManager {
       }
     }
   }
+}
+
+enum _InterstitialPhase { loading, ready, presenting }
+
+final class _InterstitialLoad {
+  _InterstitialLoad(this.id);
+  final int id;
+  final ready = Completer<void>();
+  _InterstitialPhase phase = _InterstitialPhase.loading;
+  Timer? timeout;
+  DateTime? loadedAt;
+  String? responseId;
+  bool opened = false;
+  bool impression = false;
 }

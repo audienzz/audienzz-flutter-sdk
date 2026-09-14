@@ -272,12 +272,17 @@ final interstitial = InterstitialAd(
   adFormat: AdFormat.bannerAndVideo,
   onAdLoaded: (_) => debugPrint('Interstitial loaded'),
   onAdFailedToLoad: (_, error) => debugPrint('Interstitial fail: ${error?.message}'),
-  onAdClosed: (ad) async {
-    await ad.dispose();
-  },
+  onAdClosed: (_) => debugPrint('Interstitial dismissed'),
+  onAdFailedToShow: (_, error) => debugPrint('Presentation failed: $error'),
+  onLifecycleEvent: (_, event) => debugPrint('${event.loadId}: ${event.name}'),
 );
-await interstitial.load();
-await interstitial.show();
+try {
+  await interstitial.load(); // Waits until Google reports ready.
+  // Only show if the publisher's intended transition is still valid.
+  await interstitial.show();
+} catch (error) {
+  debugPrint('Interstitial could not load/show: $error');
+}
 ```
 
 Rewarded minimal usage
@@ -390,6 +395,7 @@ Use `RemoteInterstitialAd` to load an interstitial defined by a remote configura
 // 1. Create the remote interstitial ad with the configuration ID
 final remoteInterstitial = RemoteInterstitialAd(
   configId: 'YOUR_CONFIG_ID',
+  adFormat: AdFormat.bannerAndVideo,
   onAdLoaded: (ad) {
     debugPrint('Remote interstitial loaded successfully');
   },
@@ -402,11 +408,13 @@ final remoteInterstitial = RemoteInterstitialAd(
   },
 );
 
-// 2. Load the ad
-await remoteInterstitial.load();
-
-// 3. Show the ad when ready
-await remoteInterstitial.show();
+try {
+  await remoteInterstitial.load(); // Google readiness, not request dispatch.
+  // Show only at a still-valid natural transition chosen by the publisher.
+  await remoteInterstitial.show();
+} catch (error) {
+  debugPrint('Remote interstitial could not load/show: $error');
+}
 ```
 
 Targeting basics
@@ -875,3 +883,32 @@ License
 `AdWidget` sends its visibility/overlay/unmount state through a separate internal channel operation (`setBannerViewportVisible`). Publishers should let `AdWidget` manage visibility and use the public pause API only for their own pause policy. Both native plugin implementations preserve these independent reasons.
 
 Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The updated native SDKs must be released and the bridge dependency pins updated before publishing this bridge; verification against local native checkouts does not make the currently published native versions compatible.
+
+
+## Interstitial lifecycle and migration
+
+Flutter retains an explicit `load()` / `show()` contract on both platforms. Native iOS remote
+interstitials auto-show by default; Flutter's `RemoteInterstitialAd` uses its own explicit bridge
+flow, so loading a Flutter interstitial does not unexpectedly present it.
+
+- `load()` now completes when Google reports ready and throws on failure, cancellation during
+  loading, or a 120-second timeout. Handle its future even if callbacks are installed.
+- Concurrent loads share one request; loading an already-ready ad does not replace it. After a
+  terminal failure or dismissal the same Dart object may load again with a new ID.
+- `isReady` excludes expired and presenting inventory. Ads expire after one hour; call `load()`
+  explicitly to replace expired inventory. There is no periodic interstitial refresh.
+- `show()` completes when native accepts the call, not when the ad closes. Use `onAdClosed` for
+  completed dismissal and `onAdFailedToShow` for presentation failure (code/message/domain).
+  Presentation failures no longer masquerade as load failures or successful closures.
+- Cleanup occurs automatically on dismissal/failure. `dispose()` during presentation defers
+  cleanup so callbacks survive; disposal during loading cancels the readiness future.
+- Do not reload interstitials on rebuild, rotation, `pageImpression`, or banner smart refresh.
+  Preload at most the intended next opportunity and apply publisher frequency rules before
+  requesting when possible. An old show request is never replayed later on foreground/navigation.
+- `onLifecycleEvent` supplies a per-load ID, event name, Google response ID when available,
+  loaded-ad age, and errors/disposal reasons. Forward it with app/SDK version, route, foreground
+  state, and publisher eligibility decisions to your analytics. Track loadRequested, loaded,
+  showAttempted, presented, impression, dismissed/showFailed, and disposed separately.
+
+These changes improve correctness; a higher render rate alone does not demonstrate more revenue.
+Compare impressions and revenue per session alongside unused preloads and presentation failures.

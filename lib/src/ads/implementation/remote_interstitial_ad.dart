@@ -27,6 +27,8 @@ final class RemoteInterstitialAd extends InterstitialAd {
     super.onAdClosed,
     super.onAdClicked,
     super.onAdImpression,
+    super.onAdFailedToShow,
+    super.onLifecycleEvent,
   }) : super(
           adUnitId: _getAdUnitId(configId),
           auConfigId: _getAuConfigId(configId),
@@ -55,11 +57,10 @@ final class RemoteInterstitialAd extends InterstitialAd {
   Future<void> load() async {
     if (_getConfig(configId) == null) {
       log('Config with id $configId not found');
-      onAdFailedToLoad(
-        this,
-        AdError(code: -1, message: 'Config with id $configId not found'),
-      );
-      return;
+      final error =
+          AdError(code: -1, message: 'Config with id $configId not found');
+      onAdFailedToLoad(this, error);
+      throw error;
     }
     return super.load();
   }

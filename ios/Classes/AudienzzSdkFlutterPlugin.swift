@@ -318,8 +318,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             if let args = call.arguments as? [String: Any],
                let adId = args["adId"] as? NSNumber
             {
-                manager.showAd(withId: adId)
-                result(nil)
+                result(manager.showAd(withId: adId))
 
             } else {
                 result(

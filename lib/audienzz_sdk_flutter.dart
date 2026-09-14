@@ -16,6 +16,7 @@ export 'src/entities/exceptions/ad_message_codec_reading_exception.dart';
 export 'src/entities/exceptions/sdk_initialization_failed_exception.dart';
 export 'src/entities/external_user_id.dart';
 export 'src/entities/initialization_status.dart';
+export 'src/entities/interstitial_ad_event.dart';
 export 'src/entities/min_size_percentage.dart';
 export 'src/entities/remote_config/adaptive_banner_config.dart';
 export 'src/entities/remote_config/prebid_server.dart';
