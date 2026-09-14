@@ -19,9 +19,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
     /// returning to the foreground, which never passes through the Dart API. Native owns foreground
     /// reporting; Dart just advances its page epoch so mounted AdWidgets remount their platform views.
     private func observeNativePageImpressions(_ channel: FlutterMethodChannel) {
-        Audienzz.shared.pageImpressionObserver = { name in
+        Audienzz.shared.pageImpressionObserver = { [weak channel] name in
             DispatchQueue.main.async {
-                channel.invokeMethod("onPageImpression", arguments: ["name": name])
+                channel?.invokeMethod("onPageImpression", arguments: ["name": name])
             }
         }
     }

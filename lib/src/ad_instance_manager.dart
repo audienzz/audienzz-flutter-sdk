@@ -32,9 +32,18 @@ final class AdInstanceManager {
         if (call.method == 'onPageImpression') {
           final args = call.arguments as Map<dynamic, dynamic>?;
           final name = args?['name'] as String?;
-          if (name != null) {
+          // Drop a stale echo. Reporting B then C before either echo lands
+          // would otherwise let B's confirmation arrive last and reset the
+          // page, handing ads created in that window permanent ownership of
+          // the wrong screen. `currentPage` is set synchronously by
+          // pageImpression, so it is always the authoritative latest; an echo
+          // that disagrees is out of date.
+          //
+          // A null currentPage means the impression originated natively (the
+          // automatic foreground one), which is always current.
+          if (name != null &&
+              (currentPage == null || currentPage == name)) {
             lastReportedPage = name;
-            currentPage = name;
             lastPageImpressionAt = DateTime.now();
             pageEpoch.value++;
           }

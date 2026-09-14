@@ -183,18 +183,15 @@ final class AudienzzSdkFlutter {
     );
     final screenName = name ?? _deriveScreenName(context!);
     // Stamp every ad created from here on with this page, and force mounted
-    // AdWidgets on the active route to rebuild their platform view so a
-    // recreated ad shows its new creative.
-    // Set synchronously so ads created right after this call are stamped with
-    // the right page. The epoch bump that drives remounting happens when native
-    // echoes the impression back, so it advances exactly once per real
-    // transition — including the automatic one on foreground, which never
-    // passes through here.
+    // Stamp synchronously so ads created right after this call belong to this
+    // page — the documented ordering is "report the page, then create its ads",
+    // and waiting for native's asynchronous echo would stamp them with the
+    // previous page, permanently.
+    //
+    // The epoch bump that drives remounting is NOT done here: it happens once,
+    // when native echoes the impression back, so it also covers the automatic
+    // foreground impression which never passes through this method.
     adInstanceManager.currentPage = screenName;
-    adInstanceManager.pageEpoch.value++;
-    // Native releases the other pages' banners and re-auctions this page's; the
-    // epoch bump above then remounts this page's platform views, because an
-    // in-place re-auction does not repaint an AndroidViewSurface / UiKitView.
     return adInstanceManager.methodChannel.invokeMethod(
       'pageImpression',
       {'name': screenName},
