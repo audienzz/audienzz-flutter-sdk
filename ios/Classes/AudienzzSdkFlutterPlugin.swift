@@ -18,10 +18,16 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
     /// Forward every native page impression to Dart — including the automatic one fired on
     /// returning to the foreground, which never passes through the Dart API. Native owns foreground
     /// reporting; Dart just advances its page epoch so mounted AdWidgets remount their platform views.
-    private func observeNativePageImpressions(_ channel: FlutterMethodChannel) {
-        Audienzz.shared.pageImpressionObserver = { [weak channel] name in
+    ///
+    /// Uses the manager's channel rather than the one built in `register(with:)`. Nothing retains
+    /// that local channel — Flutter's messenger deliberately does not hold one (it captures only
+    /// the codec and handler), and neither `publish` nor `addMethodCallDelegate` retains it — so it
+    /// is deallocated as soon as registration returns, and a weak capture silently stopped
+    /// forwarding. The manager's channel is a stored property of the manager, which the plugin owns.
+    private func observeNativePageImpressions() {
+        Audienzz.shared.pageImpressionObserver = { [weak self] name in
             DispatchQueue.main.async {
-                channel?.invokeMethod("onPageImpression", arguments: ["name": name])
+                self?.manager.channel.invokeMethod("onPageImpression", arguments: ["name": name])
             }
         }
     }
@@ -43,7 +49,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         registrar.publish(instance)
         registrar.addMethodCallDelegate(instance, channel: channel)
         registrar.addApplicationDelegate(instance)
-        instance.observeNativePageImpressions(channel)
+        instance.observeNativePageImpressions()
     }
 
     // Optional — do NOT force-unwrap. Scene-based / add-to-app hosts can call
