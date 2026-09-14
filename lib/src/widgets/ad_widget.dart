@@ -114,10 +114,6 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
 
     if (_smartRefreshBanner != null) {
       WidgetsBinding.instance.addObserver(this);
-      // Reload this banner when a screen/route/tab becomes active again (fired by
-      // AudienzzSdkFlutter.pageImpression) — but only if it's currently on
-      // screen, so hidden tabs don't burn an auction.
-      adInstanceManager.addScreenResumeReloader(_reloadOnScreenResume);
       _visibilityTimer = Timer.periodic(
         _pollInterval,
         (_) {
@@ -141,7 +137,6 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     _visibilityTimer?.cancel();
     if (_smartRefreshBanner != null) {
       WidgetsBinding.instance.removeObserver(this);
-      adInstanceManager.removeScreenResumeReloader(_reloadOnScreenResume);
     }
     final adId = adInstanceManager.adIdFor(widget.ad);
     if (adId != null) {
@@ -154,50 +149,6 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appResumed = state == AppLifecycleState.resumed;
     _evaluateVisibility();
-  }
-
-  /// Set by the `pageImpression` broadcast when the ad isn't on screen yet;
-  /// the visibility poll performs the reload once it becomes visible.
-  bool _pendingScreenResumeReload = false;
-
-  /// Broadcast target for `pageImpression`: reload this banner when it's the
-  /// active screen's on-screen ad. If it isn't on screen yet — the incoming
-  /// tab/route may still be animating in — defer to [_evaluateVisibility] so the
-  /// reload lands once the ad becomes visible instead of being dropped. In a
-  /// single-host app the on-screen banners are the active screen's, so this
-  /// reproduces the native "screen change → reload" without re-auctioning ads on
-  /// background tabs/routes.
-  void _reloadOnScreenResume() {
-    final banner = _smartRefreshBanner;
-    if (banner == null || !mounted) return;
-    final adId = adInstanceManager.adIdFor(banner);
-    if (adId == null) return;
-    if (_isOnScreen()) {
-      if (kDebugMode) {
-        debugPrint('AudienzzReload → reload now (adId=$adId, on screen)');
-      }
-      banner.reload();
-    } else {
-      if (kDebugMode) {
-        debugPrint('AudienzzReload → deferred (adId=$adId, off screen)');
-      }
-      _pendingScreenResumeReload = true;
-    }
-  }
-
-  /// Whether at least [_visibleThreshold] of the ad's height is in the viewport.
-  bool _isOnScreen() {
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return false;
-    final size = renderBox.size;
-    if (size.height == 0) return false;
-    final position = renderBox.localToGlobal(Offset.zero);
-    final widgetRect = position & size;
-    final visibleHeight = (Offset.zero & _screenSize)
-        .intersect(widgetRect)
-        .height
-        .clamp(0.0, size.height);
-    return visibleHeight / size.height >= _visibleThreshold;
   }
 
   /// Decide whether auto-refresh should be running and push the transition to
@@ -223,17 +174,6 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
 
     final routeIsCurrent = _route?.isCurrent ?? true;
     final onScreen = fraction >= _visibleThreshold;
-
-    // A screen-resume reload that arrived while the ad was still animating in
-    // (e.g. the incoming tab) fires now that it's on screen — once.
-    if (_pendingScreenResumeReload && onScreen) {
-      _pendingScreenResumeReload = false;
-      if (kDebugMode) {
-        final adId = adInstanceManager.adIdFor(banner);
-        debugPrint('AudienzzReload → deferred reload fired (adId=$adId, now on screen)');
-      }
-      banner.reload();
-    }
 
     // Only worth a hit-test when the ad is geometrically on screen.
     final occluded = onScreen && _isOccludedAtCenter(renderBox);

@@ -91,26 +91,12 @@ final class AdInstanceManager {
 
   void unmountWidgetAdId(int adId) => _mountedWidgetAdIds.remove(adId);
 
-  /// Reload callbacks registered by mounted smart-refresh [AdWidget]s. Each one
-  /// reloads its banner if it is currently on screen — see
-  /// [notifyScreenResumedReload].
-  final Set<void Function()> _screenResumeReloaders = <void Function()>{};
-
-  void addScreenResumeReloader(void Function() reload) =>
-      _screenResumeReloaders.add(reload);
-
-  void removeScreenResumeReloader(void Function() reload) =>
-      _screenResumeReloaders.remove(reload);
-
-  /// Ask every mounted smart-refresh banner to reload if it is currently on
-  /// screen. Invoked by [AudienzzSdkFlutter.pageImpression] after the page
-  /// impression fires, so a returning route/tab shows a fresh creative —
-  /// the Flutter analogue of the native screen-change reload.
-  void notifyScreenResumedReload() {
-    for (final reload in _screenResumeReloaders.toList()) {
-      reload();
-    }
-  }
+  // No Dart-side reload fan-out. A page impression's fresh auction is issued by
+  // the native page coordinator, which recreates every banner on the incoming
+  // page; Dart's only job on that signal is to remount the platform view so the
+  // new creative is actually painted (see [pageEpoch]). A registry that also
+  // called reload() lived here and was never invoked — leaving it in place was
+  // an invitation to re-wire a second auction owner for the same transition.
 
   final methodChannel = MethodChannel(
     Constants.methodChannelName,
