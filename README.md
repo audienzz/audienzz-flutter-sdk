@@ -901,8 +901,11 @@ Flutter retains an explicit `load()` / `show()` contract on both platforms. Nati
 interstitials auto-show by default; Flutter's `RemoteInterstitialAd` uses its own explicit bridge
 flow, so loading a Flutter interstitial does not unexpectedly present it.
 
-- `load()` now completes when Google reports ready and throws on failure, cancellation during
-  loading, or a 120-second timeout. Handle its future even if callbacks are installed.
+- `load()` preserves callback-based failure handling: load failures go to `onAdFailedToLoad`,
+  and the returned future settles without an error. Check `isReady` before calling `show()`.
+  For an awaited flow, use `await ad.load(throwOnFailure: true)` inside `try`/`catch`; this
+  throws on failure, cancellation during loading, busy state, or a 120-second timeout.
+  `InterstitialPresentationController.preload()` always uses this strict mode.
 - Concurrent loads share one request; loading an already-ready ad does not replace it. After a
   terminal failure or dismissal the same Dart object may load again with a new ID.
 - `isReady` excludes expired and presenting inventory. Ads expire after one hour; call `load()`

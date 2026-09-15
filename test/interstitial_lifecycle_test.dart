@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:flutter/services.dart';
@@ -132,7 +134,8 @@ void main() {
   test(
       'asynchronous load failure permits same-object retry and ignores old events',
       () async {
-    final pending = expectLater(ad.load(), throwsA(isA<AdError>()));
+    final pending =
+        expectLater(ad.load(throwOnFailure: true), throwsA(isA<AdError>()));
     final old = adInstanceManager.adIdFor(ad);
     await event('onAdFailedToLoad',
         error: const AdError(code: 2, message: 'network'));
@@ -178,14 +181,15 @@ void main() {
     await makeReady();
     await ad.show();
     await expectLater(ad.show(), throwsStateError);
-    await expectLater(ad.load(), throwsStateError);
+    await expectLater(ad.load(throwOnFailure: true), throwsStateError);
     expect(calls.where((c) => c.method == 'showAdWithoutView').length, 1);
     expect(calls.where((c) => c.method == 'loadInterstitialAd').length, 1);
   });
 
   test('disposal during load settles the future and drops a late load',
       () async {
-    final pending = expectLater(ad.load(), throwsStateError);
+    final pending =
+        expectLater(ad.load(throwOnFailure: true), throwsStateError);
     final id = adInstanceManager.adIdFor(ad);
     await ad.dispose();
     await pending;
@@ -208,17 +212,69 @@ void main() {
 
   test('channel load failure settles the readiness future', () async {
     channelError = PlatformException(code: 'invalid', message: 'bad config');
-    await expectLater(ad.load(), throwsA(isA<AdError>()));
+    await expectLater(ad.load(throwOnFailure: true), throwsA(isA<AdError>()));
     expect(loadFailures, 1);
     expect(adInstanceManager.adIdFor(ad), isNull);
   });
 
   testWidgets('a missing native completion times out instead of hanging',
       (tester) async {
-    final pending = expectLater(ad.load(), throwsA(isA<AdError>()));
+    final pending =
+        expectLater(ad.load(throwOnFailure: true), throwsA(isA<AdError>()));
     await tester.pump(const Duration(seconds: 120));
     await pending;
     expect(loadFailures, 1);
     expect(adInstanceManager.adIdFor(ad), isNull);
+  });
+  test('unawaited legacy load reports Google failure only through callback',
+      () async {
+    unawaited(ad.load());
+    await event('onAdFailedToLoad',
+        error: const AdError(code: 2, message: 'network'));
+    await Future<void>.delayed(Duration.zero);
+    expect(loadFailures, 1);
+    expect(ad.isReady, false);
+    await makeReady();
+    expect(loaded, 1);
+  });
+
+  test('unawaited legacy load handles a channel exception', () async {
+    channelError = PlatformException(code: 'invalid', message: 'bad config');
+    unawaited(ad.load());
+    await Future<void>.delayed(Duration.zero);
+    expect(loadFailures, 1);
+    expect(ad.isReady, false);
+  });
+
+  testWidgets('unawaited legacy load handles timeout', (tester) async {
+    unawaited(ad.load());
+    await tester.pump(const Duration(seconds: 120));
+    expect(loadFailures, 1);
+    expect(ad.isReady, false);
+  });
+
+  test('unawaited legacy load handles cancellation', () async {
+    unawaited(ad.load());
+    await ad.dispose();
+    await Future<void>.delayed(Duration.zero);
+    expect(loaded, 0);
+    expect(ad.isReady, false);
+  });
+
+  test('missing remote config preserves callback mode and strict opt-in',
+      () async {
+    final remote = RemoteInterstitialAd(
+        configId: 'missing-review-config',
+        adFormat: AdFormat.banner,
+        onAdLoaded: (_) => loaded++,
+        onAdFailedToLoad: (_, __) => loadFailures++);
+    unawaited(remote.load());
+    await Future<void>.delayed(Duration.zero);
+    expect(loadFailures, 1);
+    await expectLater(
+        remote.load(throwOnFailure: true), throwsA(isA<AdError>()));
+    expect(loadFailures, 2);
+    expect(loaded, 0);
+    expect(calls.where((c) => c.method == 'loadInterstitialAd'), isEmpty);
   });
 }

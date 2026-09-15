@@ -118,11 +118,16 @@ class InterstitialAd extends AdWithoutView {
   final void Function(InterstitialAd ad, InterstitialAdEvent event)?
       onLifecycleEvent;
 
-  /// Loads once and completes only when Google reports ready. Throws on failure,
-  /// disposal during loading, or a 120-second load timeout. Concurrent calls share
-  /// the pending load; an already-ready object is not replaced. Retry is allowed
-  /// after failure/dismissal. Handle the returned future even when using callbacks.
-  Future<void> load() => adInstanceManager.loadInterstitialAd(this);
+  /// Loads once; concurrent calls share the request and retain ready inventory.
+  /// Load failures are reported through [onAdFailedToLoad]. By default the future
+  /// settles without an error, preserving callback-only callers.
+  /// Check [isReady] before showing.
+  /// Set [throwOnFailure] to await readiness with errors for load failure,
+  /// cancellation, busy state, or the 120-second timeout.
+  Future<void> load({bool throwOnFailure = false}) {
+    final ready = adInstanceManager.loadInterstitialAd(this);
+    return throwOnFailure ? ready : ready.catchError((Object _) {});
+  }
 
   /// Function to show this ad, requires ad to be loaded before invoking.
   /// In case of invoking before the ad is loaded error will be thrown

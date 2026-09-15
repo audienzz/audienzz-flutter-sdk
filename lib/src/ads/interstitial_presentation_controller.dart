@@ -15,12 +15,13 @@ final class InterstitialPresentationController {
   bool get isReady => !_disposed && _ad.isReady;
 
   /// Concurrent calls share the load; a ready ad is retained.
+  /// Throws on load failure, cancellation, or timeout; handle the returned future.
   /// This never presents, including after a skipped show opportunity.
   Future<void> preload() {
     if (_disposed) {
       return Future.error(StateError('Controller is disposed.'));
     }
-    return _ad.load();
+    return _ad.load(throwOnFailure: true);
   }
 
   /// At the transition, pass the current frequency-cap/placement decision.

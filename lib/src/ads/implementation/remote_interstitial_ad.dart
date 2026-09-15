@@ -54,14 +54,15 @@ final class RemoteInterstitialAd extends InterstitialAd {
   }
 
   @override
-  Future<void> load() async {
+  Future<void> load({bool throwOnFailure = false}) async {
     if (_getConfig(configId) == null) {
       log('Config with id $configId not found');
       final error =
           AdError(code: -1, message: 'Config with id $configId not found');
       onAdFailedToLoad(this, error);
-      throw error;
+      if (throwOnFailure) throw error;
+      return;
     }
-    return super.load();
+    return super.load(throwOnFailure: throwOnFailure);
   }
 }
