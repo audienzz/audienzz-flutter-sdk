@@ -662,6 +662,9 @@ final class AdInstanceManager {
       return Future.value();
     }
     _adPages.remove(adId);
+    // Ad ids are handed out sequentially and this set is keyed by them, so leaving an entry behind
+    // would eventually mark an unrelated future ad as covered.
+    _obscuredAdIds.remove(adId);
     final disposedAd = _loadedAds.remove(adId);
 
     if (disposedAd == null) {

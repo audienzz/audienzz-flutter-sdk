@@ -152,6 +152,40 @@ void main() {
     expect(lastVisible(), isTrue, reason: 'clearing it must resume refresh');
   });
 
+  testWidgets('an AbsorbPointer over both is undecidable and needs the signal',
+      (tester) async {
+    // The absorber takes the hit at its own level and never descends, so nothing below it can be
+    // told apart. Documented limitation, same class as a pointer-transparent cover.
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: AbsorbPointer(
+          child: Stack(
+            children: [
+              Center(
+                child: SizedBox(width: 320, height: 50, child: AdWidget(ad: ad)),
+              ),
+              const Positioned.fill(child: ColoredBox(color: Color(0xFF000000))),
+            ],
+          ),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 2));
+    expect(lastVisible(), isNot(isFalse),
+        reason: 'documented limitation: an absorbing ancestor hides what is below it');
+
+    ad.reportObscured(true);
+    await tester.pump(const Duration(seconds: 2));
+    expect(lastVisible(), isFalse, reason: 'the explicit signal still works here');
+  });
+
+  testWidgets('disposal forgets the obscured flag', (tester) async {
+    ad.reportObscured(true);
+    expect(adInstanceManager.isBannerObscured(ad), isTrue);
+    await ad.dispose();
+    expect(adInstanceManager.isBannerObscured(ad), isFalse,
+        reason: 'a stale entry would eventually mark an unrelated future ad as covered');
+  });
 }
 
 void unawaitedShowDialog(BuildContext context) {

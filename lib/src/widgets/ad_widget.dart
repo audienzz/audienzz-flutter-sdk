@@ -262,9 +262,12 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
       }
       if (!ancestors.contains(target)) sawForeign = true;
     }
-    // Only shared ancestors were hit. That is what happens on iOS while a finger is down: the
-    // UiKitView drops out of the hit path and the enclosing scrollable's gesture layer takes it.
-    // Inconclusive, not covered — pausing here paused a fully visible ad mid-scroll.
+    // Only shared ancestors were hit, which establishes nothing either way. That is what happens
+    // on iOS while a finger is down — the UiKitView drops out of the hit path and the enclosing
+    // scrollable's gesture layer takes it — and also when an AbsorbPointer wrapping both the ad
+    // and a cover swallows the hit without descending. Treated as inconclusive rather than
+    // covered, because pausing here paused a fully visible ad mid-scroll; the AbsorbPointer case
+    // is undecidable by hit testing and is what BannerAd.reportObscured exists for.
     return sawForeign ? _CoverVerdict.covered : _CoverVerdict.unknown;
   }
 

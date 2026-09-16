@@ -46,9 +46,15 @@ drives pause and resume today.
 2. `load()` called, widget never mounted → no request.
 3. `load()` called, widget mounted far below the fold, scrolled into range → exactly one request.
 
-**Migration.** Ship default-off for one minor release with the behaviour documented. Flip the
-default only after a per-publisher comparison using the existing backend `prefetchDistanceDp`, and
-only if the measured show rate moves.
+**Migration — the default never flips.** An earlier draft proposed flipping it after a successful
+experiment. That is wrong: `load()` meaning "request now" is the contract every existing
+integration was written against, and no experiment result makes it safe to change that contract
+underneath them. A good measurement would only tell us the new behaviour is better for publishers
+who adopt it, not that silently imposing it is harmless.
+
+So: `nearViewportLoading` stays opt-in permanently on `RemoteBannerAd`. If near-viewport loading
+should eventually be the norm, it arrives as a **new type** with its own contract — the old one
+keeps working unchanged and is deprecated on a normal deprecation cycle, not switched.
 
 ---
 
@@ -90,13 +96,28 @@ little, and it must be measured behind a per-publisher flag before being trusted
 a custom ad-server view the SDK cannot observe, a delegate the publisher replaced, a view destroyed
 mid-flight.
 
+### The trap to avoid
+
+A plain wall-clock deadline defeats the policy it is supposed to protect. The commonest reason an
+impression never arrives is that **the ad has not been seen yet** — exactly the case section 2
+exists to preserve. A timeout that fires while the ad is off screen replaces the unseen creative
+anyway, and the whole change reduces to a slower version of today.
+
 ### Proposal
 
-A single deadline, armed when `awaitingFirstImpression` is set:
+A deadline that only runs while the ad could actually be impressed:
 
-- Duration: the configured interval, floored at 30s. One deadline, not a retry ladder.
+- Armed when `awaitingFirstImpression` is set **and** the ad is refresh-eligible; paused whenever it
+  stops being eligible, resumed when it becomes eligible again. An ad sitting off screen therefore
+  never times out — it simply waits, which is the intent.
+- Duration: the configured interval, floored at 30s, measured in eligible time only. One deadline,
+  not a retry ladder.
 - On expiry: clear the state, resume the **configured cadence** — never the fast transport-failure
   retry path — and emit `google.impression.timeout` on the trace.
+
+This is the one place the design touches accumulated time, and deliberately so: it is a bound on a
+failure mode, not a delivery rule. It does not gate refresh on viewable seconds, and section 2's
+waiting condition remains a single discrete event.
 
 Android already has this shape for the Google load timeout: 120s on `refreshHandler`, resuming the
 normal cadence rather than the retry loop, with the stale-generation case routed to pending page

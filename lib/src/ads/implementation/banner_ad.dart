@@ -179,8 +179,10 @@ class BannerAd extends AdWithView {
   /// any overlay with a gesture handler, and opaque boxes such as `ColoredBox`. It cannot see a
   /// cover that deliberately passes pointers through: an `IgnorePointer` veil, a `CustomPaint`
   /// overlay or a plain decoration paints over the ad and never enters the hit path, so the ad
-  /// underneath still reads as visible. No hit-test-based check can detect those, so this is the
-  /// signal for them.
+  /// underneath still reads as visible. Nor can it see past an `AbsorbPointer` that wraps both the
+  /// ad and the cover — the absorber takes the hit at its own level and never descends, so nothing
+  /// below it can be distinguished. No hit-test-based check can resolve either case, so this is
+  /// the signal for them.
   ///
   /// Call with `true` when such a cover appears and `false` when it goes away. It is one input
   /// among several: the ad still has to be on screen, on the current route and in the foreground,
