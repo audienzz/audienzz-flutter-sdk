@@ -173,6 +173,21 @@ class BannerAd extends AdWithView {
   /// `AudienzzSdkFlutter.pageImpression`); also usable for a manual reload.
   Future<void> reload() => adInstanceManager.reloadBanner(this);
 
+  /// Declare that something is painted over this banner that the SDK cannot detect.
+  ///
+  /// The widget already pauses refresh for covers that take pointers — dialogs, modal barriers,
+  /// any overlay with a gesture handler, and opaque boxes such as `ColoredBox`. It cannot see a
+  /// cover that deliberately passes pointers through: an `IgnorePointer` veil, a `CustomPaint`
+  /// overlay or a plain decoration paints over the ad and never enters the hit path, so the ad
+  /// underneath still reads as visible. No hit-test-based check can detect those, so this is the
+  /// signal for them.
+  ///
+  /// Call with `true` when such a cover appears and `false` when it goes away. It is one input
+  /// among several: the ad still has to be on screen, on the current route and in the foreground,
+  /// and clearing this does not by itself resume refresh.
+  void reportObscured(bool obscured) =>
+      adInstanceManager.setBannerObscured(this, obscured);
+
   @override
   List<Object?> get props => [
         adUnitId,

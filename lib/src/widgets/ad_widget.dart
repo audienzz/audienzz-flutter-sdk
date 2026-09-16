@@ -26,6 +26,11 @@ final class AdWidget extends StatefulWidget {
   State<AdWidget> createState() => _AdWidgetState();
 }
 
+/// Three-valued because a hit test can prove the ad was hit, prove something foreign was hit, or
+/// establish neither — and the third case is common enough (mid-scroll on iOS) that folding it
+/// into either of the others causes a visible bug.
+enum _CoverVerdict { visible, covered, unknown }
+
 final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
   bool _adIdAlreadyMounted = false;
   bool _adLoadNotCalled = false;
@@ -181,9 +186,13 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     final onScreen = fraction >= _visibleThreshold;
 
     // Only worth a hit-test when the ad is geometrically on screen.
-    final occluded = onScreen && _isOccludedAtCenter(renderBox);
+    final covered = onScreen && _coverAtCenter(renderBox) == _CoverVerdict.covered;
+    // Hit testing cannot see a cover that deliberately passes pointers through — an IgnorePointer
+    // veil, a CustomPaint overlay or a plain decoration paints over the ad and leaves the hit path
+    // untouched. `reportObscured` is the publisher's way to say so; see BannerAd.reportObscured.
+    final obscured = adInstanceManager.isBannerObscured(banner);
     final shouldBeActive =
-        _appResumed && routeIsCurrent && onScreen && !occluded;
+        _appResumed && routeIsCurrent && onScreen && !covered && !obscured;
 
     if (!shouldBeActive && !_refreshPaused) {
       _refreshPaused = true;
@@ -194,7 +203,7 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
         debugPrint(
           'AudienzzSmartRefresh → PAUSE '
           '(fraction=${fraction.toStringAsFixed(2)}, '
-          'routeCurrent=$routeIsCurrent, occluded=$occluded, '
+          'routeCurrent=$routeIsCurrent, covered=$covered, obscured=$obscured, '
           'appResumed=$_appResumed)',
         );
       }
@@ -207,7 +216,7 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
         debugPrint(
           'AudienzzSmartRefresh → RESUME '
           '(fraction=${fraction.toStringAsFixed(2)}, '
-          'routeCurrent=$routeIsCurrent, occluded=$occluded, '
+          'routeCurrent=$routeIsCurrent, covered=$covered, obscured=$obscured, '
           'appResumed=$_appResumed)',
         );
       }
@@ -219,36 +228,55 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
   /// (e.g. an [OverlayEntry] or a stacked widget) is painted on top. Covers
   /// wrapped in [IgnorePointer] or fully transparent to hit-tests can't be
   /// detected this way — use `pauseAllAutoRefresh()` for those.
-  bool _isOccludedAtCenter(RenderBox box) {
+  /// What a hit test at the ad's centre can actually establish.
+  ///
+  /// Three-valued on purpose. Treating "an ancestor took the hit" as proof of visibility — which
+  /// is what the previous check did — let any cover that shares a Stack, Scaffold or scrollable
+  /// with the ad read as visible, because the hit path always contains those shared ancestors.
+  /// Collapsing that back to a boolean in either direction reintroduces one of the two bugs.
+  _CoverVerdict _coverAtCenter(RenderBox box) {
     final view = View.maybeOf(context);
-    if (view == null) return false;
+    if (view == null) return _CoverVerdict.unknown;
     final center = box.localToGlobal(box.size.center(Offset.zero));
     final result = HitTestResult();
     WidgetsBinding.instance.hitTestInView(result, center, view.viewId);
-    if (result.path.isEmpty) return false;
+    if (result.path.isEmpty) return _CoverVerdict.unknown;
 
-    // The ad's own render-object chain (itself + ancestors). A hit that lands on
-    // any of these means nothing foreign covers the ad — it's either the ad
-    // itself or one of the scrollables/gesture layers CONTAINING it. The latter
-    // matters on iOS: while a finger is down the UiKitView drops out of the hit
-    // path and the enclosing scrollable's gesture layer is hit instead, which
-    // previously read as "occluded" and paused a fully-visible ad mid-scroll.
-    final ownChain = <RenderObject>{};
-    RenderObject? node = box;
+    // Ancestors only — the ad itself is deliberately excluded, since being an ancestor proves
+    // nothing about what is painted on top.
+    final ancestors = <RenderObject>{};
+    RenderObject? node = box.parent is RenderObject ? box.parent : null;
     while (node != null) {
-      ownChain.add(node);
+      ancestors.add(node);
       final parent = node.parent;
       node = parent is RenderObject ? parent : null;
     }
+
+    var sawForeign = false;
     for (final entry in result.path) {
       final target = entry.target;
-      if (target is RenderObject && ownChain.contains(target)) {
-        return false; // ad or one of its ancestors reachable → not occluded
+      if (target is! RenderObject) continue;
+      if (identical(target, box) || _isInsideAd(target, box)) {
+        // The ad itself took the hit: nothing hit-testable is above it.
+        return _CoverVerdict.visible;
       }
+      if (!ancestors.contains(target)) sawForeign = true;
     }
-    // A real overlay (e.g. OverlayEntry) is a SIBLING subtree, not an ancestor,
-    // so it won't be in ownChain — such a genuine cover still pauses refresh.
-    return true;
+    // Only shared ancestors were hit. That is what happens on iOS while a finger is down: the
+    // UiKitView drops out of the hit path and the enclosing scrollable's gesture layer takes it.
+    // Inconclusive, not covered — pausing here paused a fully visible ad mid-scroll.
+    return sawForeign ? _CoverVerdict.covered : _CoverVerdict.unknown;
+  }
+
+  /// Whether [target] sits inside the ad's own subtree.
+  static bool _isInsideAd(RenderObject target, RenderBox ad) {
+    RenderObject? node = target.parent is RenderObject ? target.parent : null;
+    while (node != null) {
+      if (identical(node, ad)) return true;
+      final parent = node.parent;
+      node = parent is RenderObject ? parent : null;
+    }
+    return false;
   }
 
   @override

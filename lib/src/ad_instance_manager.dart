@@ -75,6 +75,28 @@ final class AdInstanceManager {
   final _loadedAds = <int, Ad>{};
   final _interstitialLoads = <int, _InterstitialLoad>{};
 
+  /// Banners the publisher has declared covered by something the framework cannot see.
+  ///
+  /// Hit testing only finds covers that take pointers. An opaque `ColoredBox`, image or decoration
+  /// paints over the ad and never enters the hit path, so the ad reads as visible underneath it.
+  final _obscuredAdIds = <int>{};
+
+  bool isBannerObscured(BannerAd ad) {
+    final adId = adIdFor(ad);
+    return adId != null && _obscuredAdIds.contains(adId);
+  }
+
+  /// See [BannerAd.reportObscured]. Takes effect on the widget's next visibility evaluation.
+  void setBannerObscured(BannerAd ad, bool obscured) {
+    final adId = adIdFor(ad);
+    if (adId == null) return;
+    if (obscured) {
+      _obscuredAdIds.add(adId);
+    } else {
+      _obscuredAdIds.remove(adId);
+    }
+  }
+
   @visibleForTesting
   DateTime Function() interstitialClock = DateTime.now;
 
