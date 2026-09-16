@@ -190,7 +190,7 @@ void main() {
     // Asserted against the set, not isBannerObscured: after disposal the ad has no id, so that
     // lookup returns false whether or not the entry was actually removed.
     expect(adInstanceManager.obscuredAdIds, isNot(contains(adId)),
-        reason: 'ids are sequential, so a stale entry would later mark an unrelated ad as covered');
+        reason: 'ids are never reused, so a stale entry is not misattributed — it just accumulates');
   });
 }
 

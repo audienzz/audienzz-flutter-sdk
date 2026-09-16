@@ -667,8 +667,9 @@ final class AdInstanceManager {
       return Future.value();
     }
     _adPages.remove(adId);
-    // Ad ids are handed out sequentially and this set is keyed by them, so leaving an entry behind
-    // would eventually mark an unrelated future ad as covered.
+    // Ids are allocated monotonically and never reused, so a stale entry cannot be misattributed
+    // to a later ad — it simply accumulates for the life of the isolate. Retained bookkeeping for
+    // every banner an app ever obscures is the leak.
     _obscuredAdIds.remove(adId);
     final disposedAd = _loadedAds.remove(adId);
 
