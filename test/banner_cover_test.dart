@@ -181,10 +181,16 @@ void main() {
 
   testWidgets('disposal forgets the obscured flag', (tester) async {
     ad.reportObscured(true);
-    expect(adInstanceManager.isBannerObscured(ad), isTrue);
+    final adId = adInstanceManager.adIdFor(ad);
+    expect(adId, isNotNull);
+    expect(adInstanceManager.obscuredAdIds, contains(adId));
+
     await ad.dispose();
-    expect(adInstanceManager.isBannerObscured(ad), isFalse,
-        reason: 'a stale entry would eventually mark an unrelated future ad as covered');
+
+    // Asserted against the set, not isBannerObscured: after disposal the ad has no id, so that
+    // lookup returns false whether or not the entry was actually removed.
+    expect(adInstanceManager.obscuredAdIds, isNot(contains(adId)),
+        reason: 'ids are sequential, so a stale entry would later mark an unrelated ad as covered');
   });
 }
 

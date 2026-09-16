@@ -81,6 +81,11 @@ final class AdInstanceManager {
   /// paints over the ad and never enters the hit path, so the ad reads as visible underneath it.
   final _obscuredAdIds = <int>{};
 
+  /// The raw set, so a disposal test can assert the entry is gone rather than asking a lookup
+  /// that returns false for an unknown ad either way.
+  @visibleForTesting
+  Set<int> get obscuredAdIds => Set.unmodifiable(_obscuredAdIds);
+
   bool isBannerObscured(BannerAd ad) {
     final adId = adIdFor(ad);
     return adId != null && _obscuredAdIds.contains(adId);
