@@ -42,6 +42,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
         )
         methodChannel?.setMethodCallHandler(this)
         adInstanceManager = AdInstanceManager(methodChannel!!)
+        observeNativePageImpressions()
         flutterPluginBinding.platformViewRegistry.registerViewFactory(
             NATIVE_VIEW_NAME,
             PlatformViewFactoryWrapper(adInstanceManager!!)
@@ -67,13 +68,20 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
-            "initialize" -> audienzzSdkWrapper.initialize(
-                context,
-                call.argument<String>("companyId")!!,
-                call.argument<Boolean>("isAutomaticPpidEnabled")!!,
-                call.argument<String?>("prebidServerUrl"),
-                result
-            )
+            "initialize" -> {
+                // Flutter fetches the publisher config in Dart, so the native SDK never sees it and
+                // cannot read these itself. Absent values stay null and native keeps its default.
+                AudienzzPrebidMobile.applyBackendPpidConfig(
+                    ppidEnabled = call.argument<Boolean?>("ppidEnabled"),
+                    automaticPpidEnabled = call.argument<Boolean?>("automaticPpidEnabled"),
+                )
+                audienzzSdkWrapper.initialize(
+                    context,
+                    call.argument<String>("companyId")!!,
+                    call.argument<String?>("prebidServerUrl"),
+                    result
+                )
+            }
 
             "loadBannerAd" -> {
                 val adId = call.argument<Int>("adId")!!
@@ -97,6 +105,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<String?>("pbAdSlot"),
                     call.argument<String?>("gpId"),
                     call.argument<String?>("impOrtbConfig"),
+                    call.argument<String?>("pageKey"),
                     adInstanceManager?.createBannerAdListener(adId),
                     context,
                 )
@@ -148,7 +157,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<VideoDuration>("videoDuration")!!,
                     call.argument<String?>("pbAdSlot"),
                     call.argument<String?>("gpId"),
-                    call.argument<List<AdSize>>("adSizes")!!,
+                    call.argument<List<AdSize>>("adSizes") ?: emptyList(),
                     call.argument<String?>("impOrtbConfig"),
                     context,
                     adInstanceManager!!.createInterstitialAdLoadedListener(adId),
@@ -166,7 +175,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 val adShown = adInstanceManager?.showAdWithId(adId) == true
 
                 if (!adShown) {
-                    result.error("Ad Show Error", "Ad with id $adId failed to show", null)
+                    result.error("-1", (adInstanceManager?.adFor(adId) as? InterstitialAd)?.showError ?: "Ad with id $adId failed to show", "audienzz")
                 } else {
                     result.success(null)
                 }
@@ -189,6 +198,12 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
+            "setBannerViewportVisible" -> {
+                val ad = adInstanceManager?.adFor(call.argument<Int>("adId")!!)
+                (ad as? BannerAd)?.setViewportVisible(call.argument<Boolean>("visible") == true)
+                result.success(null)
+            }
+
             "pauseBannerAutoRefresh" -> {
                 val ad = adInstanceManager?.adFor(call.argument<Int>("adId")!!)
                 (ad as? com.audienzz.audienzz_sdk_flutter.ads.implementation.BannerAd)?.pauseAutoRefresh()
@@ -203,7 +218,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
             "reloadBanner" -> {
                 // Force a fresh auction now — used when this banner's screen
-                // (route or tab) becomes active again (onScreenResumed broadcast).
+                // (route or tab) becomes active again (pageImpression broadcast).
                 val ad = adInstanceManager?.adFor(call.argument<Int>("adId")!!)
                 (ad as? com.audienzz.audienzz_sdk_flutter.ads.implementation.BannerAd)?.forceReload()
                 result.success(null)
@@ -430,16 +445,9 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
-            "isAutomaticPpidEnabled" -> {
-                result.success(AudienzzPrebidMobile.ppidManager?.isAutomaticPpidEnabled())
-            }
 
-            "setAutomaticPpidEnabled" -> {
-                val isAutomaticPpidEnabled = call.argument<Boolean>("isAutomaticPpidEnabled")
-
-                if(isAutomaticPpidEnabled != null) {
-                    AudienzzPrebidMobile.ppidManager?.setAutomaticPpidEnabled(isAutomaticPpidEnabled)
-                }
+            "setPublisherPpid" -> {
+                AudienzzPrebidMobile.ppidManager?.setPublisherPpid(call.argument<String?>("ppid"))
                 result.success(null)
             }
 
@@ -450,14 +458,6 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
             "setAppVolume" -> {
                 val volume = call.argument<Double>("volume")?.toFloat() ?: 0f
                 AudienzzPrebidMobile.setAppVolume(volume)
-                result.success(null)
-            }
-
-            // Native auto screen tracking is ON by default, but a Flutter app has a single host
-            // Activity — so it would collapse every Dart route into one coarse page impression.
-            // Call before initialize() and report routes explicitly via onScreenResumed.
-            "setAutoScreenTracking" -> {
-                AudienzzPrebidMobile.autoScreenTracking = call.argument<Boolean>("enabled") ?: true
                 result.success(null)
             }
 
@@ -475,10 +475,10 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
             // Report the active screen by an opaque route key; fires a pageImpression + a fresh
             // page-impression id tying this visit's ad events together.
-            "onScreenResumed" -> {
-                val routeKey = call.argument<String>("routeKey")
-                if (routeKey != null) {
-                    AudienzzPrebidMobile.onScreenResumed(routeKey)
+            "pageImpression" -> {
+                val name = call.argument<String>("name")
+                if (name != null) {
+                    AudienzzPrebidMobile.pageImpression(name)
                 }
                 result.success(null)
             }
@@ -487,7 +487,21 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
         }
     }
 
+    /**
+     * Forward every native page impression to Dart — including the automatic one fired on returning
+     * to the foreground, which never passes through the Dart API. Native owns foreground reporting;
+     * Dart just advances its page epoch so mounted AdWidgets remount their platform views.
+     */
+    private fun observeNativePageImpressions() {
+        AudienzzPrebidMobile.pageImpressionObserver = { name ->
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                methodChannel?.invokeMethod("onPageImpression", mapOf("name" to name))
+            }
+        }
+    }
+
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        AudienzzPrebidMobile.pageImpressionObserver = null
         // Tear down every live ad so auctions/refresh loops don't continue with
         // no Dart side to receive events (add-to-app / multi-engine teardown).
         adInstanceManager?.disposeAllAds()

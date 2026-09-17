@@ -160,20 +160,35 @@ class BannerAd extends AdWithView {
   @override
   Future<void> load() => adInstanceManager.loadBannerAd(this);
 
-  /// Pause Prebid auto-refresh — called by the Flutter visibility layer when
-  /// less than 20% of the ad height is visible in the viewport.
+  /// Publisher pause. Scrolling, foregrounding and page impressions do not undo it.
   Future<void> pauseAutoRefresh() =>
       adInstanceManager.pauseBannerAutoRefresh(this);
 
-  /// Resume Prebid auto-refresh — called by the Flutter visibility layer when
-  /// at least 20% of the ad height becomes visible again.
+  /// Clear the publisher pause. Visibility, page and foreground gates still apply.
   Future<void> resumeAutoRefresh() =>
       adInstanceManager.resumeBannerAutoRefresh(this);
 
   /// Force a fresh auction now, regardless of the refresh timer. Triggered by
   /// the SDK when this banner's screen becomes active again (see
-  /// `AudienzzSdkFlutter.onScreenResumed`); also usable for a manual reload.
+  /// `AudienzzSdkFlutter.pageImpression`); also usable for a manual reload.
   Future<void> reload() => adInstanceManager.reloadBanner(this);
+
+  /// Declare that something is painted over this banner that the SDK cannot detect.
+  ///
+  /// The widget already pauses refresh for covers that take pointers — dialogs, modal barriers,
+  /// any overlay with a gesture handler, and opaque boxes such as `ColoredBox`. It cannot see a
+  /// cover that deliberately passes pointers through: an `IgnorePointer` veil, a `CustomPaint`
+  /// overlay or a plain decoration paints over the ad and never enters the hit path, so the ad
+  /// underneath still reads as visible. Nor can it see past an `AbsorbPointer` that wraps both the
+  /// ad and the cover — the absorber takes the hit at its own level and never descends, so nothing
+  /// below it can be distinguished. No hit-test-based check can resolve either case, so this is
+  /// the signal for them.
+  ///
+  /// Call with `true` when such a cover appears and `false` when it goes away. It is one input
+  /// among several: the ad still has to be on screen, on the current route and in the foreground,
+  /// and clearing this does not by itself resume refresh.
+  void reportObscured(bool obscured) =>
+      adInstanceManager.setBannerObscured(this, obscured);
 
   @override
   List<Object?> get props => [

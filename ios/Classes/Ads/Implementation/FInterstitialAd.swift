@@ -23,6 +23,9 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
     
     var interstitialView: AUInterstitialView?
     var interstitialAd: InterstitialAd?
+    private(set) var isPresenting = false
+    private var disposed = false
+    private var loadedAt: TimeInterval?
     
     init(adUnitId: String,
          auConfigId: String,
@@ -173,37 +176,55 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
 
         interstitialView?.bannerParameters = bannerParameters
 
-        interstitialView?.createAd(with: gamRequest, adUnitID: adUnitId)
-
         interstitialView?.onLoadRequest = { [weak self] gamRequest in
-            guard let self = self else {
+            guard let self = self, !self.disposed else {
                 return
             }
 
-            InterstitialAd.load(with: self.adUnitId, request: gamRequest as? AdManagerRequest) {[weak self] ad, error in
-                guard let self = self else {
+            AdManagerInterstitialAd.load(with: self.adUnitId, request: gamRequest as? AdManagerRequest) {[weak self] ad, error in
+                guard let self = self, !self.disposed else {
                     return
                 }
                 
                 if let ad = ad {
                     self.interstitialAd = ad
+                    self.loadedAt = ProcessInfo.processInfo.systemUptime
                     self.interstitialAd?.fullScreenContentDelegate = self
                     self.interstitialView?.connectHandler(AUInterstitialEventHandler(adUnit: ad))
-                    self.manager?.onAdLoaded(ad: self)
+                    self.manager?.onAdLoaded(ad: self, responseId: ad.responseInfo.responseIdentifier)
                 } else {
-                    self.manager?.onAdFailedToLoad(ad: self, error: FAdError(code: 1, message: error?.localizedDescription ?? ""))
+                    let failure = (error as NSError?) ?? NSError(domain: "audienzz", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Google returned neither an interstitial nor an error."])
+                    self.manager?.onAdFailedToLoad(ad: self, error: FAdError(error: failure), domain: failure.domain)
                     print("Failed to load interstitial ad with error: \(String(describing: error?.localizedDescription))")
                 }
             }
         }
+        // Install the handoff before starting demand (including synchronous failures).
+        interstitialView?.createAd(with: gamRequest, adUnitID: adUnitId)
     }
     
-    func show() {
-        if let interstitialAd = interstitialAd {
-            interstitialAd.present(from: nil)
-        } else {
-            print("Interstitial Ad failed to show because the ad was not ready.")
+    func show() { _ = showIfReady() }
+
+    func showIfReady() -> FlutterError? {
+        guard !disposed, !isPresenting, let ad = interstitialAd, let loadedAt else {
+            return FlutterError(code: "-1", message: "Interstitial is not ready or already presenting.", details: "audienzz")
         }
+        guard ProcessInfo.processInfo.systemUptime - loadedAt < 3600 else {
+            interstitialAd = nil
+            return FlutterError(code: "-2", message: "Interstitial expired. Load a new ad.", details: "audienzz")
+        }
+        guard UIApplication.shared.applicationState == .active else {
+            return FlutterError(code: "-3", message: "Cannot present an interstitial while the app is inactive.", details: "audienzz")
+        }
+        do { try ad.canPresent(from: nil) }
+        catch {
+            let nsError = error as NSError
+            return FlutterError(code: String(nsError.code), message: nsError.localizedDescription, details: nsError.domain)
+        }
+        isPresenting = true
+        ad.present(from: nil)
+        return nil
     }
 
     func adDidRecordImpression(_ ad: any FullScreenPresentingAd){
@@ -218,27 +239,31 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
         self.manager?.onAdOpened(ad: self)
     }
 
-    func adWillDismissFullScreenContent(_ ad: any FullScreenPresentingAd){
-        self.manager?.onAdClosed(ad: self)
-    }
-
     func adDidDismissFullScreenContent(_ ad: any FullScreenPresentingAd) {
-        // GAM full-screen ads are single-use. Drop the reference so a second
-        // show() reports "not ready" instead of silently no-op-ing.
-        self.interstitialAd = nil
+        guard isPresenting else { return }
+        isPresenting = false
+        interstitialAd = nil
+        loadedAt = nil
+        manager?.onAdClosed(ad: self)
+        manager?.dispose(adId: adId)
     }
 
     func ad(_ ad: any FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: any Error) {
-        // Surface the show failure (previously invisible) and unblock any Dart
-        // flow awaiting onAdClosed, then release the consumed ad.
-        print("Interstitial ad failed to present: \(error.localizedDescription)")
-        self.manager?.onAdClosed(ad: self)
-        self.interstitialAd = nil
+        guard isPresenting else { return }
+        isPresenting = false
+        interstitialAd = nil
+        loadedAt = nil
+        let nsError = error as NSError
+        manager?.onAdFailedToShow(ad: self, error: FAdError(code: NSNumber(value: nsError.code),
+            message: nsError.localizedDescription), domain: nsError.domain)
+        manager?.dispose(adId: adId)
     }
 
     // MARK: - FDisposableAd
 
     func dispose() {
+        guard !isPresenting else { return }
+        disposed = true
         interstitialView?.removeFromSuperview()
         interstitialView = nil
         interstitialAd = nil

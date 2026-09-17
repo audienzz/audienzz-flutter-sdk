@@ -1,3 +1,11 @@
+## Unreleased
+
+- Restore callback-based error handling for interstitial `load()` by default, including remote
+  configuration failures. Existing unawaited calls no longer acquire an unhandled error future.
+- Add `load(throwOnFailure: true)` for explicit awaited readiness/error handling.
+  `InterstitialPresentationController.preload()` retains its throwing contract.
+  A default `load()` future completing does not prove readiness; use `isReady` or `onAdLoaded`.
+
 ## 0.1.9
 
 * Honor `pauseAutoRefresh()` / `resumeAutoRefresh()` (and the all-ads variants) on iOS: a manual pause — e.g. when a same-route overlay covers the banner, which the native geometry poll can't detect — is no longer auto-resumed by the visibility poll within half a second (Android already honored these)

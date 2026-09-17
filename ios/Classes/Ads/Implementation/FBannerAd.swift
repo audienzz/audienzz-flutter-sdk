@@ -21,6 +21,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private let pbAdSlot: String?
     private let gpId: String?
     private let customImpOrtbConfig: String?
+    private let pageKey: String?
     private let rootViewController: UIViewController
     var auBannerView: AUBannerView?
 
@@ -38,11 +39,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private var smartRefreshTimer: Timer?
     private var smartRefreshWasVisible = false
 
-    // Set by the Dart layer via pauseAutoRefresh()/resumeAutoRefresh(). While
-    // true, the visibility poll below is suppressed so it can't auto-resume an
-    // ad the publisher explicitly paused — this is how a same-route overlay
-    // (OverlayEntry / modal) that the native geometry poll can't see is honored.
-    private var isManuallyPaused = false
+    // Dart viewport state includes overlays that native geometry cannot see.
+    // Publisher pause is a separate native block and is never cleared by this poll.
+    private var isViewportPaused = false
 
     private func startSmartRefreshPolling() {
         smartRefreshTimer?.invalidate()
@@ -59,7 +58,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private func checkSmartRefreshVisibility() {
         // A manual pause wins over geometric visibility — never auto-resume an
         // ad the publisher paused explicitly (e.g. behind an overlay).
-        guard !isManuallyPaused else { return }
+        guard !isViewportPaused else { return }
         guard let view = auBannerView, let window = view.window else {
             // View left the window — treat as hidden.
             if smartRefreshWasVisible {
@@ -117,16 +116,19 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     // refresh polling isn't running, e.g. a plain auto-refresh banner).
 
     func pauseAutoRefresh() {
-        isManuallyPaused = true
-        smartRefreshWasVisible = false
-        auBannerView?.pauseSmartRefresh()
+        auBannerView?.adUnitConfiguration.stopAutoRefresh()
     }
 
     func resumeAutoRefresh() {
-        isManuallyPaused = false
-        if smartRefresh {
-            // Re-evaluate now instead of waiting up to 0.5s for the next tick;
-            // this also preserves the stale-aware resume timing.
+        auBannerView?.adUnitConfiguration.resumeAutoRefresh()
+    }
+
+    func setViewportVisible(_ visible: Bool) {
+        isViewportPaused = !visible
+        if !visible {
+            smartRefreshWasVisible = false
+            auBannerView?.pauseSmartRefresh()
+        } else if smartRefresh {
             checkSmartRefreshVisibility()
         } else {
             auBannerView?.resumeSmartRefresh()
@@ -134,11 +136,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     }
 
     /// Force a fresh auction now, ignoring the stale-aware refresh timing — used
-    /// by the `onScreenResumed` reload broadcast. The Dart layer only calls this
+    /// by the `pageImpression` reload broadcast. The Dart layer only calls this
     /// for on-screen banners, so the visibility poll keeps it active afterwards.
     func forceReload() {
-        isManuallyPaused = false
-        smartRefreshWasVisible = smartRefresh
         auBannerView?.reloadAd()
     }
 
@@ -163,6 +163,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         pbAdSlot: String?,
         gpId: String?,
         customImpOrtbConfig: String?,
+        pageKey: String?,
         rootViewController: UIViewController,
         adId: NSNumber,
         manager: AdInstanceManager
@@ -185,6 +186,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         self.pbAdSlot = pbAdSlot
         self.gpId = gpId
         self.customImpOrtbConfig = customImpOrtbConfig
+        self.pageKey = pageKey
         self.rootViewController = rootViewController
         self.manager = manager
         super.init(adId: adId)
@@ -231,6 +233,12 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
             adFormats: bannerAdFormat,
             isLazyLoad: isLazyLoad
         )
+        // A Flutter banner lives in the single FlutterViewController, so the native page
+        // coordinator cannot tell one route's ads from another's by host identity. Tag the view with
+        // the route key reported to pageImpression so it matches by value instead — this is what
+        // makes page-scoped release/recreate work for Flutter at all. Must precede createAd, which
+        // is where the ad joins the current page.
+        if let pageKey { auBannerView?.setScreen(pageKey) }
         auBannerView?.frame = CGRect(origin: .zero, size: CGSize(width: mainSize.width, height: mainSize.height))
         auBannerView?.backgroundColor = .clear
         // Always set smartRefresh = false on AUBannerView in Flutter.

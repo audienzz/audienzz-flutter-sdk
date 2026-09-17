@@ -4,6 +4,7 @@ import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_format.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/api_parameter.dart';
+import 'package:audienzz_sdk_flutter/src/entities/interstitial_ad_event.dart';
 import 'package:audienzz_sdk_flutter/src/entities/min_size_percentage.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/placement.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/playback_method.dart';
@@ -39,6 +40,8 @@ class InterstitialAd extends AdWithoutView {
     this.onAdClosed,
     this.onAdClicked,
     this.onAdImpression,
+    this.onAdFailedToShow,
+    this.onLifecycleEvent,
   });
 
   /// Ad desired format, [AdFormat.banner], [AdFormat.video]
@@ -103,12 +106,28 @@ class InterstitialAd extends AdWithoutView {
   /// A callback triggered when a click is recorded for an ad.
   final void Function(InterstitialAd ad)? onAdClicked;
 
-  /// A callback triggered when the ad has been on
-  /// the screen for a minimum of 1 sec duration
+  /// A callback triggered when Google records the impression.
   final void Function(InterstitialAd ad)? onAdImpression;
 
-  /// Function to load this ad object
-  Future<void> load() => adInstanceManager.loadInterstitialAd(this);
+  /// Whether this object has an ad ready for an explicit show call.
+  bool get isReady => adInstanceManager.isInterstitialReady(this);
+
+  /// A presentation failure; distinct from a load failure or a successful dismissal.
+  final void Function(InterstitialAd ad, AdError error)? onAdFailedToShow;
+
+  final void Function(InterstitialAd ad, InterstitialAdEvent event)?
+      onLifecycleEvent;
+
+  /// Loads once; concurrent calls share the request and retain ready inventory.
+  /// Load failures are reported through [onAdFailedToLoad]. By default the future
+  /// settles without an error, preserving callback-only callers.
+  /// Check [isReady] before showing.
+  /// Set [throwOnFailure] to await readiness with errors for load failure,
+  /// cancellation, busy state, or the 120-second timeout.
+  Future<void> load({bool throwOnFailure = false}) {
+    final ready = adInstanceManager.loadInterstitialAd(this);
+    return throwOnFailure ? ready : ready.catchError((Object _) {});
+  }
 
   /// Function to show this ad, requires ad to be loaded before invoking.
   /// In case of invoking before the ad is loaded error will be thrown
@@ -125,6 +144,8 @@ class InterstitialAd extends AdWithoutView {
         onAdClosed,
         onAdClicked,
         onAdImpression,
+        onAdFailedToShow,
+        onLifecycleEvent,
         apiParameters,
         protocols,
         placement,

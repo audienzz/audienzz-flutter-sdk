@@ -10,6 +10,8 @@ class RemotePublisherConfiguration {
     required this.ortb,
     this.android,
     this.ios,
+    this.ppidEnabled,
+    this.automaticPpidEnabled,
   });
 
   factory RemotePublisherConfiguration.fromJson(Map<String, dynamic> json) {
@@ -25,6 +27,8 @@ class RemotePublisherConfiguration {
       ios: json['ios'] != null
           ? IosConfig.fromJson(json['ios'] as Map<String, dynamic>)
           : null,
+      ppidEnabled: json['ppidEnabled'] as bool?,
+      automaticPpidEnabled: json['automaticPpidEnabled'] as bool?,
     );
   }
 
@@ -34,11 +38,23 @@ class RemotePublisherConfiguration {
   final AndroidConfig? android;
   final IosConfig? ios;
 
+  /// Master backend switch for Publisher Provided Identifiers. `false` suppresses every PPID,
+  /// including one the app supplied through [PpidManager.setPublisherPpid] — it is a per-publisher
+  /// privacy switch, not a preference. Absent/null → enabled.
+  final bool? ppidEnabled;
+
+  /// Backend switch for the SDK-generated PPID only. `false` stops the SDK minting and rotating
+  /// its own UUID; a PPID the app supplied is still sent. Absent/null → enabled.
+  final bool? automaticPpidEnabled;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'prebidServer': prebidServer.toJson(),
         'ortb': ortb.toJson(),
         if (android != null) 'android': android!.toJson(),
         if (ios != null) 'ios': ios!.toJson(),
+        if (ppidEnabled != null) 'ppidEnabled': ppidEnabled,
+        if (automaticPpidEnabled != null)
+          'automaticPpidEnabled': automaticPpidEnabled,
       };
 }

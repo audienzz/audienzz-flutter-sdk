@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
 
@@ -7,6 +8,7 @@ import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_publisher_configuration.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 final class AudienzzSdkFlutter {
   const AudienzzSdkFlutter._();
@@ -24,11 +26,9 @@ final class AudienzzSdkFlutter {
   /// Required to initialize the SDK.
   Future<InitializationStatus> initialize({
     required String companyId,
-    bool isAutomaticPpidEnabled = false,
   }) {
     return adInstanceManager.initialize(
       companyId: companyId,
-      isAutomaticPpidEnabled: isAutomaticPpidEnabled,
     );
   }
 
@@ -36,7 +36,6 @@ final class AudienzzSdkFlutter {
   Future<InitializationStatus> initializeRemote({
     required String publisherId,
     required String remoteUrl,
-    bool isAutomaticPpidEnabled = false,
     bool enablePolling = true,
   }) async {
     final audienzzRemoteConfig = AudienzzRemoteConfig.instance
@@ -52,10 +51,7 @@ final class AudienzzSdkFlutter {
         // background polling later succeeds so the native SDK still gets
         // initialized instead of the session staying ad-less forever.
         onPollingSuccess: () {
-          _applyConfigAndInitialize(
-            audienzzRemoteConfig.publisherConfig,
-            isAutomaticPpidEnabled,
-          );
+          _applyConfigAndInitialize(audienzzRemoteConfig.publisherConfig);
         },
       );
     } catch (e) {
@@ -65,10 +61,7 @@ final class AudienzzSdkFlutter {
           : InitializationStatus.fail;
     }
 
-    return _applyConfigAndInitialize(
-      audienzzRemoteConfig.publisherConfig,
-      isAutomaticPpidEnabled,
-    );
+    return _applyConfigAndInitialize(audienzzRemoteConfig.publisherConfig);
   }
 
   /// Applies the publisher config's targeting and initializes the native SDK.
@@ -76,7 +69,6 @@ final class AudienzzSdkFlutter {
   /// the initial-fetch path and the background-polling path never double-init.
   Future<InitializationStatus> _applyConfigAndInitialize(
     RemotePublisherConfiguration? config,
-    bool isAutomaticPpidEnabled,
   ) async {
     if (_remoteNativeInitialized) {
       return InitializationStatus.success;
@@ -131,8 +123,11 @@ final class AudienzzSdkFlutter {
 
     return adInstanceManager.initialize(
       companyId: config?.ortb.schain?.sellerId ?? '1',
-      isAutomaticPpidEnabled: isAutomaticPpidEnabled,
       prebidServerUrl: config?.prebidServer.url,
+      // Flutter fetches the publisher config in Dart, so the native SDK never sees it and cannot
+      // read these itself. Absent values stay null and native applies its own default (enabled).
+      ppidEnabled: config?.ppidEnabled,
+      automaticPpidEnabled: config?.automaticPpidEnabled,
     );
   }
 
@@ -149,20 +144,6 @@ final class AudienzzSdkFlutter {
     return adInstanceManager.methodChannel.invokeMethod(
       'setSchainObject',
       {'schain': schain},
-    );
-  }
-
-  /// Enable/disable native automatic screen tracking.
-  ///
-  /// Native auto-tracking is ON, but a Flutter app has a single host Activity /
-  /// UIViewController, so it collapses every Dart route into one coarse page
-  /// impression. Call `setAutoScreenTracking(false)` **before** [initialize]
-  /// and report each route with [onScreenResumed] for per-route analytics.
-  // ignore: avoid_positional_boolean_parameters
-  Future<void> setAutoScreenTracking(bool enabled) {
-    return adInstanceManager.methodChannel.invokeMethod(
-      'setAutoScreenTracking',
-      {'enabled': enabled},
     );
   }
 
@@ -193,22 +174,40 @@ final class AudienzzSdkFlutter {
     );
   }
 
-  /// Report the active screen by an opaque [routeKey] (your navigation route
-  /// name). Fires a `pageImpression` and starts a fresh page-impression id
-  /// that ties all ad events on this screen visit together. Call on each
-  /// navigation to an ad-bearing screen — e.g. from a [RouteObserver].
-  Future<void> onScreenResumed(String routeKey) {
-    // Analytics only: fire the page impression. A Flutter banner is a platform
-    // view whose texture does NOT refresh on an in-place re-auction, so the SDK
-    // cannot reliably reload it from here. To reload on screen change, the app
-    // recreates its banner ad on that screen (dispose -> fresh load) — which also
-    // blanks the slot during the reload, matching the native behavior. See the
-    // example's tab handler.
+  /// Report an ad-bearing screen, dialog, or popup. Pass a [context] (the
+  /// screen name is derived from its route's `settings.name`, else the
+  /// enclosing widget type) and/or an explicit [name]; at least one is
+  /// required. Fires a `pageImpression` and a fresh page-impression id that
+  /// ties all ad events on this visit together. Call it on each navigation to
+  /// an ad-bearing screen — e.g. from a [RouteObserver] or a route's `build`.
+  Future<void> pageImpression({BuildContext? context, String? name}) {
+    assert(
+      context != null || name != null,
+      'pageImpression requires a context or a name',
+    );
+    final screenName = name ?? _deriveScreenName(context!);
+    // Stamp every ad created from here on with this page, and force mounted
+    // Stamp synchronously so ads created right after this call belong to this
+    // page — the documented ordering is "report the page, then create its ads",
+    // and waiting for native's asynchronous echo would stamp them with the
+    // previous page, permanently.
+    //
+    // The epoch bump that drives remounting is NOT done here: it happens once,
+    // when native echoes the impression back, so it also covers the automatic
+    // foreground impression which never passes through this method.
+    adInstanceManager.currentPage = screenName;
     return adInstanceManager.methodChannel.invokeMethod(
-      'onScreenResumed',
-      {'routeKey': routeKey},
+      'pageImpression',
+      {'name': screenName},
     );
   }
+
+  /// Derive a stable screen name from a [BuildContext]: the current route's
+  /// `settings.name` when set (named routes / go_router), else the enclosing
+  /// widget's type.
+  String _deriveScreenName(BuildContext context) =>
+      ModalRoute.of(context)?.settings.name ??
+      context.widget.runtimeType.toString();
 
   /// Pauses Prebid auto-refresh for ALL currently loaded banner ads.
   ///
@@ -243,3 +242,4 @@ final class AudienzzSdkFlutter {
     );
   }
 }
+

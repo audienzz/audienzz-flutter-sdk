@@ -40,6 +40,7 @@ class BannerAd(
     private val bannerPbAdSlot: String?,
     private val gpId: String?,
     private val customImpOrtbConfig: String?,
+    private val pageKey: String?,
     private val adListener: AdListener?,
     private val context: Context,
 ) : Ad() {
@@ -115,6 +116,11 @@ class BannerAd(
         currentAdView?.let { adView ->
             val handler = AudienzzAdViewHandler(adView, adUnit)
             adViewHandler = handler
+            // A Flutter banner lives in the single FlutterActivity, so the native page coordinator
+            // cannot tell one route's ads from another's by host identity. Tag the handler with the
+            // route key reported to pageImpression so it matches by value instead — this is what
+            // makes page-scoped release/recreate work for Flutter at all.
+            handler.setScreen(pageKey)
             handler.load(
                 withLazyLoading = isLazyLoad,
                 prefetchMarginDp = prefetchMarginDp,
@@ -148,21 +154,19 @@ class BannerAd(
     }
 
     fun pauseAutoRefresh() {
-        // Delegate to the handler so it can also cancel any pending scheduled
-        // refresh runnable (the plain stopAutoRefresh() on bannerAdUnit would
-        // leave a postDelayed Runnable alive and it would fire despite the pause).
-        adViewHandler?.pauseSmartRefresh()
+        adViewHandler?.stopAutoRefresh()
     }
 
     fun resumeAutoRefresh() {
-        // Stale-aware resume: if elapsed time since last fetch >= refresh interval
-        // the handler force-fetches demand immediately instead of restarting the
-        // 30 s timer from zero (which is what bannerAdUnit.resumeAutoRefresh() does).
-        adViewHandler?.resumeSmartRefresh()
+        adViewHandler?.resumeAutoRefresh()
+    }
+
+    fun setViewportVisible(visible: Boolean) {
+        if (visible) adViewHandler?.resumeSmartRefresh() else adViewHandler?.pauseSmartRefresh()
     }
 
     /// Force a fresh auction now, ignoring the stale-aware refresh timing — used
-    /// by the onScreenResumed reload broadcast (only for on-screen banners).
+    /// by the pageImpression reload broadcast (only for on-screen banners).
     fun forceReload() {
         adViewHandler?.reloadAd()
     }
@@ -172,7 +176,12 @@ class BannerAd(
         // handler/unit alone left a pending smart-refresh runnable alive, so a
         // disposed banner kept running fetchDemand → loadAd() auction loops
         // (accumulating on every navigation and on hot restart).
-        adViewHandler?.pauseSmartRefresh()
+        // destroy() — not just pauseSmartRefresh() — is what deregisters the handler from the page
+        // coordinator and from AppForegroundMonitor. Pausing alone left the handler globally
+        // reachable through the foreground listener, retaining the GAM view and its Activity, and
+        // left it in the coordinator registry so a later page impression could reload a slot that
+        // no longer exists.
+        adViewHandler?.destroy()
         bannerAdUnit?.stopAutoRefresh()
         bannerAdUnit?.destroy()
         adView?.destroy()

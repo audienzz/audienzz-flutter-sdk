@@ -2,6 +2,7 @@ package com.audienzz.audienzz_sdk_flutter.ads.implementation
 
 import android.app.Activity
 import android.content.Context
+import android.os.SystemClock
 import com.audienzz.audienzz_sdk_flutter.ads.base.OverlayAd
 import com.audienzz.audienzz_sdk_flutter.entities.AdFormat
 import com.audienzz.audienzz_sdk_flutter.entities.MinSizePercentage
@@ -43,19 +44,37 @@ class InterstitialAd(
 
     // GAM interstitials are single-use; guard against a silent second show().
     private var shown = false
+    private var disposed = false
+    private var loadedAt = 0L
+    private var adUnit: AudienzzInterstitialAdUnit? = null
+    var showError: String? = null
+        private set
 
     fun setAd(ad: AdManagerInterstitialAd) {
+        if (disposed) return
         interstitialAd = ad
+        loadedAt = SystemClock.elapsedRealtime()
     }
 
     override fun show(activity: Activity?): Boolean {
         val ad = interstitialAd
-        if (activity == null || ad == null || shown) {
+        if (disposed || activity == null || activity.isFinishing || activity.isDestroyed || ad == null || shown) {
+            showError = "Interstitial is not ready, already presented, or has no active Activity."
             return false
         }
-        ad.show(activity)
+        if (SystemClock.elapsedRealtime() - loadedAt >= 3_600_000) {
+            interstitialAd = null
+            showError = "Interstitial expired. Load a new ad."
+            return false
+        }
         shown = true
-        return true
+        return try {
+            ad.show(activity)
+            true
+        } catch (error: RuntimeException) {
+            showError = error.message ?: "Interstitial presentation failed."
+            false
+        }
     }
 
     override fun load() {
@@ -65,6 +84,7 @@ class InterstitialAd(
             AdFormat.BANNER_AND_VIDEO -> createInterstitialMultiformatAdUnit()
         }
 
+        this.adUnit = adUnit
         adUnit.apply {
             gpid = gpId
             pbAdSlot = interstitialPbAdSlot
@@ -78,7 +98,7 @@ class InterstitialAd(
             adLoadCallback = interstitialAdLoadedListener,
             fullScreenContentCallback = fullScreenContentListener,
             resultCallback = { resultCode, request, adLoadCallback ->
-                AdManagerInterstitialAd.load(context, adUnitId, request, adLoadCallback)
+                if (!disposed) AdManagerInterstitialAd.load(context, adUnitId, request, adLoadCallback)
             },
         )
     }
@@ -127,6 +147,9 @@ class InterstitialAd(
     }
 
     override fun dispose() {
+        disposed = true
+        adUnit?.stopAutoRefresh()
+        adUnit = null
         interstitialAd = null
     }
 }
