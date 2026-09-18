@@ -6,6 +6,7 @@ import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/audienzz_targeting.dart';
 import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_publisher_configuration.dart';
+import 'package:audienzz_sdk_flutter/src/refresh/smart_refresh_policy.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -153,6 +154,10 @@ final class AudienzzSdkFlutter {
   /// ≥20%-visible gate. Call before creating banners. Omit to defer to backend.
   // ignore: avoid_positional_boolean_parameters
   Future<void> setSmartRefreshV2Enabled(bool enabled) {
+    // Recorded on the Dart side as well as forwarded. Flutter's banner gate is
+    // evaluated in Dart, so forwarding alone left the documented directional
+    // rule unreachable from Flutter.
+    SmartRefreshPolicy.instance.setOverride(enabled);
     return adInstanceManager.methodChannel.invokeMethod(
       'setSmartRefreshV2Enabled',
       {'enabled': enabled},

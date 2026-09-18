@@ -9,6 +9,11 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private let isAdaptiveSize: Bool
     private let isLazyLoad: Bool
     private let smartRefresh: Bool
+    /// The viewport gate resolved by Dart. v2 is the directional rule; v1 is
+    /// the legacy 20% threshold. Held here so this poll cannot resume a banner
+    /// Dart's stricter rule has rejected, which is what made the public v2
+    /// switch unobservable on Flutter.
+    private let smartRefreshV2: Bool
     private let prefetchMarginPoints: CGFloat
     private let refreshTimeInterval: Double?
     private let adFormat: FAdFormat
@@ -69,11 +74,24 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         }
 
         let frameInWindow = window.convert(view.frame, from: view.superview)
-        guard frameInWindow.height > 0 else { return }
+        guard frameInWindow.height > 0, frameInWindow.width > 0 else { return }
 
         let intersection = frameInWindow.intersection(window.bounds)
-        let visibleFraction = intersection.height / frameInWindow.height
-        let isVisible = visibleFraction >= 0.2
+        // `intersection` is `.null` when the rects are disjoint, and a null
+        // rect's height is infinite — so a banner moved off the side of the
+        // window used to read as fully visible here.
+        guard !intersection.isNull, intersection.width > 0 else {
+            if smartRefreshWasVisible {
+                smartRefreshWasVisible = false
+                auBannerView?.pauseSmartRefresh()
+            }
+            return
+        }
+        let isVisible = Self.satisfiesViewportRule(
+            adRect: frameInWindow,
+            visible: intersection,
+            directional: smartRefreshV2
+        )
 
         if isVisible && !smartRefreshWasVisible {
             smartRefreshWasVisible = true
@@ -87,6 +105,25 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
             smartRefreshWasVisible = false
             auBannerView?.pauseSmartRefresh()
         }
+    }
+
+    /// The same rule Dart applies, so the two layers cannot disagree.
+    /// v1: at least 20% of the ad's height on screen. v2: the ad's top edge
+    /// fully on screen and no more than half its height below the viewport,
+    /// matching `ViewUtil.isRefreshEligible` on Android and
+    /// `VisibleView.computeRefreshEligible` on iOS.
+    internal static func satisfiesViewportRule(
+        adRect: CGRect,
+        visible: CGRect,
+        directional: Bool
+    ) -> Bool {
+        guard adRect.height > 0 else { return false }
+        if !directional {
+            return visible.height / adRect.height >= 0.2
+        }
+        let topOffscreen = visible.minY - adRect.minY
+        let bottomOffscreen = adRect.maxY - visible.maxY
+        return topOffscreen < 1 && bottomOffscreen <= adRect.height * 0.5
     }
 
     deinit {
@@ -151,6 +188,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         isAdaptiveSize: Bool,
         isLazyLoad: Bool,
         smartRefresh: Bool,
+        smartRefreshV2: Bool = false,
         prefetchMarginPoints: CGFloat,
         refreshTimeInterval: Double?,
         adFormat: FAdFormat,
@@ -174,6 +212,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         self.isAdaptiveSize = isAdaptiveSize
         self.isLazyLoad = isLazyLoad
         self.smartRefresh = smartRefresh
+        self.smartRefreshV2 = smartRefreshV2
         self.prefetchMarginPoints = prefetchMarginPoints
         self.refreshTimeInterval = refreshTimeInterval
         self.adFormat = adFormat

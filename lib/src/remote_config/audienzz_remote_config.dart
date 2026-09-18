@@ -111,6 +111,12 @@ class AudienzzRemoteConfig {
     _adUnitConfigs = configs;
   }
 
+  /// Seeds the publisher config without a network fetch. Tests only.
+  @visibleForTesting
+  void setPublisherConfigForTesting(RemotePublisherConfiguration? config) {
+    _publisherConfig = config;
+  }
+
   Future<void> _fetchAndPopulate() async {
     final publisherConfig = await _remoteConfigFetcher.fetchPublisherConfig(
       remoteUrl: _remoteUrl!,

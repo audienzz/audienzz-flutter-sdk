@@ -4,6 +4,7 @@ import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/ads/base/ad_with_view.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/banner_ad.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
+import 'package:audienzz_sdk_flutter/src/refresh/smart_refresh_policy.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -47,6 +48,14 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
 
   /// Minimum visible fraction (0–1) for the ad to count as on-screen.
   static const double _visibleThreshold = 0.2;
+
+  /// How much of the ad's height may hang below the viewport under the v2
+  /// directional rule before it stops being refresh-eligible.
+  static const double _maxBottomOffscreenFraction = 0.5;
+
+  /// Logical-pixel slack on the "top fully on screen" test, matching the
+  /// 1-pixel tolerance the native gates use.
+  static const double _edgeTolerance = 1.0;
 
   /// Polling cadence — matches the native FBannerAd refresh-check interval.
   static const Duration _pollInterval = Duration(milliseconds: 500);
@@ -238,7 +247,7 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
 
     var fraction = 0.0;
     var onScreen = false;
-    if (painted != null && !size.isEmpty) {
+    if (painted != null && renderBox != null && !size.isEmpty) {
       final screenRect = Offset.zero & _screenSize;
       final visible = painted.intersect(screenRect);
       // Two-dimensional: a banner translated off the left or right edge has a
@@ -246,11 +255,11 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
       // Measuring height alone reported it visible.
       if (visible.width > 0 && visible.height > 0) {
         fraction = (visible.height / size.height).clamp(0.0, 1.0);
-        onScreen = _satisfiesViewportRule(
-          painted: painted,
-          visible: visible,
-          screenRect: screenRect,
-        );
+        // The ad's own rect, before any clip. The directional rule asks where
+        // the AD's edges are, so measuring against the already-clipped rect
+        // would report a top that an ancestor cut off as perfectly on screen.
+        final adRect = renderBox.localToGlobal(Offset.zero) & size;
+        onScreen = _satisfiesViewportRule(adRect: adRect, visible: visible);
       }
     }
 
@@ -285,12 +294,25 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
   ///
   /// v1 (the legacy gate): at least [_visibleThreshold] of the ad's height is
   /// on screen, in any direction.
+  ///
+  /// v2 (the directional gate the public API documents): the ad's top edge is
+  /// fully on screen, and no more than half its height is below the viewport.
+  /// Thresholds and the 1-logical-pixel tolerance match the native rule in
+  /// `ViewUtil.isRefreshEligible` / `VisibleView.computeRefreshEligible`, so
+  /// the same banner is judged the same way on every platform.
   bool _satisfiesViewportRule({
-    required Rect painted,
+    required Rect adRect,
     required Rect visible,
-    required Rect screenRect,
   }) {
-    return visible.height / painted.height >= _visibleThreshold;
+    if (!SmartRefreshPolicy.instance.isV2Enabled) {
+      return visible.height / adRect.height >= _visibleThreshold;
+    }
+    final topOffscreen = visible.top - adRect.top;
+    final bottomOffscreen = adRect.bottom - visible.bottom;
+    final topFullyOnScreen = topOffscreen < _edgeTolerance;
+    final bottomWithinHalf =
+        bottomOffscreen <= adRect.height * _maxBottomOffscreenFraction;
+    return topFullyOnScreen && bottomWithinHalf;
   }
 
   /// The ad's rect in global coordinates after every ancestor clip has been

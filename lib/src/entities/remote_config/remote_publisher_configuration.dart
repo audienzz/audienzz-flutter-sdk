@@ -12,6 +12,7 @@ class RemotePublisherConfiguration {
     this.ios,
     this.ppidEnabled,
     this.automaticPpidEnabled,
+    this.smartRefreshV2,
   });
 
   factory RemotePublisherConfiguration.fromJson(Map<String, dynamic> json) {
@@ -29,6 +30,7 @@ class RemotePublisherConfiguration {
           : null,
       ppidEnabled: json['ppidEnabled'] as bool?,
       automaticPpidEnabled: json['automaticPpidEnabled'] as bool?,
+      smartRefreshV2: json['smartRefreshV2'] as bool?,
     );
   }
 
@@ -47,6 +49,12 @@ class RemotePublisherConfiguration {
   /// its own UUID; a PPID the app supplied is still sent. Absent/null → enabled.
   final bool? automaticPpidEnabled;
 
+  /// Backend selection of the smart-refresh viewport gate. `true` selects the
+  /// v2 directional rule, `false` or absent keeps the legacy v1 threshold.
+  /// A local override set through
+  /// [AudienzzSdkFlutter.setSmartRefreshV2Enabled] takes precedence.
+  final bool? smartRefreshV2;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'prebidServer': prebidServer.toJson(),
@@ -56,5 +64,6 @@ class RemotePublisherConfiguration {
         if (ppidEnabled != null) 'ppidEnabled': ppidEnabled,
         if (automaticPpidEnabled != null)
           'automaticPpidEnabled': automaticPpidEnabled,
+        if (smartRefreshV2 != null) 'smartRefreshV2': smartRefreshV2,
       };
 }

@@ -161,6 +161,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             // of true would silently produce no fill.
             let isLazyLoad = args["isLazyLoad"] as? Bool ?? false
             let smartRefresh = args["smartRefresh"] as? Bool ?? false
+            // Resolved in Dart (explicit override -> backend -> v1) so both
+            // gates agree; absent means v1.
+            let smartRefreshV2 = args["smartRefreshV2"] as? Bool ?? false
             let prefetchMarginPoints = CGFloat((args["prefetchMargin"] as? Int) ?? 200)
 
             let bannerAd = FBannerAd(
@@ -170,6 +173,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 isAdaptiveSize: isAdaptiveSize,
                 isLazyLoad: isLazyLoad,
                 smartRefresh: smartRefresh,
+                smartRefreshV2: smartRefreshV2,
                 prefetchMarginPoints: prefetchMarginPoints,
                 refreshTimeInterval: refreshTimeInterval?.doubleValue,
                 adFormat: adFormat,

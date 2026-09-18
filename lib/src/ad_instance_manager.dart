@@ -15,6 +15,7 @@ import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
 import 'package:audienzz_sdk_flutter/src/entities/interstitial_ad_event.dart';
 import 'package:audienzz_sdk_flutter/src/entities/reward_item.dart';
 import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
+import 'package:audienzz_sdk_flutter/src/refresh/smart_refresh_policy.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -367,6 +368,10 @@ final class AdInstanceManager {
           'isAdaptiveSize': ad.isAdaptiveSize,
           'isLazyLoad': ad.isLazyLoad,
           'smartRefresh': ad.smartRefresh,
+          // The gate resolved in Dart, so the iOS bridge's own poll judges this
+          // banner by the same rule. Without it the poll kept its v1 threshold
+          // and could resume a banner Dart's stricter v2 rule had rejected.
+          'smartRefreshV2': SmartRefreshPolicy.instance.isV2Enabled,
           'prefetchMargin': ad.prefetchMargin,
           if (ad.refreshTimeInterval != null)
             'refreshTimeInterval': ad.refreshTimeInterval,
