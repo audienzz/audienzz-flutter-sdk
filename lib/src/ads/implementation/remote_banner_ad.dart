@@ -29,6 +29,7 @@ final class RemoteBannerAd extends BannerAd {
     bool? isLazyLoad,
     int? prefetchMargin,
     super.pageKey,
+    super.startPublisherPaused,
   }) : super(
           sizes: _getSizes(configId),
           adUnitId: _getAdUnitId(configId),

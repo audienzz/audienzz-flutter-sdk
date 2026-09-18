@@ -98,6 +98,21 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
   RemoteBannerAd? _ad;
   /// The slot this state currently owns: page instance plus slot key.
   String? _ownedSlot;
+
+  /// Identifies the current OWNER, not the slot.
+  ///
+  /// Callbacks used to compare the slot string, which a replacement for the
+  /// same slot reuses — so a terminal callback from a retired delivery matched
+  /// its successor.
+  ///
+  /// With ownership cleanup fixed, a retired owner is always deregistered and
+  /// the instance manager drops its late events by id before any guard here
+  /// runs, so no reachable sequence now distinguishes this from the slot
+  /// string and a mutation back to it survives the suite. It is kept because
+  /// identity is what the guard actually means: the slot string is reused by
+  /// design, and any future path that retires an owner without deregistering
+  /// it would silently reintroduce the defect.
+  int _ownerGeneration = 0;
   bool _disposed = false;
 
   /// Requested publisher state, held by the SLOT rather than by whichever ad
@@ -126,12 +141,15 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
   }
 
   /// Re-applies the slot's standing intent to a newly created ad.
+  ///
+  /// The publisher stop is NOT re-applied here — it travels with creation via
+  /// `startPublisherPaused`, because by the time this runs the eager request
+  /// has already gone out. The cover is deliberately left to this path: a
+  /// first prefetch is exempt from the host cover, and installing it at
+  /// creation would quietly change that separate policy.
   void _applyRetainedIntent(RemoteBannerAd ad) {
     if (_coverRequested) {
       ad.reportObscured(true);
-    }
-    if (_publisherStopped) {
-      unawaited(ad.pauseAutoRefresh());
     }
   }
 
@@ -248,7 +266,8 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
   }
 
   void _createAd() {
-    final slotAtCreate = _ownedSlot;
+    _ownerGeneration++;
+    final owner = _ownerGeneration;
     final scope = AudienzzPageScope.maybeOf(context);
     final ad = RemoteBannerAd(
       configId: widget.adConfigId,
@@ -257,28 +276,47 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
       // Explicit, not inherited. A banner created on a retained-but-unfocused
       // screen would otherwise capture the foreground page.
       pageKey: scope?.page.id,
+      // Carried into creation rather than applied afterwards: an eager banner
+      // starts its request while the plugin is still handling the load call,
+      // so a stop replayed after `load()` arrived too late for a slot the
+      // publisher had already stopped.
+      startPublisherPaused: _publisherStopped,
       onAdLoaded: (_) {
         // A response can arrive after this state was disposed, or after the
         // slot was replaced. Neither may touch the replacement.
-        if (_disposed || _ownedSlot != slotAtCreate) {
+        if (_disposed || _ownerGeneration != owner) {
           return;
         }
         setState(() {});
         widget.onAdLoaded?.call(widget);
       },
-      onAdFailedToLoad: (_, error) {
-        if (_disposed || _ownedSlot != slotAtCreate) {
+      onAdFailedToLoad: (failed, error) {
+        if (_disposed || _ownerGeneration != owner) {
           return;
         }
-        // RemoteBannerAd reports a missing configuration here and returns
-        // normally — it does NOT fail the Future, so the catchError below never
-        // ran for the failure it was written for, and _ownedSlot stayed set and
-        // blocked recreation once configuration arrived. Release the slot so an
-        // ordinary rebuild can try again.
-        setState(() {
-          _ad = null;
-          _ownedSlot = null;
-        });
+        // Two different failures arrive here and they are NOT the same thing.
+        //
+        // A setup failure — no remote configuration for this placement,
+        // initialization still in flight — happens before native registers
+        // anything. There is no owner to keep and nothing to dispose, so the
+        // slot is released and an ordinary rebuild can try again. That is the
+        // case the recovery was written for: RemoteBannerAd reports it here and
+        // returns normally rather than failing the Future.
+        //
+        // An ordinary delivery failure — a Google no-fill, a transport error —
+        // happens to a REGISTERED owner that still holds its native scheduler
+        // and, on a failed refresh, its displayed creative. Releasing the slot
+        // there abandoned that owner in the instance manager (nothing disposed
+        // it, so a rebuild registered a second one alongside it) and turned
+        // every parent rebuild into an unbounded first-load retry outside the
+        // scheduler's own policy.
+        final registered = adInstanceManager.adIdFor(failed) != null;
+        if (!registered) {
+          setState(() {
+            _ad = null;
+            _ownedSlot = null;
+          });
+        }
         widget.onAdFailedToLoad?.call(widget, error);
       },
     );
@@ -290,7 +328,7 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
           // controls are keyed by the native ad id, so applying them before
           // `load` has allocated one silently does nothing.
           .then((_) {
-        if (!_disposed && _ownedSlot == slotAtCreate) {
+        if (!_disposed && _ownerGeneration == owner) {
           _applyRetainedIntent(ad);
         }
       }).catchError((Object error) {
@@ -299,7 +337,7 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
         // AdWidget for it throws "AdWidget requires Ad.load to be called", which
         // takes down the whole screen. Drop the owner instead, keep the
         // reservation, and let the slot be retried.
-        if (_disposed || _ownedSlot != slotAtCreate) {
+        if (_disposed || _ownerGeneration != owner) {
           return;
         }
         setState(() {

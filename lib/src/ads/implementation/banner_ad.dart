@@ -45,6 +45,7 @@ class BannerAd extends AdWithView {
     this.smartRefresh = false,
     this.prefetchMargin = 200,
     this.pageKey,
+    this.startPublisherPaused = false,
   }) : isLazyLoad = _resolveLazyLoad(isLazyLoad, smartRefresh);
 
   // On Flutter, lazy load relies on smartRefresh's Flutter-side visibility
@@ -102,6 +103,13 @@ class BannerAd extends AdWithView {
   /// is the foreground one, so the banner would be created as if it lived
   /// there. `AudienzzBanner` always supplies this from its own `AudienzzPage`.
   final String? pageKey;
+
+  /// Install the durable publisher pause BEFORE the first request.
+  ///
+  /// `pauseAutoRefresh()` after `load()` is too late for an eager banner: the
+  /// native side starts the request while still handling the load call, so a
+  /// slot the publisher had already stopped issued one request anyway.
+  final bool startPublisherPaused;
 
   /// Ad desired format, [AdFormat.banner], [AdFormat.video]
   /// or [AdFormat.bannerAndVideo] (used by multiformat banner ads)

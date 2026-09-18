@@ -372,6 +372,9 @@ final class AdInstanceManager {
           'isAdaptiveSize': ad.isAdaptiveSize,
           'isLazyLoad': ad.isLazyLoad,
           'smartRefresh': ad.smartRefresh,
+          // Applied by the plugin BEFORE it starts the request, so an already
+          // stopped slot does not issue one on the way in.
+          if (ad.startPublisherPaused) 'publisherPaused': true,
           // The gate resolved in Dart, so the iOS bridge's own poll judges this
           // banner by the same rule. Without it the poll kept its v1 threshold
           // and could resume a banner Dart's stricter v2 rule had rejected.

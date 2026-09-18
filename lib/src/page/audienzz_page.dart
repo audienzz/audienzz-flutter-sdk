@@ -52,13 +52,14 @@ class AudienzzPage extends StatefulWidget {
   /// Analytics screen name. Also the page identity unless [id] is given.
   final String name;
 
-  /// Page identity, when it must differ from the name — two article routes
-  /// that should own their banners separately, for example.
+  /// Page identity, when a host wants to choose it — a custom router that
+  /// already has a stable per-instance key.
   ///
-  /// Opt-in on **both** sides: construct [AudienzzNavigatorObserver] with
-  /// `perInstance: true` and pass the same key here, or the observer and this
-  /// wrapper will disagree about which page a banner is on and each will
-  /// release the other's banners.
+  /// Not needed for the default setup: a managed page is uniquely owned per
+  /// route instance on its own, and [AudienzzNavigatorObserver] resolves this
+  /// same handle through the shared registry rather than deriving one of its
+  /// own. Name identity lives only where compatibility needs it — the legacy
+  /// `pageImpression(name:)`.
   final String? id;
 
   /// Whether this page currently owns the screen. The default is right for a

@@ -119,7 +119,14 @@ void main() {
     await tester.pumpWidget(page(true)); await tester.pump(const Duration(seconds:1));
     final ad=tester.widget<AdWidget>(find.byType(AdWidget)).ad;
     expect(adInstanceManager.isBannerObscured(ad as BannerAd),isTrue);
-    expect(calls.where((c)=>c.method=='pauseBannerAutoRefresh'),isNotEmpty);
+    // The stop now travels IN the creation payload rather than as a separate
+    // command, so that an eager banner cannot start a request before it lands —
+    // see 'retained publisher stop is installed before native eager load'.
+    // Either mechanism satisfies what this case is about: the stop survived.
+    final installedAtCreate = calls
+        .where((c)=>c.method=='loadBannerAd')
+        .any((c)=>(c.arguments as Map)['publisherPaused']==true);
+    expect(installedAtCreate || calls.any((c)=>c.method=='pauseBannerAutoRefresh'),isTrue);
   });
 
   testWidgets('RECHECK controller replacement can clear an existing cover', (tester) async {

@@ -111,6 +111,57 @@ void main() {
         hasLength(1));
   });
 
+  testWidgets('a late failure from a retired owner cannot clear its successor',
+      (tester) async {
+    // The successor here occupies the SAME slot string — the owner changed
+    // because focus was withdrawn and restored, not because the slot key did.
+    // A callback guard that compares the slot cannot tell them apart, and the
+    // retired ad is deregistered by then, so nothing else stops it either.
+    Widget page({required bool active}) => MaterialApp(
+          home: Scaffold(
+            body: AudienzzPage(
+              name: 'article',
+              active: active,
+              child: const AudienzzBanner(
+                adConfigId: 'managed',
+                slotKey: 'one',
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(page(active: true));
+    await tester.pumpAndSettle();
+    final retired = tester.widget<AdWidget>(find.byType(AdWidget)).ad;
+    final retiredId = adInstanceManager.adIdFor(retired)!;
+
+    await tester.pumpWidget(page(active: false));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(page(active: true));
+    await tester.pumpAndSettle();
+
+    final successor = tester.widget<AdWidget>(find.byType(AdWidget)).ad;
+    expect(identical(successor, retired), isFalse, reason: 'fixture: new owner');
+
+    await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+      channel.name,
+      channel.codec.encodeMethodCall(MethodCall('onAdEvent', {
+        'adId': retiredId,
+        'eventName': 'onAdFailedToLoad',
+        'adError': null,
+      })),
+      (_) {},
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AdWidget), findsOneWidget);
+    expect(
+      identical(tester.widget<AdWidget>(find.byType(AdWidget)).ad, successor),
+      isTrue,
+      reason: 'a terminal callback from a retired delivery must not own this slot',
+    );
+  });
+
   testWidgets('controls are optional', (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(

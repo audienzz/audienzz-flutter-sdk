@@ -111,6 +111,11 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 )
 
                 adInstanceManager?.trackAd(bannerAd, adId)
+                // Before load(): an eager banner requests as soon as it loads, so a pause
+                // installed afterwards would arrive after that first request.
+                if (call.argument<Boolean>("publisherPaused") == true) {
+                    bannerAd.pauseAutoRefresh()
+                }
                 bannerAd.load()
                 result.success(null)
             }

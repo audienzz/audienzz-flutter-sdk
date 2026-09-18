@@ -192,6 +192,11 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 manager: manager
             )
 
+            // Before loadAd: an eager banner requests as soon as it loads, so a
+            // pause installed afterwards would arrive after that first request.
+            if args["publisherPaused"] as? Bool == true {
+                bannerAd.pauseAutoRefresh()
+            }
             manager.loadAd(ad: bannerAd)
             result(nil)
 
