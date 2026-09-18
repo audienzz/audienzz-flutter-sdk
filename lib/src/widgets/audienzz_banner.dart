@@ -142,14 +142,22 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
 
   /// Re-applies the slot's standing intent to a newly created ad.
   ///
-  /// The publisher stop is NOT re-applied here — it travels with creation via
-  /// `startPublisherPaused`, because by the time this runs the eager request
-  /// has already gone out. The cover is deliberately left to this path: a
-  /// first prefetch is exempt from the host cover, and installing it at
-  /// creation would quietly change that separate policy.
+  /// The publisher stop travels with creation via `startPublisherPaused`, which
+  /// is what gets it in place before an eager banner requests. It is ALSO
+  /// re-sent here: that is what keeps subsequent refreshes blocked if the
+  /// creation-time path is ever missed, and it costs one idempotent command.
+  /// Dropping it left the stop lost entirely when the native wrappers
+  /// discarded the flag.
+  ///
+  /// The cover is deliberately only on this path: a first prefetch is exempt
+  /// from the host cover, and installing it at creation would quietly change
+  /// that separate policy.
   void _applyRetainedIntent(RemoteBannerAd ad) {
     if (_coverRequested) {
       ad.reportObscured(true);
+    }
+    if (_publisherStopped) {
+      unawaited(ad.pauseAutoRefresh());
     }
   }
 

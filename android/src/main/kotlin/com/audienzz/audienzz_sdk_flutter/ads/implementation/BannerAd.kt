@@ -121,6 +121,11 @@ class BannerAd(
             // route key reported to pageImpression so it matches by value instead — this is what
             // makes page-scoped release/recreate work for Flutter at all.
             handler.setScreen(pageKey)
+            // Before handler.load(): an eager banner requests inside that call, so a pause the
+            // publisher installed before this ad existed has to be in place first.
+            if (publisherPaused) {
+                handler.stopAutoRefresh()
+            }
             handler.load(
                 withLazyLoading = isLazyLoad,
                 prefetchMarginDp = prefetchMarginDp,
@@ -153,11 +158,24 @@ class BannerAd(
         }
     }
 
+    /**
+     * Publisher pause requested before [load] built the handler.
+     *
+     * The handler does not exist until load() runs, so forwarding through a nullable reference
+     * dropped a pause installed beforehand — and the handler that arrived afterwards held nothing.
+     * Dart sends `publisherPaused` with creation precisely so an eager banner cannot issue a
+     * request the publisher has already stopped, and that only works if the state is remembered
+     * here until there is something to apply it to.
+     */
+    private var publisherPaused = false
+
     fun pauseAutoRefresh() {
+        publisherPaused = true
         adViewHandler?.stopAutoRefresh()
     }
 
     fun resumeAutoRefresh() {
+        publisherPaused = false
         adViewHandler?.resumeAutoRefresh()
     }
 

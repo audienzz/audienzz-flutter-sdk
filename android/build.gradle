@@ -50,10 +50,24 @@ android {
         minSdk = 24
     }
 
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            returnDefaultValues = true
+        }
+    }
+
     dependencies {
         implementation 'com.google.android.gms:play-services-ads:25.1.0'
         implementation 'com.audienzz:sdk:0.2.2'
         implementation 'androidx.multidex:multidex:2.0.1'
         implementation 'androidx.core:core-ktx:1.15.0'
+
+        // Unit tests for the plugin's OWN wrappers. A Dart-side payload assertion cannot show
+        // whether the native receiver honours a flag, which is how a discarded publisher pause
+        // stayed green for a whole review cycle.
+        testImplementation 'junit:junit:4.13.2'
+        testImplementation 'org.robolectric:robolectric:4.13'
+        testImplementation 'io.mockk:mockk:1.13.12'
     }
 }

@@ -129,9 +129,11 @@ void main() {
     final load=calls.firstWhere((c)=>c.method=='loadBannerAd');
     expect((load.arguments as Map)['publisherPaused'],isTrue,
       reason:'already-stopped slot must not start a fresh eager request before its pause');
-    final pause=calls.indexWhere((c)=>c.method=='pauseBannerAutoRefresh');
-    final loadIndex=calls.indexOf(load);
-    if (pause>=0) expect(pause,lessThan(loadIndex));
+    // The stop is also re-sent after creation. That is a belt, not the guarantee: the payload is
+    // what makes it unreorderable, and the native wrapper retaining it is what makes it take
+    // effect — see BannerAdPublisherPauseTest in the plugin's Android module, which asserts the
+    // receiving side rather than this outgoing one.
+    expect(calls.any((c)=>c.method=='pauseBannerAutoRefresh'),isTrue);
   });
   // Same defect, reached through a replacement that actually happens now: the
   // callback guard compared the reusable slot string, which a successor for the

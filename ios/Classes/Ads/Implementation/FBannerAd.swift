@@ -152,11 +152,22 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     // resume() hands control back to the poll (or resumes directly when smart
     // refresh polling isn't running, e.g. a plain auto-refresh banner).
 
+    /// Publisher pause requested before `load()` built the banner.
+    ///
+    /// The banner does not exist until load() runs, so forwarding through an optional dropped a
+    /// pause installed beforehand — and the banner built afterwards held nothing. Dart sends
+    /// `publisherPaused` with creation precisely so an eager banner cannot issue a request the
+    /// publisher has already stopped, and that only works if the state is remembered here until
+    /// there is something to apply it to.
+    private var publisherPaused = false
+
     func pauseAutoRefresh() {
+        publisherPaused = true
         auBannerView?.adUnitConfiguration.stopAutoRefresh()
     }
 
     func resumeAutoRefresh() {
+        publisherPaused = false
         auBannerView?.adUnitConfiguration.resumeAutoRefresh()
     }
 
@@ -325,6 +336,12 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
             // refreshTimeInterval is already in milliseconds (sent from Dart as seconds * 1000).
             // setAutoRefreshMillis expects milliseconds — no conversion needed.
             auBannerView?.adUnitConfiguration.setAutoRefreshMillis(time: refreshTimeInterval)
+        }
+
+        // Before createAd: the banner requests inside that call for an eager slot, so a pause the
+        // publisher installed before this ad existed has to be in place first.
+        if publisherPaused {
+            auBannerView?.adUnitConfiguration.stopAutoRefresh()
         }
 
         auBannerView?.createAd(
