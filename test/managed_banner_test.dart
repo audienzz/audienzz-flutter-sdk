@@ -9,9 +9,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// The managed integration, exercised through the real widgets.
 ///
-/// Requests are counted at the method channel — `loadBannerAd` is what starts a
-/// native auction — not from Dart callbacks, which cannot establish that
-/// nothing was requested.
+/// Requests are counted at the method channel. `loadBannerAd` is what creates
+/// and registers the native handler; with lazy loading it does **not** by itself
+/// prove that a Prebid auction or a Google handoff happened — that needs the
+/// platform view to attach and the viewport check to pass, which these widget
+/// tests do not exercise. What this file establishes is ownership and count of
+/// *requests to the native layer*: zero here means nothing was even asked for.
+/// The native auction counts live in the Android and iOS handler suites.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final messenger =
@@ -238,6 +242,14 @@ void main() {
       expect(pageReports(), hasLength(1));
       expect(loadCount(), 2,
           reason: 'one configuration id, two genuinely different slots');
+      // And they are genuinely separate owners, not one counted twice: two
+      // distinct ad ids under the same page.
+      final loads = calls
+          .where((c) => c.method == 'loadBannerAd')
+          .map((c) => (c.arguments as Map)['adId'])
+          .toList();
+      expect(loads.toSet(), hasLength(2));
+      expect(loadedPageKeys().toSet(), hasLength(1));
     });
 
     testWidgets('changing the slot key replaces exactly one owner',

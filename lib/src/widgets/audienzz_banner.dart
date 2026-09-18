@@ -15,6 +15,38 @@ import 'package:flutter/widgets.dart';
 /// It must be built inside an [AudienzzPage]. That is not a convention — it is
 /// how the banner learns which page instance owns it while it is being built,
 /// rather than reading whichever page was reported last.
+/// Publisher controls for a managed banner.
+///
+/// Attach one with [AudienzzBanner.controller]. Both controls are durable and
+/// independent of geometry: a scroll, a page impression or a return to the
+/// foreground will not undo either of them.
+class AudienzzBannerController extends ChangeNotifier {
+  _AudienzzBannerState? _state;
+
+  void _attach(_AudienzzBannerState state) => _state = state;
+
+  void _detach(_AudienzzBannerState state) {
+    if (identical(_state, state)) {
+      _state = null;
+    }
+  }
+
+  /// Report a cover the SDK cannot infer — an `IgnorePointer` veil, a painted
+  /// overlay, anything that hides the ad without appearing in the hit path.
+  ///
+  /// This is current state, not an event: pass `false` when the cover goes
+  /// away. It is cleared automatically when the banner is disposed. Arbitrary
+  /// overlays are **not** claimed to be detectable without it.
+  Future<void> reportCover({required bool covered}) async =>
+      _state?._reportCover(covered: covered);
+
+  /// Durable publisher pause. Only [resumeAutoRefresh] clears it.
+  Future<void> stopAutoRefresh() async => _state?._pause();
+
+  /// Clears the pause set by [stopAutoRefresh].
+  Future<void> resumeAutoRefresh() async => _state?._resume();
+}
+
 class AudienzzBanner extends StatefulWidget {
   const AudienzzBanner({
     required this.adConfigId,
@@ -22,10 +54,15 @@ class AudienzzBanner extends StatefulWidget {
     this.placeholderHeight = 250,
     this.isLazyLoad = true,
     this.prefetchMargin,
+    this.controller,
     this.onAdLoaded,
     this.onAdFailedToLoad,
     super.key,
   });
+
+  /// Publisher controls for this slot: custom cover reporting and a durable
+  /// pause. Optional — a banner needs none of it to work.
+  final AudienzzBannerController? controller;
 
   /// Remote configuration id for this placement.
   final String adConfigId;
@@ -63,8 +100,27 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
   String? _ownedSlot;
   bool _disposed = false;
 
+  Future<void> _reportCover({required bool covered}) async {
+    final ad = _ad;
+    if (ad == null) {
+      return;
+    }
+    ad.reportObscured(covered);
+  }
+
+  Future<void> _pause() async => _ad?.pauseAutoRefresh();
+
+  Future<void> _resume() async => _ad?.resumeAutoRefresh();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller?._attach(this);
+  }
+
   @override
   void dispose() {
+    widget.controller?._detach(this);
     _disposed = true;
     final ad = _ad;
     _ad = null;
