@@ -912,7 +912,14 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         case "pageImpression":
             if let args = call.arguments as? [String: Any],
                let name = args["name"] as? String {
-                Audienzz.shared.pageImpression(name)
+                // Identity and analytics name are separate. Every Flutter ad lives in the one host
+                // view controller, so host identity can never separate two routes — the id is the
+                // only thing that can, and a screen name repeats.
+                if let pageId = args["pageId"] as? String {
+                    Audienzz.shared.pageImpression(pageId: pageId, name: name)
+                } else {
+                    Audienzz.shared.pageImpression(name)
+                }
             }
             result(nil)
 

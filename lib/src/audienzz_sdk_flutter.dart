@@ -6,6 +6,7 @@ import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/audienzz_targeting.dart';
 import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_publisher_configuration.dart';
+import 'package:audienzz_sdk_flutter/src/page/audienzz_page_handle.dart';
 import 'package:audienzz_sdk_flutter/src/refresh/smart_refresh_policy.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:flutter/services.dart';
@@ -200,10 +201,24 @@ final class AudienzzSdkFlutter {
     // The epoch bump that drives remounting is NOT done here: it happens once,
     // when native echoes the impression back, so it also covers the automatic
     // foreground impression which never passes through this method.
-    adInstanceManager.currentPage = screenName;
+    return activatePage(createAudienzzPage(screenName));
+  }
+
+  /// Activate a page instance minted with [createAudienzzPage] (or held by an
+  /// `AudienzzPage` widget).
+  ///
+  /// Prefer this over [pageImpression] whenever two routes can share a screen
+  /// name: the id is what the page coordinator matches banners against, and a
+  /// repeated name cannot separate them.
+  Future<void> activatePage(AudienzzPageHandle page) {
+    // Stamp synchronously so ads created right after this call belong to this
+    // page — the documented ordering is "report the page, then create its ads",
+    // and waiting for native's asynchronous echo would stamp them with the
+    // previous page, permanently.
+    adInstanceManager.currentPage = page.id;
     return adInstanceManager.methodChannel.invokeMethod(
       'pageImpression',
-      {'name': screenName},
+      {'name': page.name, 'pageId': page.id},
     );
   }
 

@@ -49,17 +49,38 @@ void main() {
 
   test('an ad created after a page impression carries that page', () async {
     await AudienzzSdkFlutter.instance.pageImpression(name: 'Article');
+    // The stamp is the page INSTANCE id, not the display name: two routes can
+    // share a name and must still own their banners separately.
+    final articleId = adInstanceManager.currentPage;
+    expect(articleId, isNot('Article'));
 
     final ad = makeBanner();
     await ad.load();
 
-    expect(adInstanceManager.pageFor(ad), 'Article');
+    expect(adInstanceManager.pageFor(ad), articleId);
     final load = calls.firstWhere((c) => c.method == 'loadBannerAd');
-    expect((load.arguments as Map)['pageKey'], 'Article');
+    expect((load.arguments as Map)['pageKey'], articleId);
+  });
+
+  test('two visits to the same screen name are different pages', () async {
+    await AudienzzSdkFlutter.instance.pageImpression(name: 'Article');
+    final first = makeBanner();
+    await first.load();
+
+    await AudienzzSdkFlutter.instance.pageImpression(name: 'Article');
+    final second = makeBanner();
+    await second.load();
+
+    expect(
+      adInstanceManager.pageFor(first),
+      isNot(adInstanceManager.pageFor(second)),
+      reason: 'a repeated screen name must not merge two article routes',
+    );
   });
 
   test('an ad keeps its page when a later screen is reported', () async {
     await AudienzzSdkFlutter.instance.pageImpression(name: 'Article');
+    final articleId = adInstanceManager.currentPage;
     final ad = makeBanner();
     await ad.load();
 
@@ -67,22 +88,25 @@ void main() {
 
     expect(
       adInstanceManager.pageFor(ad),
-      'Article',
+      articleId,
       reason: 'ownership is fixed at creation, not reassigned by later screens',
     );
   });
 
   test('two ads created on different pages are stamped separately', () async {
     await AudienzzSdkFlutter.instance.pageImpression(name: 'Article');
+    final articleId = adInstanceManager.currentPage;
     final article = makeBanner();
     await article.load();
 
     await AudienzzSdkFlutter.instance.pageImpression(name: 'Home');
+    final homeId = adInstanceManager.currentPage;
     final home = makeBanner();
     await home.load();
 
-    expect(adInstanceManager.pageFor(article), 'Article');
-    expect(adInstanceManager.pageFor(home), 'Home');
+    expect(articleId, isNot(homeId));
+    expect(adInstanceManager.pageFor(article), articleId);
+    expect(adInstanceManager.pageFor(home), homeId);
   });
 
   test('an ad created before any page impression carries no page', () async {

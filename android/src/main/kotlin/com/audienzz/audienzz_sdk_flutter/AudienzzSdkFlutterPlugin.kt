@@ -477,8 +477,16 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
             // page-impression id tying this visit's ad events together.
             "pageImpression" -> {
                 val name = call.argument<String>("name")
+                val pageId = call.argument<String>("pageId")
                 if (name != null) {
-                    AudienzzPrebidMobile.pageImpression(name)
+                    // Identity and analytics name are separate. Every Flutter ad lives in the one
+                    // host Activity, so host identity can never separate two routes — the id is the
+                    // only thing that can, and a screen name repeats.
+                    if (pageId != null) {
+                        AudienzzPrebidMobile.pageImpression(pageId, name)
+                    } else {
+                        AudienzzPrebidMobile.pageImpression(name)
+                    }
                 }
                 result.success(null)
             }

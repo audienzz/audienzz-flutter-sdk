@@ -52,8 +52,12 @@ void main() {
       // asynchronous echo would stamp those ads with the previous page — permanently, since an
       // ad's page is fixed at creation.
       final future = AudienzzSdkFlutter.instance.pageImpression(name: 'A');
+      // The stamp is the page INSTANCE id, not the display name: two routes can
+      // share a name and must still own their banners separately.
+      final reportedId = adInstanceManager.currentPage;
+      expect(reportedId, isNot('A'));
 
-      expect(adInstanceManager.currentPage, 'A');
+      expect(adInstanceManager.currentPage, reportedId);
       await future;
     });
 
@@ -69,11 +73,14 @@ void main() {
   group('native echo', () {
     test('advances the epoch exactly once', () async {
       await AudienzzSdkFlutter.instance.pageImpression(name: 'A');
+      // Native echoes the ROUTING key — the page instance id — because that is
+      // what a banner matches its own page impression against.
+      final idA = adInstanceManager.currentPage!;
 
-      await nativeSays('onPageImpression', {'name': 'A'});
+      await nativeSays('onPageImpression', {'name': idA});
 
       expect(adInstanceManager.pageEpoch.value, 1);
-      expect(adInstanceManager.lastReportedPage, 'A');
+      expect(adInstanceManager.lastReportedPage, idA);
     });
 
     test('advances the epoch for an impression Dart never made', () async {
@@ -90,10 +97,11 @@ void main() {
       // the creation stamp, or ads built in that window take permanent ownership of B.
       await AudienzzSdkFlutter.instance.pageImpression(name: 'B');
       await AudienzzSdkFlutter.instance.pageImpression(name: 'C');
+      final idC = adInstanceManager.currentPage!;
 
       await nativeSays('onPageImpression', {'name': 'B'});
 
-      expect(adInstanceManager.currentPage, 'C');
+      expect(adInstanceManager.currentPage, idC);
       expect(adInstanceManager.lastReportedPage, isNot('B'));
       expect(adInstanceManager.pageEpoch.value, 0);
     });
@@ -101,12 +109,13 @@ void main() {
     test('accepts the echo for the current page after a superseded one', () async {
       await AudienzzSdkFlutter.instance.pageImpression(name: 'B');
       await AudienzzSdkFlutter.instance.pageImpression(name: 'C');
+      final idC = adInstanceManager.currentPage!;
 
       await nativeSays('onPageImpression', {'name': 'B'});
-      await nativeSays('onPageImpression', {'name': 'C'});
+      await nativeSays('onPageImpression', {'name': idC});
 
-      expect(adInstanceManager.currentPage, 'C');
-      expect(adInstanceManager.lastReportedPage, 'C');
+      expect(adInstanceManager.currentPage, idC);
+      expect(adInstanceManager.lastReportedPage, idC);
       expect(adInstanceManager.pageEpoch.value, 1);
     });
 
