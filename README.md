@@ -373,6 +373,12 @@ final remoteBanner = RemoteBannerAd(
 
 Omit an argument to use the ad config's `lazyLoad` / `prefetchDistanceDp`, which lets you tune a placement from the backend without an app release.
 
+> **Flutter defaults to eager, and unlike the native SDKs that is deliberate.** Flutter's lazy path needs the platform view to exist and to have a non-zero size before the viewport can be evaluated. An integration that mounts its `AdWidget` only after `onAdLoaded` — a common pattern, because the ad size is not known until then — would deadlock: no widget means no viewport, no viewport means no load, no load means no `onAdLoaded`.
+>
+> So do **not** turn `lazyLoad` on remotely for Flutter clients without first confirming their integration. It is safe only when a sized placeholder `AdWidget` (or a `SizedBox` of the expected height around it) is mounted *before* `load()` completes. The example app does this; your publishers' apps may not.
+>
+> `isLazyLoad` here defers the **native** request until the platform view reports itself in the viewport. It is not the Dart-driven deferred-request design described in `docs/banner-delivery-policy.md`.
+
 #### Fixed Size Banner
 The SDK will use the sizes defined in the remote configuration. To ensure the banner is displayed correctly, you should place the `AdWidget` inside a container (like a `SizedBox`) that matches the intended ad size:
 

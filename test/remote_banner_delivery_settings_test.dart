@@ -57,7 +57,9 @@ void main() {
       expect(
         ad.isLazyLoad,
         isFalse,
-        reason: 'remote banners auction at load() unless asked otherwise',
+        reason: 'Flutter keeps eager loading: its lazy path needs a mounted, '
+            'sized AdWidget, which an integration that mounts only after '
+            'onAdLoaded does not have. Deliberately unlike the native SDKs.',
       );
       expect(ad.prefetchMargin, 200);
     });

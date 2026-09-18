@@ -64,10 +64,19 @@ final class RemoteBannerAd extends BannerAd {
   static const _defaultRefreshSeconds = 30;
   static const _defaultPrefetchMargin = 200;
 
-  /// Remote-config banners auction as soon as [load] runs unless the ad
-  /// config or the publisher asks for lazy loading. Set `lazyLoad: true` on
-  /// an ad config to defer that placement's auction to the viewport without
-  /// an app release.
+  /// Flutter keeps eager loading as its default, where the native SDKs default
+  /// to lazy.
+  ///
+  /// This asymmetry is deliberate, not an oversight. Flutter's lazy path needs
+  /// the platform view to exist and be sized before a viewport verdict can be
+  /// produced, so an integration that mounts its `AdWidget` only after
+  /// `onAdLoaded` — a common pattern, since the size is not known before then —
+  /// would deadlock: no widget, no viewport, no load, no callback. Existing
+  /// Flutter integrations were written against eager loading and changing the
+  /// default would break that contract silently and remotely.
+  ///
+  /// `lazyLoad: true` is safe only once a sized placeholder is mounted before
+  /// `load()` completes. See the lazy-loading note in the README.
   static const _defaultLazyLoad = false;
 
   static bool _getLazyLoad(String configId) {
