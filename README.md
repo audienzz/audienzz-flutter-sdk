@@ -612,10 +612,22 @@ class ArticlePage extends StatelessWidget {
 }
 ```
 
-`AudienzzPage` mints one page identity per route instance, so two article routes both named
-`article` own their banners separately. `AudienzzBanner` identifies a slot by
-`(page instance, slotKey)` — an `adConfigId` is not unique, the same placement can appear twice on
-one page.
+By default the **screen name is the page identity**, and every component agrees on that: the
+observer, `AudienzzPage` and `pageImpression(name:)` all produce the same id for the same name.
+Reporting a screen again therefore matches the banners already on it and refreshes them.
+
+`AudienzzBanner` identifies a slot by `(page, slotKey)` — an `adConfigId` is not unique, the same
+placement can appear twice on one page — and binds explicitly to the page it is built inside, not to
+whichever page was activated most recently.
+
+**Two routes with the same name, owned separately?** Opt in on *both* sides, or they will disagree
+about who owns a banner:
+
+```dart
+MaterialApp(navigatorObservers: [AudienzzNavigatorObserver(perInstance: true)], …);
+
+AudienzzPage(name: 'article', id: ModalRoute.of(context)!.hashCode.toString(), child: …);
+```
 
 For a tab or an `IndexedStack`, pass whether this tab is selected, so a pre-built tab does not claim
 the active page and does not buy an ad the reader may never see:
@@ -628,8 +640,12 @@ AudienzzPage(name: 'feed', active: _selectedIndex == 0, child: …)
 route becomes visible.
 
 ```dart
-final page = createAudienzzPage('article');       // once per route instance
+final page = createAudienzzPage('article');            // id == 'article'
 await AudienzzSdkFlutter.instance.activatePage(page);  // when it becomes visible
+
+// Or, when two routes share a name and must own their banners separately:
+await AudienzzSdkFlutter.instance
+    .activatePage(const AudienzzPageHandle(id: 'article-42', name: 'article'));
 ```
 
 Activate the destination on every transition, including to screens with no ads. Activating a page is

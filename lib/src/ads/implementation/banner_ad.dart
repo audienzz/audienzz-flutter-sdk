@@ -44,6 +44,7 @@ class BannerAd extends AdWithView {
     bool isLazyLoad = false,
     this.smartRefresh = false,
     this.prefetchMargin = 200,
+    this.pageKey,
   }) : isLazyLoad = _resolveLazyLoad(isLazyLoad, smartRefresh);
 
   // On Flutter, lazy load relies on smartRefresh's Flutter-side visibility
@@ -92,6 +93,15 @@ class BannerAd extends AdWithView {
   /// create items just before they appear on screen. Use `isLazyLoad = false`
   /// there instead.
   final int prefetchMargin;
+
+  /// The page this banner belongs to, when the caller knows it better than the
+  /// SDK does.
+  ///
+  /// `null` captures whichever page was current when [load] ran. That is wrong
+  /// for a banner created on a retained-but-unfocused screen: the current page
+  /// is the foreground one, so the banner would be created as if it lived
+  /// there. `AudienzzBanner` always supplies this from its own `AudienzzPage`.
+  final String? pageKey;
 
   /// Ad desired format, [AdFormat.banner], [AdFormat.video]
   /// or [AdFormat.bannerAndVideo] (used by multiformat banner ads)

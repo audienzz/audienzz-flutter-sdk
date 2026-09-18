@@ -1,5 +1,6 @@
 import 'package:audienzz_sdk_flutter/src/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page_handle.dart';
+import 'package:audienzz_sdk_flutter/src/page/audienzz_page_registry.dart';
 import 'package:flutter/widgets.dart';
 
 /// Navigation adapter. Wire it once:
@@ -19,10 +20,24 @@ import 'package:flutter/widgets.dart';
 /// Destinations that carry no ads are reported too. That is what releases the
 /// previous page's banners; deactivation needs no fabricated ad event.
 class AudienzzNavigatorObserver extends NavigatorObserver {
+  AudienzzNavigatorObserver({this.perInstance = false});
+
+  /// Identify a page by route instance rather than by screen name.
+  ///
+  /// Opt-in on **both** sides: give the matching [AudienzzPage] the same `id`.
+  /// With this off (the default) every component agrees that the screen name
+  /// is the page identity, which is the long-standing contract.
+  final bool perInstance;
+
   /// Last route reported by THIS adapter, so its own repeated callbacks are
   /// deduplicated. An explicit `pageImpression`/`activatePage` from app code is
   /// untouched — suppressing all repeated reports would break a deliberate one.
   Route<dynamic>? _lastReported;
+
+  /// Every `PageRoute` currently on this navigator, oldest first, so a removal
+  /// or replacement below the top can be recognised as not changing what the
+  /// reader sees.
+  final List<Route<dynamic>> _stack = <Route<dynamic>>[];
 
   /// Falls back to the route's type when `RouteSettings.name` is unset, so an
   /// unnamed route still reports something stable rather than being skipped.
@@ -37,31 +52,69 @@ class AudienzzNavigatorObserver extends NavigatorObserver {
       return;
     }
     _lastReported = route;
-    AudienzzSdkFlutter.instance
-        .activatePage(audienzzPageForObject(route, _nameOf(route)));
+    // A wrapper on this route is the authority on what the page is called and
+    // which instance it is. Deriving our own id would disagree with it —
+    // MaterialApp(home:) has no route name at all — and each would then
+    // release the other's banners.
+    final bound = AudienzzPageRegistry.instance.handleFor(route);
+    AudienzzSdkFlutter.instance.activatePage(
+      bound ??
+          (perInstance
+              ? audienzzPageForObject(route, _nameOf(route))
+              : createAudienzzPage(_nameOf(route))),
+    );
+  }
+
+  /// Report whatever is on top now. Deriving the destination from the callback's
+  /// `previousRoute` is wrong for anything below the top: removing a buried
+  /// route hands us the route beneath IT, and reporting that released the
+  /// banners of the screen the reader is actually looking at.
+  void _reportTop() {
+    if (_stack.isEmpty) {
+      return;
+    }
+    _report(_stack.last);
   }
 
   @override
-  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) =>
-      _report(route);
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route is PageRoute) {
+      _stack.add(route);
+    }
+    _reportTop();
+  }
 
   @override
-  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
-      _report(previousRoute);
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _stack.remove(route);
+    _reportTop();
+  }
 
   @override
-  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) =>
-      _report(newRoute);
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    final index = oldRoute == null ? -1 : _stack.indexOf(oldRoute);
+    if (index >= 0) {
+      if (newRoute is PageRoute) {
+        _stack[index] = newRoute;
+      } else {
+        _stack.removeAt(index);
+      }
+    } else if (newRoute is PageRoute) {
+      _stack.add(newRoute);
+    }
+    _reportTop();
+  }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    // Removing the route that is on top reveals the one beneath it. Removing a
-    // buried route changes nothing visible, and `_lastReported` keeps that a
-    // no-op.
-    _report(previousRoute);
+    _stack.remove(route);
+    _reportTop();
   }
 
   /// Test/host-restart hook: forget what this adapter last reported.
   @visibleForTesting
-  void resetForTesting() => _lastReported = null;
+  void resetForTesting() {
+    _lastReported = null;
+    _stack.clear();
+  }
 }

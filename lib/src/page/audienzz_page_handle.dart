@@ -27,16 +27,25 @@ class AudienzzPageHandle {
   String toString() => 'AudienzzPageHandle($id, "$name")';
 }
 
-int _pageSeq = 0;
+/// A page whose identity is its name.
+///
+/// This is the long-standing contract and the default everywhere: the
+/// navigator observer, [AudienzzPage] and `pageImpression(name:)` all produce
+/// the same id for the same name, so reporting a screen again matches the
+/// banners already on it and refreshes them.
+///
+/// An earlier revision minted a fresh id per call. That silently broke the
+/// contract — a second report of the same name released the screen's banners
+/// instead of refreshing them, and they could never match again — and it made
+/// the observer and the wrapper disagree about who owned a page.
+AudienzzPageHandle createAudienzzPage(String name) =>
+    AudienzzPageHandle(id: name, name: name);
 
-/// Mint a page instance. Call once per route instance.
-AudienzzPageHandle createAudienzzPage(String name) {
-  _pageSeq += 1;
-  return AudienzzPageHandle(id: '$name#$_pageSeq', name: name);
-}
-
-/// Mint a page instance whose identity comes from an existing object — a
-/// `Route`, a tab controller, any per-instance thing the host already has.
-/// Two routes with the same name produce different ids.
+/// A page identified by route instance rather than by name, so two routes that
+/// share a screen name own their banners separately.
+///
+/// Opt-in, and it must be opted into on **both** sides: construct
+/// [AudienzzNavigatorObserver] with `perInstance: true` and give the matching
+/// [AudienzzPage] the same `id`, or the two will disagree.
 AudienzzPageHandle audienzzPageForObject(Object instance, String name) =>
     AudienzzPageHandle(id: '$name#${identityHashCode(instance)}', name: name);

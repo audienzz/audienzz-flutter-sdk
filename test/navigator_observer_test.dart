@@ -52,7 +52,8 @@ void main() {
     expect(reports.single['name'], '/');
   });
 
-  testWidgets('separates two article routes that share a name', (tester) async {
+  testWidgets('identifies a route by its name by default', (tester) async {
+    // So this observer, AudienzzPage and pageImpression(name) all agree.
     final nav = await pumpApp(tester);
     unawaited(nav.pushNamed<void>('/article'));
     await tester.pumpAndSettle();
@@ -61,7 +62,50 @@ void main() {
 
     final articles = reports.where((r) => r['name'] == '/article').toList();
     expect(articles, hasLength(2));
+    expect(articles.map((r) => r['pageId']), ['/article', '/article']);
+  });
+
+  testWidgets('separates two article routes when perInstance is opted into',
+      (tester) async {
+    final key = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(MaterialApp(
+      navigatorKey: key,
+      navigatorObservers: [AudienzzNavigatorObserver(perInstance: true)],
+      routes: {
+        '/': (_) => const Scaffold(body: Text('home')),
+        '/article': (_) => const Scaffold(body: Text('article')),
+      },
+    ));
+    await tester.pumpAndSettle();
+    unawaited(key.currentState!.pushNamed<void>('/article'));
+    await tester.pumpAndSettle();
+    unawaited(key.currentState!.pushNamed<void>('/article'));
+    await tester.pumpAndSettle();
+
+    final articles = reports.where((r) => r['name'] == '/article').toList();
+    expect(articles, hasLength(2));
     expect(articles[0]['pageId'], isNot(articles[1]['pageId']));
+  });
+
+  testWidgets('removing a buried route leaves the visible page alone',
+      (tester) async {
+    final nav = await pumpApp(tester);
+    final middle = MaterialPageRoute<void>(
+      settings: const RouteSettings(name: '/article'),
+      builder: (_) => const Scaffold(body: Text('middle')),
+    );
+    unawaited(nav.push<void>(middle));
+    await tester.pumpAndSettle();
+    unawaited(nav.pushNamed<void>('/settings'));
+    await tester.pumpAndSettle();
+    final before = reports.length;
+
+    nav.removeRoute(middle);
+    await tester.pumpAndSettle();
+
+    expect(reports, hasLength(before),
+        reason: 'the reader never left /settings; reporting the route below '
+            'the removed one released the banners of the visible screen');
   });
 
   testWidgets('reports the revealed route on pop', (tester) async {

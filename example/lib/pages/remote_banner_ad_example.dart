@@ -135,6 +135,27 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
   }
 
   @override
+  void didUpdateWidget(RemoteBannerAdExample oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final supplied = widget.loader;
+    if (supplied == null || identical(supplied, _loader)) {
+      return;
+    }
+    // A loader arriving after the first frame must actually replace the one
+    // this state created, or the externally created owner spends a request with
+    // no display surface while the screen keeps showing the internal one.
+    _loader.removeListener(_onLoaderChanged);
+    if (_ownsLoader) {
+      _loader.dispose();
+    }
+    setState(() {
+      _loader = supplied;
+      _ownsLoader = false;
+    });
+    _loader.addListener(_onLoaderChanged);
+  }
+
+  @override
   void dispose() {
     _loader.removeListener(_onLoaderChanged);
     if (_ownsLoader) _loader.dispose();

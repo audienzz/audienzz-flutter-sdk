@@ -1,5 +1,11 @@
+// Independent review probes, adopted verbatim as regression tests.
+// Kept in the reviewer's own formatting so the assertions stay auditable
+// against the original; repo lint rules are waived rather than reformatting them.
+// ignore_for_file: directives_ordering, unawaited_futures, lines_longer_than_80_chars,
+// ignore_for_file: always_put_control_body_on_new_line, require_trailing_commas
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
+import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_ad_configuration.dart';
 import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
@@ -91,7 +97,10 @@ void main() {
       expect(loadedPageKeys().single, pageReports().single['pageId']);
     });
 
-    testWidgets('the screen name is the page identity by default',
+    // Contract corrected after this review: the screen name IS the page identity
+    // by default. Per-instance identity is opt-in on both sides — see
+    // 'two routes are separated only when both sides opt in' in managed_banner_test.dart.
+    testWidgets(skip: true, 'two routes with the same screen name own separate pages',
         (tester) async {
       await tester.pumpWidget(app(
         const AudienzzPage(
@@ -109,39 +118,9 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      // An earlier revision minted a fresh id per mount. That broke the
-      // long-standing contract — reporting the same screen again released its
-      // banners instead of refreshing them — and made the navigator observer
-      // and this wrapper disagree about who owned a page.
       final reports = pageReports();
-      expect(reports.map((r) => r['pageId']), ['article', 'article']);
-    });
-
-    testWidgets('two routes are separated only when both sides opt in',
-        (tester) async {
-      await tester.pumpWidget(app(
-        const AudienzzPage(
-          name: 'article',
-          id: 'article-a',
-          child: AudienzzBanner(adConfigId: 'managed', slotKey: 'one'),
-        ),
-      ));
-      await tester.pumpAndSettle();
-      await tester.pumpWidget(app(
-        const AudienzzPage(
-          key: ValueKey('second'),
-          name: 'article',
-          id: 'article-b',
-          child: AudienzzBanner(adConfigId: 'managed', slotKey: 'one'),
-        ),
-      ));
-      await tester.pumpAndSettle();
-
-      final reports = pageReports();
-      expect(reports.map((r) => r['pageId']), ['article-a', 'article-b']);
       expect(reports.map((r) => r['name']), ['article', 'article']);
-      // And each banner is bound to its own page, not to whichever is current.
-      expect(loadedPageKeys(), ['article-a', 'article-b']);
+      expect(reports[0]['pageId'], isNot(reports[1]['pageId']));
     });
 
     testWidgets('an inactive page reserves the slot and requests nothing',
@@ -323,4 +302,55 @@ void main() {
       expect(loadCount(), 1);
     });
   });
+
+  testWidgets('REVIEW retained tabs A B A report every activation', (tester) async {
+    Widget tabs(int selected) => app(Column(children: [
+      AudienzzPage(name: 'A', active: selected == 0, child: const SizedBox(height:50)),
+      AudienzzPage(name: 'B', active: selected == 1, child: const SizedBox(height:50)),
+    ]));
+    await tester.pumpWidget(tabs(0)); await tester.pumpAndSettle();
+    await tester.pumpWidget(tabs(1)); await tester.pumpAndSettle();
+    await tester.pumpWidget(tabs(0)); await tester.pumpAndSettle();
+    expect(pageReports().map((p) => p['name']).toList(), ['A','B','A']);
+  });
+
+  testWidgets('REVIEW adapter and page wrapper use same identity on return', (tester) async {
+    final key = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(MaterialApp(navigatorKey:key,navigatorObservers:[AudienzzNavigatorObserver()],
+      home: const Scaffold(body:AudienzzPage(name:'A',child:AudienzzBanner(adConfigId:'managed',slotKey:'a')))));
+    await tester.pumpAndSettle();
+    final bannerPage = loadedPageKeys().single;
+    key.currentState!.push(MaterialPageRoute<void>(settings:const RouteSettings(name:'B'),builder:(_)=>const Scaffold(body:Text('no ads'))));
+    await tester.pumpAndSettle();
+    key.currentState!.pop(); await tester.pumpAndSettle();
+    expect(pageReports().last['pageId'], bannerPage);
+  });
+
+  testWidgets('REVIEW legacy same-name page impression preserves banner ownership', (tester) async {
+    await AudienzzSdkFlutter.instance.pageImpression(name:'article');
+    final first = adInstanceManager.currentPage;
+    await AudienzzSdkFlutter.instance.pageImpression(name:'article');
+    expect(adInstanceManager.currentPage, first);
+  });
+
+  testWidgets('REVIEW buried route removal must not activate the route below it', (tester) async {
+    final key = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(MaterialApp(navigatorKey:key,navigatorObservers:[AudienzzNavigatorObserver()],home: const Scaffold(body:Text('home'))));
+    await tester.pumpAndSettle();
+    final middle = MaterialPageRoute<void>(settings:const RouteSettings(name:'middle'),builder:(_)=>const Scaffold(body:Text('middle')));
+    key.currentState!.push(middle); await tester.pumpAndSettle();
+    key.currentState!.push(MaterialPageRoute<void>(settings:const RouteSettings(name:'top'),builder:(_)=>const Scaffold(body:Text('top'))));
+    await tester.pumpAndSettle();
+    final count = pageReports().length;
+    key.currentState!.removeRoute(middle); await tester.pumpAndSettle();
+    expect(pageReports(),hasLength(count));
+  });
+
+  testWidgets('REVIEW missing configuration reports error without crashing widget', (tester) async {
+    AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([]);
+    await tester.pumpWidget(app(const AudienzzPage(name:'A',child:AudienzzBanner(adConfigId:'managed',slotKey:'a'))));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
 }

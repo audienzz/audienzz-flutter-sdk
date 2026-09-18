@@ -134,7 +134,26 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     _viewEpoch = adInstanceManager.pageEpoch.value;
     adInstanceManager.pageEpoch.addListener(_onPageEpochChanged);
 
-    if (_smartRefreshBanner != null) {
+    _syncVisibilityObservation();
+  }
+
+  /// Starts or stops the poll and the lifecycle observer to match the ad this
+  /// widget is currently showing.
+  ///
+  /// Called from `initState` AND `didUpdateWidget`, because the ad can change.
+  /// Doing it only at initialization meant that replacing a non-smart ad with a
+  /// RemoteBanner at the same widget position left the new banner with no timer
+  /// and no lifecycle observer: it reported one initial verdict and then never
+  /// updated, so its last native verdict stayed `visible` however far it
+  /// scrolled away. On Flutter Android that verdict is the only viewport gate
+  /// there is, so refresh continued unseen.
+  void _syncVisibilityObservation() {
+    final wanted = _smartRefreshBanner != null;
+    final running = _visibilityTimer != null;
+    if (wanted == running) {
+      return;
+    }
+    if (wanted) {
       WidgetsBinding.instance.addObserver(this);
       _visibilityTimer = Timer.periodic(
         _pollInterval,
@@ -149,6 +168,10 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _evaluateVisibility();
       });
+    } else {
+      _visibilityTimer?.cancel();
+      _visibilityTimer = null;
+      WidgetsBinding.instance.removeObserver(this);
     }
   }
 
@@ -176,6 +199,7 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
       adInstanceManager.mountWidgetAdId(nextId);
     }
     _lastReportedVisible = null;
+    _syncVisibilityObservation();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _evaluateVisibility();
     });
@@ -197,8 +221,11 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
       );
     }
     adInstanceManager.pageEpoch.removeListener(_onPageEpochChanged);
-    _visibilityTimer?.cancel();
-    if (_smartRefreshBanner != null) {
+    // Keyed off the timer, not off the current ad: the ad may have been swapped
+    // for a non-smart one, in which case the observer was already removed.
+    if (_visibilityTimer != null) {
+      _visibilityTimer!.cancel();
+      _visibilityTimer = null;
       WidgetsBinding.instance.removeObserver(this);
     }
     final adId = adInstanceManager.adIdFor(widget.ad);
@@ -254,11 +281,17 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
       // perfectly healthy intersection *height* and zero intersection width.
       // Measuring height alone reported it visible.
       if (visible.width > 0 && visible.height > 0) {
-        fraction = (visible.height / size.height).clamp(0.0, 1.0);
-        // The ad's own rect, before any clip. The directional rule asks where
-        // the AD's edges are, so measuring against the already-clipped rect
-        // would report a top that an ancestor cut off as perfectly on screen.
-        final adRect = renderBox.localToGlobal(Offset.zero) & size;
+        // The ad's own rect, before any clip but AFTER every ancestor
+        // transform. `painted` and `visible` are transformed, so pairing them
+        // with the untransformed local size compared two different coordinate
+        // spaces: under Transform.scale(0.4) a fully visible 320x50 banner has
+        // a 20-pixel painted height and a 50-pixel nominal one, and the
+        // directional rule rejected it.
+        final adRect = MatrixUtils.transformRect(
+          renderBox.getTransformTo(null),
+          Offset.zero & size,
+        );
+        fraction = (visible.height / adRect.height).clamp(0.0, 1.0);
         onScreen = _satisfiesViewportRule(adRect: adRect, visible: visible);
       }
     }

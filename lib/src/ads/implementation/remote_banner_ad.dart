@@ -28,6 +28,7 @@ final class RemoteBannerAd extends BannerAd {
     super.onAdImpression,
     bool? isLazyLoad,
     int? prefetchMargin,
+    super.pageKey,
   }) : super(
           sizes: _getSizes(configId),
           adUnitId: _getAdUnitId(configId),

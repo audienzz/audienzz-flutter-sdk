@@ -49,10 +49,12 @@ void main() {
 
   test('an ad created after a page impression carries that page', () async {
     await AudienzzSdkFlutter.instance.pageImpression(name: 'Article');
-    // The stamp is the page INSTANCE id, not the display name: two routes can
-    // share a name and must still own their banners separately.
+    // The stamp is the page id, which for a name-only report IS the name. That
+    // is the long-standing contract: reporting the screen again matches the
+    // banners already on it. Separating two same-named routes is opt-in
+    // through activatePage with an explicit id.
     final articleId = adInstanceManager.currentPage;
-    expect(articleId, isNot('Article'));
+    expect(articleId, 'Article');
 
     final ad = makeBanner();
     await ad.load();
@@ -62,7 +64,7 @@ void main() {
     expect((load.arguments as Map)['pageKey'], articleId);
   });
 
-  test('two visits to the same screen name are different pages', () async {
+  test('two visits to the same screen name are the same page', () async {
     await AudienzzSdkFlutter.instance.pageImpression(name: 'Article');
     final first = makeBanner();
     await first.load();
@@ -73,9 +75,25 @@ void main() {
 
     expect(
       adInstanceManager.pageFor(first),
-      isNot(adInstanceManager.pageFor(second)),
-      reason: 'a repeated screen name must not merge two article routes',
+      adInstanceManager.pageFor(second),
+      reason: 'reporting a screen again must refresh its banners, not release '
+          'them — minting a new id per report broke that permanently',
     );
+  });
+
+  test('an explicit page id separates two same-named routes', () async {
+    await AudienzzSdkFlutter.instance
+        .activatePage(const AudienzzPageHandle(id: 'Article-a', name: 'Article'));
+    final first = makeBanner();
+    await first.load();
+
+    await AudienzzSdkFlutter.instance
+        .activatePage(const AudienzzPageHandle(id: 'Article-b', name: 'Article'));
+    final second = makeBanner();
+    await second.load();
+
+    expect(adInstanceManager.pageFor(first), 'Article-a');
+    expect(adInstanceManager.pageFor(second), 'Article-b');
   });
 
   test('an ad keeps its page when a later screen is reported', () async {

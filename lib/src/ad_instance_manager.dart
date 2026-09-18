@@ -345,9 +345,13 @@ final class AdInstanceManager {
 
     final adId = _nextAdId++;
 
+    // An explicitly supplied page wins over the global. A banner created on a
+    // retained-but-unfocused screen must belong to that screen, not to whichever
+    // page happens to be in the foreground.
+    final owningPage = ad.pageKey ?? currentPage;
     _loadedAds[adId] = ad;
-    _adPages[adId] = currentPage;
-    if (currentPage == null) {
+    _adPages[adId] = owningPage;
+    if (owningPage == null) {
       log(
         'Ad created before any pageImpression() call. Page-scoped release and '
         'reload cannot work for it: call AudienzzSdkFlutter.instance'
@@ -363,7 +367,7 @@ final class AdInstanceManager {
           'adId': adId,
           'adUnitId': ad.adUnitId,
           'auConfigId': ad.auConfigId,
-          if (currentPage != null) 'pageKey': currentPage,
+          if (owningPage != null) 'pageKey': owningPage,
           'adSizes': ad.sizes.toList(),
           'isAdaptiveSize': ad.isAdaptiveSize,
           'isLazyLoad': ad.isLazyLoad,

@@ -52,10 +52,11 @@ void main() {
       // asynchronous echo would stamp those ads with the previous page — permanently, since an
       // ad's page is fixed at creation.
       final future = AudienzzSdkFlutter.instance.pageImpression(name: 'A');
-      // The stamp is the page INSTANCE id, not the display name: two routes can
-      // share a name and must still own their banners separately.
+      // The stamp is the page id, which for a name-only report IS the name.
+      // Reporting the same screen again therefore matches the banners already
+      // on it and refreshes them, which is the long-standing contract.
       final reportedId = adInstanceManager.currentPage;
-      expect(reportedId, isNot('A'));
+      expect(reportedId, 'A');
 
       expect(adInstanceManager.currentPage, reportedId);
       await future;

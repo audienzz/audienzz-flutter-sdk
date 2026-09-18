@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/remote_banner_ad.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page.dart';
@@ -131,10 +132,14 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
 
   void _createAd() {
     final slotAtCreate = _ownedSlot;
+    final scope = AudienzzPageScope.maybeOf(context);
     final ad = RemoteBannerAd(
       configId: widget.adConfigId,
       isLazyLoad: widget.isLazyLoad,
       prefetchMargin: widget.prefetchMargin,
+      // Explicit, not inherited. A banner created on a retained-but-unfocused
+      // screen would otherwise capture the foreground page.
+      pageKey: scope?.page.id,
       onAdLoaded: (_) {
         // A response can arrive after this state was disposed, or after the
         // slot was replaced. Neither may touch the replacement.
@@ -153,8 +158,21 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
     );
     _ad = ad;
     unawaited(
-      ad.load().catchError((_) {
-        // Surfaced through onAdFailedToLoad; the slot keeps its reservation.
+      ad.load().catchError((Object error) {
+        // A setup failure — no remote configuration for this placement yet,
+        // initialization still in flight — leaves the ad unregistered. Mounting
+        // AdWidget for it throws "AdWidget requires Ad.load to be called", which
+        // takes down the whole screen. Drop the owner instead, keep the
+        // reservation, and let the slot be retried.
+        if (_disposed || _ownedSlot != slotAtCreate) {
+          return;
+        }
+        setState(() {
+          _ad = null;
+          // Cleared so an ordinary rebuild once configuration arrives builds
+          // the slot again rather than treating it as already owned.
+          _ownedSlot = null;
+        });
       }),
     );
     if (mounted) {
@@ -168,10 +186,14 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
     // The reservation is always laid out, loaded or not, so the surrounding
     // content does not jump and the slot has a real size the moment its page
     // activates — which is what lets the lazy viewport check run at all.
+    // `adIdFor` is null until native has registered the ad. AdWidget asserts on
+    // that and throws into the widget tree, so the reservation is shown alone
+    // until registration succeeds.
+    final registered = ad != null && adInstanceManager.adIdFor(ad) != null;
     return SizedBox(
       width: double.infinity,
       height: widget.placeholderHeight,
-      child: ad == null ? null : AdWidget(ad: ad),
+      child: registered ? AdWidget(ad: ad!) : null,
     );
   }
 }

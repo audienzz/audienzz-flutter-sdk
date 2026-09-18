@@ -22,27 +22,6 @@ import 'package:flutter/material.dart';
 
 void main() => runApp(const MyApp());
 
-/// Reports every pushed/returned Navigator route as a screen automatically — add
-/// it once to `MaterialApp.navigatorObservers` and name your routes via
-/// `RouteSettings(name: ...)`; no per-screen `pageImpression` call is needed.
-/// This is the idiomatic Flutter way to report screens without names at each site.
-class AudienzzNavigatorObserver extends NavigatorObserver {
-  void _report(Route<dynamic>? route) {
-    if (route is! PageRoute) return;
-    final name = route.settings.name;
-    if (name != null) {
-      AudienzzSdkFlutter.instance.pageImpression(name: name);
-    }
-  }
-
-  @override
-  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) =>
-      _report(route);
-
-  @override
-  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
-      _report(previousRoute); // report the screen we returned to
-}
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -55,10 +34,11 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   late final Future<void> init;
   bool useRemoteConfiguration = true;
 
-  RemoteBannerAdLoader? _loader46;
-  RemoteBannerAdLoader? _loader48;
 
   // Reports pushed/returned routes automatically (see AudienzzNavigatorObserver).
+  // The SDK's observer. It covers push, pop, replace and remove, reports
+  // ad-free destinations (that is what releases the previous page's banners)
+  // and agrees with AudienzzPage about page identity.
   final _navObserver = AudienzzNavigatorObserver();
 
   // Tab = screen. Each tab is reported as its own screen so switching tabs fires
@@ -106,35 +86,10 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     // had just fetched.
   }
 
-  bool _loadersScheduled = false;
-
-  /// Creates the home tab's banner loaders once, after the first frame.
-  ///
-  /// This is the example's answer to "report the page, then create its ads"
-  /// with a hand-rolled loader. A screen built with `AudienzzPage` and
-  /// `AudienzzBanner` does not need any of this — the widgets sequence it.
-  void _scheduleLoaderCreation() {
-    if (_loadersScheduled || !useRemoteConfiguration) {
-      return;
-    }
-    _loadersScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _loader46 = RemoteBannerAdLoader(configId: '46');
-        _loader48 = RemoteBannerAdLoader(configId: '48');
-      });
-    });
-  }
-
   @override
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
-    _loader46?.dispose();
-    _loader48?.dispose();
     super.dispose();
   }
 
@@ -217,11 +172,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
       future: init,
       builder: (_, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
-          // After this frame, the Navigator has built and
-          // AudienzzNavigatorObserver has reported the initial route — so the
-          // ordering contract ("report the page, then create its ads") holds.
-          // Creating the loaders any earlier stamps them with no page at all.
-          _scheduleLoaderCreation();
           return MaterialApp(
             // The observer auto-reports every named route pushed/returned below.
             navigatorObservers: [_navObserver],
@@ -238,11 +188,13 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
               body: TabBarView(
                 controller: _tabController,
                 children: [
-                  AdsPages(
-                    useRemoteConfiguration: useRemoteConfiguration,
-                    loader46: _loader46,
-                    loader48: _loader48,
-                  ),
+                  // No externally created loaders. Each RemoteBannerAdExample
+                  // owns exactly one, created in its own initState — which runs
+                  // after the Navigator has reported this route, so the ordering
+                  // contract holds with a single owner per slot. Supplying a
+                  // second owner after the first frame made one slot spend two
+                  // requests and display only one of them.
+                  AdsPages(useRemoteConfiguration: useRemoteConfiguration),
                   ListWithAdsExample(),
                   LegacyBannerAdExample(),
                 ],
@@ -305,14 +257,10 @@ class _NavigationTile extends StatelessWidget {
 final class AdsPages extends StatelessWidget {
   const AdsPages({
     required this.useRemoteConfiguration,
-    this.loader46,
-    this.loader48,
     super.key,
   });
 
   final bool useRemoteConfiguration;
-  final RemoteBannerAdLoader? loader46;
-  final RemoteBannerAdLoader? loader48;
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +307,7 @@ final class AdsPages extends StatelessWidget {
                 padding: EdgeInsets.all(8.0),
                 child: Text('Remote Banner Ad (46)'),
               ),
-              RemoteBannerAdExample(configId: '46', loader: loader46),
+              RemoteBannerAdExample(configId: '46'),
 
               loremIpsum(),
 
@@ -368,7 +316,7 @@ final class AdsPages extends StatelessWidget {
                 padding: EdgeInsets.all(8.0),
                 child: Text('Remote Banner Ad (48)'),
               ),
-              RemoteBannerAdExample(configId: '48', loader: loader48),
+              RemoteBannerAdExample(configId: '48'),
 
               loremIpsum(),
 
