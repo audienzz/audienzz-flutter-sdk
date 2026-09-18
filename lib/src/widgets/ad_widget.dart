@@ -53,9 +53,17 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
 
   Timer? _visibilityTimer;
 
-  /// Shadow of the last state pushed to the platform, so we only call
-  /// pause/resume on an actual transition.
-  bool _refreshPaused = false;
+  /// The last verdict actually pushed to the platform, so we only call
+  /// pause/resume on a real transition.
+  ///
+  /// `null` means *unsynchronized*: this widget has never told native anything.
+  /// It must not be initialised to a guess. A retained ad can be unmounted and
+  /// remounted — `dispose` sends `visible:false` for the old widget, and a new
+  /// widget that assumed native was already resumed never sent `visible:true`,
+  /// leaving refresh paused until some later hide/show cycle happened to
+  /// produce a transition. Starting unsynchronized forces the first evaluation
+  /// to publish whatever it computes.
+  bool? _lastReportedVisible;
 
   /// Whether the app is currently in the foreground.
   bool _appResumed = true;
@@ -125,7 +133,43 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
           if (mounted) _evaluateVisibility();
         },
       );
+      // Publish the current verdict as soon as there is geometry to read,
+      // rather than waiting up to one poll interval. Combined with the
+      // unsynchronized initial state, this is what re-synchronizes a retained
+      // ad that is remounted into a new widget.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _evaluateVisibility();
+      });
     }
+  }
+
+  @override
+  void didUpdateWidget(AdWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(oldWidget.ad, widget.ad)) {
+      return;
+    }
+    // The same widget position now hosts a different ad. The outgoing ad keeps
+    // its native refresh running unless we pause it here, and the incoming ad
+    // has never been told anything by this widget.
+    final previous = oldWidget.ad;
+    if (previous is BannerAd && previous.smartRefresh) {
+      unawaited(
+        adInstanceManager.setBannerViewportVisible(previous, visible: false),
+      );
+    }
+    final previousId = adInstanceManager.adIdFor(previous);
+    if (previousId != null) {
+      adInstanceManager.unmountWidgetAdId(previousId);
+    }
+    final nextId = adInstanceManager.adIdFor(widget.ad);
+    if (nextId != null) {
+      adInstanceManager.mountWidgetAdId(nextId);
+    }
+    _lastReportedVisible = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _evaluateVisibility();
+    });
   }
 
   @override
@@ -171,56 +215,122 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     if (adInstanceManager.adIdFor(banner) == null) return;
 
     final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return;
-    final size = renderBox.size;
-    if (size.height == 0) return;
-
-    final position = renderBox.localToGlobal(Offset.zero);
-    final screenRect = Offset.zero & _screenSize;
-    final widgetRect = position & size;
-    final visibleHeight =
-        screenRect.intersect(widgetRect).height.clamp(0.0, size.height);
-    final fraction = visibleHeight / size.height;
-
     final routeIsCurrent = _route?.isCurrent ?? true;
-    final onScreen = fraction >= _visibleThreshold;
-
-    // Only worth a hit-test when the ad is geometrically on screen.
-    final covered = onScreen && _coverAtCenter(renderBox) == _CoverVerdict.covered;
     // Hit testing cannot see a cover that deliberately passes pointers through — an IgnorePointer
     // veil, a CustomPaint overlay or a plain decoration paints over the ad and leaves the hit path
     // untouched. `reportObscured` is the publisher's way to say so; see BannerAd.reportObscured.
     final obscured = adInstanceManager.isBannerObscured(banner);
-    final shouldBeActive =
-        _appResumed && routeIsCurrent && onScreen && !covered && !obscured;
 
-    if (!shouldBeActive && !_refreshPaused) {
-      _refreshPaused = true;
-      unawaited(
-        adInstanceManager.setBannerViewportVisible(banner, visible: false),
-      );
-      if (kDebugMode) {
-        debugPrint(
-          'AudienzzSmartRefresh → PAUSE '
-          '(fraction=${fraction.toStringAsFixed(2)}, '
-          'routeCurrent=$routeIsCurrent, covered=$covered, obscured=$obscured, '
-          'appResumed=$_appResumed)',
-        );
-      }
-    } else if (shouldBeActive && _refreshPaused) {
-      _refreshPaused = false;
-      unawaited(
-        adInstanceManager.setBannerViewportVisible(banner, visible: true),
-      );
-      if (kDebugMode) {
-        debugPrint(
-          'AudienzzSmartRefresh → RESUME '
-          '(fraction=${fraction.toStringAsFixed(2)}, '
-          'routeCurrent=$routeIsCurrent, covered=$covered, obscured=$obscured, '
-          'appResumed=$_appResumed)',
+    // Geometry is evaluated first because several of its outcomes are
+    // *definitive hidden* rather than "no information". A missing render
+    // object, an unlaid-out box, a collapsed slot, a slot moved off the side
+    // of the screen, a clipped-away slot and an ancestor that does not paint
+    // its child all mean the same thing to the ad server: nothing can be
+    // rendered here. Returning early on any of them left the last verdict —
+    // usually `true` — standing, so native kept auctioning into a banner
+    // nobody could see.
+    final Rect? painted =
+        (renderBox != null && renderBox.hasSize && !renderBox.size.isEmpty)
+            ? _paintedRectInGlobal(renderBox)
+            : null;
+    final Size size =
+        (renderBox?.hasSize ?? false) ? renderBox!.size : Size.zero;
+
+    var fraction = 0.0;
+    var onScreen = false;
+    if (painted != null && !size.isEmpty) {
+      final screenRect = Offset.zero & _screenSize;
+      final visible = painted.intersect(screenRect);
+      // Two-dimensional: a banner translated off the left or right edge has a
+      // perfectly healthy intersection *height* and zero intersection width.
+      // Measuring height alone reported it visible.
+      if (visible.width > 0 && visible.height > 0) {
+        fraction = (visible.height / size.height).clamp(0.0, 1.0);
+        onScreen = _satisfiesViewportRule(
+          painted: painted,
+          visible: visible,
+          screenRect: screenRect,
         );
       }
     }
+
+    // Only worth a hit-test when the ad is geometrically on screen.
+    final covered = onScreen &&
+        renderBox != null &&
+        _coverAtCenter(renderBox) == _CoverVerdict.covered;
+    final shouldBeActive =
+        _appResumed && routeIsCurrent && onScreen && !covered && !obscured;
+
+    if (_lastReportedVisible == shouldBeActive) {
+      return;
+    }
+    _lastReportedVisible = shouldBeActive;
+    unawaited(
+      adInstanceManager.setBannerViewportVisible(
+        banner,
+        visible: shouldBeActive,
+      ),
+    );
+    if (kDebugMode) {
+      debugPrint(
+        'AudienzzSmartRefresh → ${shouldBeActive ? 'RESUME' : 'PAUSE'} '
+        '(fraction=${fraction.toStringAsFixed(2)}, '
+        'routeCurrent=$routeIsCurrent, covered=$covered, obscured=$obscured, '
+        'appResumed=$_appResumed)',
+      );
+    }
+  }
+
+  /// Whether the visible part of the ad satisfies the active viewport rule.
+  ///
+  /// v1 (the legacy gate): at least [_visibleThreshold] of the ad's height is
+  /// on screen, in any direction.
+  bool _satisfiesViewportRule({
+    required Rect painted,
+    required Rect visible,
+    required Rect screenRect,
+  }) {
+    return visible.height / painted.height >= _visibleThreshold;
+  }
+
+  /// The ad's rect in global coordinates after every ancestor clip has been
+  /// applied, or `null` when an ancestor does not paint it at all.
+  ///
+  /// `Offstage` is the motivating case: the child is laid out and has a real
+  /// size and position, so pure geometry says it is on screen, but nothing is
+  /// ever painted. `RenderObject.paintsChild` is what reports that, and
+  /// `describeApproximatePaintClip` is what reports a clipping ancestor — a
+  /// slot scrolled out of a `ClipRect` viewport keeps its global rect long
+  /// after it stops being drawn.
+  Rect? _paintedRectInGlobal(RenderBox box) {
+    // `bounds` is expressed in the coordinate space of `boundsSpace`.
+    var bounds = Offset.zero & box.size;
+    RenderObject boundsSpace = box;
+    RenderObject node = box;
+    var parent = node.parent;
+    while (parent != null) {
+      if (!parent.paintsChild(node)) {
+        return null;
+      }
+      final clip = parent.describeApproximatePaintClip(node);
+      if (clip != null) {
+        final inParent = MatrixUtils.transformRect(
+          boundsSpace.getTransformTo(parent),
+          bounds,
+        );
+        bounds = inParent.intersect(clip);
+        if (bounds.isEmpty) {
+          return null;
+        }
+        boundsSpace = parent;
+      }
+      node = parent;
+      parent = node.parent;
+    }
+    return MatrixUtils.transformRect(
+      boundsSpace.getTransformTo(null),
+      bounds,
+    );
   }
 
   /// Best-effort occlusion check: hit-test the ad's centre point. If our
