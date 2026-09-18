@@ -579,6 +579,13 @@ API Reference
 The SDK ties ad events to the screen the user is on: reporting an ad-bearing screen fires a
 `pageImpression` and starts a fresh page-impression id that groups every ad event on that visit.
 
+### GAM prerequisite
+
+When the SDK owns refresh, the **GAM ad unit's own refresh rate must be unset**. Two refresh owners
+cannot be reconciled from the app: Google's server-configured refresh runs independently of the
+SDK's scheduler, and no publisher lifecycle code can compensate for it. Check this per ad unit
+before enabling smart refresh.
+
 ### The managed integration (recommended)
 
 Wire navigation once, place a banner, and write nothing else. No `load()`, no `Timer`, no reload
