@@ -6,6 +6,7 @@ import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_publisher
 import 'package:audienzz_sdk_flutter/src/remote_config/remote_config_cache.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/remote_config_fetcher.dart';
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
 
 class AudienzzRemoteConfig {
   AudienzzRemoteConfig._();
@@ -101,6 +102,13 @@ class AudienzzRemoteConfig {
 
   RemoteAdConfiguration? remoteConfigFor(String adConfigId) {
     return _adUnitConfigs?.firstWhereOrNull((e) => e.id == adConfigId);
+  }
+
+  /// Seeds the ad-unit configs without a network fetch. Tests only — config
+  /// normally arrives through [_fetchAndPopulate] or the on-device cache.
+  @visibleForTesting
+  void setAdUnitConfigsForTesting(List<RemoteAdConfiguration>? configs) {
+    _adUnitConfigs = configs;
   }
 
   Future<void> _fetchAndPopulate() async {

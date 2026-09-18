@@ -26,13 +26,18 @@ final class RemoteBannerAd extends BannerAd {
     super.onAdClosed,
     super.onAdOpened,
     super.onAdImpression,
+    bool? isLazyLoad,
+    int? prefetchMargin,
   }) : super(
           sizes: _getSizes(configId),
           adUnitId: _getAdUnitId(configId),
           auConfigId: _getAuConfigId(configId),
           refreshTimeInterval: _getRefreshTime(configId),
           isAdaptiveSize: _getIsAdaptive(configId),
-          prefetchMargin: _getPrefetchMargin(configId),
+          // Publisher argument -> ad config -> SDK default, for both
+          // delivery settings.
+          isLazyLoad: isLazyLoad ?? _getLazyLoad(configId),
+          prefetchMargin: prefetchMargin ?? _getPrefetchMargin(configId),
           // Always enable smart refresh for remote-config banners: pause auto-refresh
           // when the ad scrolls off-screen, resume (or force-refresh if stale) on return.
           smartRefresh: true,
@@ -58,6 +63,16 @@ final class RemoteBannerAd extends BannerAd {
 
   static const _defaultRefreshSeconds = 30;
   static const _defaultPrefetchMargin = 200;
+
+  /// Remote-config banners auction as soon as [load] runs unless the ad
+  /// config or the publisher asks for lazy loading. Set `lazyLoad: true` on
+  /// an ad config to defer that placement's auction to the viewport without
+  /// an app release.
+  static const _defaultLazyLoad = false;
+
+  static bool _getLazyLoad(String configId) {
+    return _getConfig(configId)?.config.lazyLoad ?? _defaultLazyLoad;
+  }
 
   static int _getRefreshTime(String configId) {
     // Fall back to 30 s when refreshTimeSeconds is absent or null in the remote payload.

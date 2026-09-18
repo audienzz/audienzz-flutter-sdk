@@ -3,6 +3,7 @@ class RemoteAdConfigData {
     required this.adType,
     this.refreshTimeSeconds,
     this.prefetchDistanceDp,
+    this.lazyLoad,
     this.stickyMaxHeight,
     this.stickyTopOffset,
   });
@@ -14,6 +15,7 @@ class RemoteAdConfigData {
       // so callers apply a default via the null-coalescing operator.
       refreshTimeSeconds: json['refreshTimeSeconds'] as int?,
       prefetchDistanceDp: json['prefetchDistanceDp'] as int?,
+      lazyLoad: json['lazyLoad'] as bool?,
       stickyMaxHeight: json['stickyMaxHeight'] as int?,
       stickyTopOffset: json['stickyTopOffset'] as int?,
     );
@@ -28,6 +30,10 @@ class RemoteAdConfigData {
   /// Maps to `prefetchMarginDp` on Android and `prefetchMarginPoints` on iOS.
   final int? prefetchDistanceDp;
 
+  /// Whether the banner defers its auction until it approaches the viewport.
+  /// `null` when absent or null in the remote payload; the SDK default applies.
+  final bool? lazyLoad;
+
   /// Reserved height (dp/pt) for [AudienzzStickyAdWrapper].
   /// `null` falls back to the SDK default (600).
   final int? stickyMaxHeight;
@@ -40,6 +46,7 @@ class RemoteAdConfigData {
         'adType': adType,
         if (refreshTimeSeconds != null) 'refreshTimeSeconds': refreshTimeSeconds,
         if (prefetchDistanceDp != null) 'prefetchDistanceDp': prefetchDistanceDp,
+        if (lazyLoad != null) 'lazyLoad': lazyLoad,
         if (stickyMaxHeight != null) 'stickyMaxHeight': stickyMaxHeight,
         if (stickyTopOffset != null) 'stickyTopOffset': stickyTopOffset,
       };

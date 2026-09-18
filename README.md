@@ -355,6 +355,23 @@ final remoteBanner = RemoteBannerAd(
 
 // 2. Load the ad
 await remoteBanner.load();
+```
+
+#### When the auction starts
+
+By default a `RemoteBannerAd` auctions as soon as `load()` runs, wherever the slot sits. Two optional arguments change that, each resolving **argument → ad config → SDK default**:
+
+```dart
+final remoteBanner = RemoteBannerAd(
+  configId: 'YOUR_CONFIG_ID',
+  onAdLoaded: (ad) {},
+  onAdFailedToLoad: (ad, error) {},
+  isLazyLoad: true,      // wait until the slot approaches the viewport
+  prefetchMargin: 600,   // …starting 600 dp/pt ahead (default 200)
+);
+```
+
+Omit an argument to use the ad config's `lazyLoad` / `prefetchDistanceDp`, which lets you tune a placement from the backend without an app release.
 
 #### Fixed Size Banner
 The SDK will use the sizes defined in the remote configuration. To ensure the banner is displayed correctly, you should place the `AdWidget` inside a container (like a `SizedBox`) that matches the intended ad size:
@@ -378,6 +395,7 @@ Center(
 )
 ```
 
+```dart
 // 3. Display the ad using AdWidget
 @override
 Widget build(BuildContext context) {
