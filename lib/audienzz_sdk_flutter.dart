@@ -39,6 +39,7 @@ export 'src/entities/video_parameters/video_duration.dart';
 export 'src/page/audienzz_navigator_observer.dart';
 export 'src/page/audienzz_page.dart';
 export 'src/page/audienzz_page_handle.dart';
+export 'src/page/audienzz_page_registry.dart';
 export 'src/ppid_manager.dart';
 export 'src/remote_config/audienzz_remote_config.dart';
 export 'src/widgets/ad_widget.dart';

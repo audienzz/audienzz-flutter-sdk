@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
+import 'package:audienzz_sdk_flutter/src/page/audienzz_page_registry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +23,9 @@ void main() {
 
   setUp(() {
     reports = [];
+    // The managed activation registry is process-wide; without this a page
+    // activated by an earlier test suppresses the first report of the next one.
+    AudienzzPageRegistry.instance.resetForTesting();
     messenger.setMockMethodCallHandler(channel, (call) async {
       if (call.method == 'pageImpression') {
         reports.add(call.arguments as Map);
@@ -52,8 +56,9 @@ void main() {
     expect(reports.single['name'], '/');
   });
 
-  testWidgets('identifies a route by its name by default', (tester) async {
-    // So this observer, AudienzzPage and pageImpression(name) all agree.
+  testWidgets('identifies each route instance separately', (tester) async {
+    // Two article routes are two pages. The managed integration must not need
+    // the publisher to configure that.
     final nav = await pumpApp(tester);
     unawaited(nav.pushNamed<void>('/article'));
     await tester.pumpAndSettle();
@@ -62,15 +67,15 @@ void main() {
 
     final articles = reports.where((r) => r['name'] == '/article').toList();
     expect(articles, hasLength(2));
-    expect(articles.map((r) => r['pageId']), ['/article', '/article']);
+    expect(articles[0]['pageId'], isNot(articles[1]['pageId']));
+    expect(articles.map((r) => r['name']), ['/article', '/article']);
   });
 
-  testWidgets('separates two article routes when perInstance is opted into',
-      (tester) async {
+  testWidgets('separates two article routes by instance', (tester) async {
     final key = GlobalKey<NavigatorState>();
     await tester.pumpWidget(MaterialApp(
       navigatorKey: key,
-      navigatorObservers: [AudienzzNavigatorObserver(perInstance: true)],
+      navigatorObservers: [AudienzzNavigatorObserver()],
       routes: {
         '/': (_) => const Scaffold(body: Text('home')),
         '/article': (_) => const Scaffold(body: Text('article')),

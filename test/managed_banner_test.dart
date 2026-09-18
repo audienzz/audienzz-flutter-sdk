@@ -95,7 +95,7 @@ void main() {
       expect(loadedPageKeys().single, pageReports().single['pageId']);
     });
 
-    testWidgets('the screen name is the page identity by default',
+    testWidgets('two managed routes with one screen name own separate pages',
         (tester) async {
       await tester.pumpWidget(app(
         const AudienzzPage(
@@ -113,12 +113,13 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      // An earlier revision minted a fresh id per mount. That broke the
-      // long-standing contract — reporting the same screen again released its
-      // banners instead of refreshing them — and made the navigator observer
-      // and this wrapper disagree about who owned a page.
+      // Unique by default for MANAGED pages. Legacy pageImpression(name) keeps
+      // name identity so a repeat report still refreshes rather than releases —
+      // compatibility is preserved at the old API boundary, not by weakening
+      // this one, and the observer resolves this same handle via the registry.
       final reports = pageReports();
-      expect(reports.map((r) => r['pageId']), ['article', 'article']);
+      expect(reports.map((r) => r['name']), ['article', 'article']);
+      expect(reports[0]['pageId'], isNot(reports[1]['pageId']));
     });
 
     testWidgets('two routes are separated only when both sides opt in',

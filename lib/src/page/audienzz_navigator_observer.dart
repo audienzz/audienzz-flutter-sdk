@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audienzz_sdk_flutter/src/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page_handle.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page_registry.dart';
@@ -20,15 +22,6 @@ import 'package:flutter/widgets.dart';
 /// Destinations that carry no ads are reported too. That is what releases the
 /// previous page's banners; deactivation needs no fabricated ad event.
 class AudienzzNavigatorObserver extends NavigatorObserver {
-  AudienzzNavigatorObserver({this.perInstance = false});
-
-  /// Identify a page by route instance rather than by screen name.
-  ///
-  /// Opt-in on **both** sides: give the matching [AudienzzPage] the same `id`.
-  /// With this off (the default) every component agrees that the screen name
-  /// is the page identity, which is the long-standing contract.
-  final bool perInstance;
-
   /// Last route reported by THIS adapter, so its own repeated callbacks are
   /// deduplicated. An explicit `pageImpression`/`activatePage` from app code is
   /// untouched — suppressing all repeated reports would break a deliberate one.
@@ -52,17 +45,29 @@ class AudienzzNavigatorObserver extends NavigatorObserver {
       return;
     }
     _lastReported = route;
-    // A wrapper on this route is the authority on what the page is called and
-    // which instance it is. Deriving our own id would disagree with it —
-    // MaterialApp(home:) has no route name at all — and each would then
-    // release the other's banners.
-    final bound = AudienzzPageRegistry.instance.handleFor(route);
-    AudienzzSdkFlutter.instance.activatePage(
-      bound ??
-          (perInstance
-              ? audienzzPageForObject(route, _nameOf(route))
-              : createAudienzzPage(_nameOf(route))),
-    );
+    // Deferred to after this frame for two reasons. A wrapper on this route is
+    // the authority on what the page is called and which instance it is, and it
+    // binds itself while the route's content builds — which happens after this
+    // callback. And activating through the shared registry lets the wrapper's
+    // own activation for the same navigation be recognised as the same event
+    // rather than a second transition.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!identical(route, _lastReported)) {
+        return; // superseded before the frame landed
+      }
+      final bound = AudienzzPageRegistry.instance.handleFor(route);
+      // Per route INSTANCE, always. This observer belongs to the managed
+      // integration, where two article routes must own their banners
+      // separately without the publisher configuring anything. Name identity
+      // stays where compatibility needs it: the legacy `pageImpression(name)`.
+      final page = bound ?? audienzzPageForObject(route, _nameOf(route));
+      unawaited(
+        AudienzzPageRegistry.instance.activateOnce(
+          page,
+          AudienzzSdkFlutter.instance.activatePage,
+        ),
+      );
+    });
   }
 
   /// Report whatever is on top now. Deriving the destination from the callback's

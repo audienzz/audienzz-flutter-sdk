@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audienzz_sdk_flutter/src/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page_handle.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page_registry.dart';
@@ -76,8 +78,14 @@ class _AudienzzPageState extends State<AudienzzPage> {
   bool _isActive = false;
   bool _activationScheduled = false;
 
+  /// Cancels a scheduled activation whose page has since been replaced.
+  int _generation = 0;
+
+  /// Unique by default. Two article routes must own their banners separately
+  /// without the publisher configuring matching ids in two places; the observer
+  /// resolves this same handle through the registry.
   AudienzzPageHandle _resolveHandle() => widget.id == null
-      ? createAudienzzPage(widget.name)
+      ? createManagedAudienzzPage(widget.name)
       : AudienzzPageHandle(id: widget.id!, name: widget.name);
 
   @override
@@ -87,12 +95,33 @@ class _AudienzzPageState extends State<AudienzzPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Bind while the route's content builds, which is BEFORE the observer's
+    // deferred activation runs — that is how the observer finds this handle
+    // instead of deriving one of its own.
+    if (widget.active) {
+      _bindToRoute();
+    }
+  }
+
+  @override
   void didUpdateWidget(AudienzzPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.id != widget.id || oldWidget.name != widget.name) {
+      // A different identity is a different page: retire the old owner
+      // completely — including its route binding, under the OLD handle — and
+      // activate the new one even if focus never dropped. Resetting _isActive
+      // alone stranded the replacement, because activation was only scheduled
+      // on a false -> true transition.
+      _unbindFromRoute();
+      AudienzzPageRegistry.instance.forgetManagedActivation(_page);
+      _generation++;
       _page = _resolveHandle();
       _isActive = false;
       _activationScheduled = false;
+      _maybeActivate();
+      return;
     }
     if (!widget.active && oldWidget.active) {
       // Revoked, not sticky. A retained tab that loses focus must stop
@@ -101,8 +130,10 @@ class _AudienzzPageState extends State<AudienzzPage> {
       // re-activated when the reader comes back.
       _activationScheduled = false;
       // Hand the route back, so a sibling tab that gains focus becomes the
-      // authority for it.
+      // authority for it, and forget the managed activation so returning here
+      // counts as a new visit.
       _unbindFromRoute();
+      AudienzzPageRegistry.instance.forgetManagedActivation(_page);
       if (_isActive) {
         setState(() => _isActive = false);
       }
@@ -118,6 +149,7 @@ class _AudienzzPageState extends State<AudienzzPage> {
       return;
     }
     _activationScheduled = true;
+    final token = _generation;
     // After the frame, so this never runs during build. Descendants that were
     // built in the same frame have not created an ad yet, because they wait on
     // `isActive`.
@@ -125,13 +157,19 @@ class _AudienzzPageState extends State<AudienzzPage> {
       if (!mounted) {
         return;
       }
-      if (!widget.active) {
-        // Focus was withdrawn before the frame landed.
+      if (!widget.active || token != _generation) {
+        // Focus was withdrawn, or this page was replaced, before the frame
+        // landed.
         _activationScheduled = false;
         return;
       }
       _bindToRoute();
-      AudienzzSdkFlutter.instance.activatePage(_page);
+      unawaited(
+        AudienzzPageRegistry.instance.activateOnce(
+          _page,
+          AudienzzSdkFlutter.instance.activatePage,
+        ),
+      );
       setState(() {
         _isActive = true;
         _activationScheduled = false;
@@ -163,6 +201,7 @@ class _AudienzzPageState extends State<AudienzzPage> {
   @override
   void dispose() {
     _unbindFromRoute();
+    AudienzzPageRegistry.instance.forgetManagedActivation(_page);
     super.dispose();
   }
 

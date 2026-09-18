@@ -97,8 +97,7 @@ void main() {
       expect(loadedPageKeys().single, pageReports().single['pageId']);
     });
 
-    // Contract corrected after this review — see managed_banner_test.dart.
-    testWidgets(skip: true, 'two routes with the same screen name own separate pages',
+    testWidgets('two routes with the same screen name own separate pages',
         (tester) async {
       await tester.pumpWidget(app(
         const AudienzzPage(

@@ -97,10 +97,7 @@ void main() {
       expect(loadedPageKeys().single, pageReports().single['pageId']);
     });
 
-    // Contract corrected after this review: the screen name IS the page identity
-    // by default. Per-instance identity is opt-in on both sides — see
-    // 'two routes are separated only when both sides opt in' in managed_banner_test.dart.
-    testWidgets(skip: true, 'two routes with the same screen name own separate pages',
+    testWidgets('two routes with the same screen name own separate pages',
         (tester) async {
       await tester.pumpWidget(app(
         const AudienzzPage(

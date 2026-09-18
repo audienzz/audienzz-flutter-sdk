@@ -612,22 +612,21 @@ class ArticlePage extends StatelessWidget {
 }
 ```
 
-By default the **screen name is the page identity**, and every component agrees on that: the
-observer, `AudienzzPage` and `pageImpression(name:)` all produce the same id for the same name.
-Reporting a screen again therefore matches the banners already on it and refreshes them.
+`AudienzzPage` and `AudienzzNavigatorObserver` give **each route instance its own page identity**,
+so two article routes both named `article` own their banners separately with nothing to configure.
+They resolve the *same* handle for the same route, and only one activation is reported per
+navigation.
+
+The legacy `pageImpression(name:)` keeps **name identity**, so reporting a screen again still
+matches the banners already on it and refreshes them. Compatibility lives at that boundary; it does
+not weaken the managed contract.
 
 `AudienzzBanner` identifies a slot by `(page, slotKey)` — an `adConfigId` is not unique, the same
 placement can appear twice on one page — and binds explicitly to the page it is built inside, not to
 whichever page was activated most recently.
 
-**Two routes with the same name, owned separately?** Opt in on *both* sides, or they will disagree
-about who owns a banner:
-
-```dart
-MaterialApp(navigatorObservers: [AudienzzNavigatorObserver(perInstance: true)], …);
-
-AudienzzPage(name: 'article', id: ModalRoute.of(context)!.hashCode.toString(), child: …);
-```
+`AudienzzPage(id: …)` is available when a host wants to choose the identity itself — a custom
+router that already has a stable per-instance key. It is not needed for the default setup.
 
 For a tab or an `IndexedStack`, pass whether this tab is selected, so a pre-built tab does not claim
 the active page and does not buy an ad the reader may never see:

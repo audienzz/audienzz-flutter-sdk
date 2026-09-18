@@ -36,4 +36,40 @@ class AudienzzPageRegistry {
   }
 
   AudienzzPageHandle? handleFor(Route<dynamic> route) => _byRoute[route];
+
+  AudienzzPageHandle? _lastManagedActivation;
+
+  /// Activate [page] unless the managed integration already activated it.
+  ///
+  /// The observer and the wrapper are two reporters of one navigation: sharing
+  /// an id stopped them disagreeing, but both still called `activatePage`, and
+  /// two page impressions are two real transitions — each releases and
+  /// re-auctions, so one navigation bought two replacements.
+  ///
+  /// This deduplicates the MANAGED path only. `AudienzzSdkFlutter.activatePage`
+  /// and `pageImpression` are untouched, so a deliberate repeat report from app
+  /// code still works; blanket suppression would break that.
+  Future<void> activateOnce(
+    AudienzzPageHandle page,
+    Future<void> Function(AudienzzPageHandle) activate,
+  ) async {
+    if (_lastManagedActivation == page) {
+      return;
+    }
+    _lastManagedActivation = page;
+    await activate(page);
+  }
+
+  /// Forget the managed activation when its page goes away, so returning to it
+  /// is a new visit rather than a silent no-op.
+  void forgetManagedActivation(AudienzzPageHandle page) {
+    if (_lastManagedActivation == page) {
+      _lastManagedActivation = null;
+    }
+  }
+
+  @visibleForTesting
+  void resetForTesting() {
+    _lastManagedActivation = null;
+  }
 }

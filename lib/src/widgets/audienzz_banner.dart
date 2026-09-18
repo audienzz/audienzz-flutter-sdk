@@ -100,17 +100,40 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
   String? _ownedSlot;
   bool _disposed = false;
 
+  /// Requested publisher state, held by the SLOT rather than by whichever ad
+  /// currently occupies it.
+  ///
+  /// The ad is created late — after the page activates — and recreated on
+  /// replacement, so forwarding a control straight to `_ad` lost it whenever
+  /// there was no ad yet, and a recreated ad came back unpaused and uncovered
+  /// although the publisher had never resumed it.
+  bool _coverRequested = false;
+  bool _publisherStopped = false;
+
   Future<void> _reportCover({required bool covered}) async {
-    final ad = _ad;
-    if (ad == null) {
-      return;
-    }
-    ad.reportObscured(covered);
+    _coverRequested = covered;
+    _ad?.reportObscured(covered);
   }
 
-  Future<void> _pause() async => _ad?.pauseAutoRefresh();
+  Future<void> _pause() async {
+    _publisherStopped = true;
+    await _ad?.pauseAutoRefresh();
+  }
 
-  Future<void> _resume() async => _ad?.resumeAutoRefresh();
+  Future<void> _resume() async {
+    _publisherStopped = false;
+    await _ad?.resumeAutoRefresh();
+  }
+
+  /// Re-applies the slot's standing intent to a newly created ad.
+  void _applyRetainedIntent(RemoteBannerAd ad) {
+    if (_coverRequested) {
+      ad.reportObscured(true);
+    }
+    if (_publisherStopped) {
+      unawaited(ad.pauseAutoRefresh());
+    }
+  }
 
   @override
   void initState() {
@@ -140,6 +163,14 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
   @override
   void didUpdateWidget(AudienzzBanner oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      // Attaching only in initState left a replaced controller inert while the
+      // old one kept the reference, and dispose then detached a controller that
+      // had never been attached. The retained intent belongs to the SLOT, so it
+      // survives the swap and the new controller can clear it.
+      oldWidget.controller?._detach(this);
+      widget.controller?._attach(this);
+    }
     // Unconditionally: `_syncWithPage` is the single place that decides whether
     // this rebuild is a genuinely different slot. Pre-filtering here would put
     // that decision in two places and let them drift.
@@ -163,6 +194,14 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
     if (!scope.isActive) {
       // A pre-built, unfocused tab must not buy an ad, and an ad created before
       // its page is reported would be swept as belonging to the previous page.
+      //
+      // Withdrawing focus must also stop a banner that already exists. Merely
+      // declining to create one left the previous ad mounted and reporting
+      // itself visible, refreshing on a page the host had said was no longer in
+      // front — and nothing was coming to release it, because no successor page
+      // had been reported. Retire the owner; the slot keeps its reservation and
+      // its standing publisher intent, and reactivation builds a fresh one.
+      _retireCurrentAd();
       return;
     }
     // Identity, not decoration. Changing any part is a genuinely different slot
@@ -179,11 +218,33 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
     if (slot == _ownedSlot) {
       return;
     }
-    final previous = _ad;
+    _retireCurrentAd();
     _ownedSlot = slot;
-    _ad = null;
-    unawaited(previous?.dispose().catchError((_) {}));
     _createAd();
+  }
+
+  /// Disposes the ad this slot owns, if any, without touching the slot's
+  /// standing publisher intent.
+  void _retireCurrentAd() {
+    final previous = _ad;
+    if (previous == null) {
+      return;
+    }
+    _ad = null;
+    _ownedSlot = null;
+    // Report the hold explicitly before disposing. Relying on AdWidget's own
+    // dispose to send it is a race: `dispose()` deregisters the ad first, and
+    // AdWidget then has no id to report against, so the last verdict native saw
+    // stayed `visible` on a page the host had just withdrawn.
+    unawaited(
+      adInstanceManager
+          .setBannerViewportVisible(previous, visible: false)
+          .catchError((_) {}),
+    );
+    unawaited(previous.dispose().catchError((_) {}));
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _createAd() {
@@ -209,12 +270,30 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
         if (_disposed || _ownedSlot != slotAtCreate) {
           return;
         }
+        // RemoteBannerAd reports a missing configuration here and returns
+        // normally — it does NOT fail the Future, so the catchError below never
+        // ran for the failure it was written for, and _ownedSlot stayed set and
+        // blocked recreation once configuration arrived. Release the slot so an
+        // ordinary rebuild can try again.
+        setState(() {
+          _ad = null;
+          _ownedSlot = null;
+        });
         widget.onAdFailedToLoad?.call(widget, error);
       },
     );
     _ad = ad;
     unawaited(
-      ad.load().catchError((Object error) {
+      ad
+          .load()
+          // Standing intent is applied only once the ad is REGISTERED: both
+          // controls are keyed by the native ad id, so applying them before
+          // `load` has allocated one silently does nothing.
+          .then((_) {
+        if (!_disposed && _ownedSlot == slotAtCreate) {
+          _applyRetainedIntent(ad);
+        }
+      }).catchError((Object error) {
         // A setup failure — no remote configuration for this placement yet,
         // initialization still in flight — leaves the ad unregistered. Mounting
         // AdWidget for it throws "AdWidget requires Ad.load to be called", which

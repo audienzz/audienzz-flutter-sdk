@@ -41,6 +41,23 @@ class AudienzzPageHandle {
 AudienzzPageHandle createAudienzzPage(String name) =>
     AudienzzPageHandle(id: name, name: name);
 
+int _managedSeq = 0;
+
+/// A uniquely owned page instance, for the managed integration.
+///
+/// The managed components use this rather than [createAudienzzPage] so that two
+/// article routes own their banners separately without the publisher having to
+/// configure matching ids in two places — which would defeat the point of
+/// providing a managed integration at all.
+///
+/// The legacy `pageImpression(name:)` keeps name identity, because reporting a
+/// screen again must match the banners already on it. Compatibility is
+/// preserved at the old API boundary, not by weakening the new one.
+AudienzzPageHandle createManagedAudienzzPage(String name) {
+  _managedSeq += 1;
+  return AudienzzPageHandle(id: '$name#$_managedSeq', name: name);
+}
+
 /// A page identified by route instance rather than by name, so two routes that
 /// share a screen name own their banners separately.
 ///
