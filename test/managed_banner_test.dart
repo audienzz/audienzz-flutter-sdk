@@ -1,5 +1,4 @@
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
-import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_ad_configuration.dart';
 import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
