@@ -579,67 +579,79 @@ API Reference
 The SDK ties ad events to the screen the user is on: reporting an ad-bearing screen fires a
 `pageImpression` and starts a fresh page-impression id that groups every ad event on that visit.
 
-You report screens **explicitly** by their navigation route — call `pageImpression` on each
-ad-bearing screen (there is no automatic tracking; the same call is used on every Audienzz SDK).
-Pass a `context` (the name is derived from the route/widget) and/or an explicit `name`:
+### The managed integration (recommended)
+
+Wire navigation once, place a banner, and write nothing else. No `load()`, no `Timer`, no reload
+after a page impression or an app resume, no `dispose()`.
 
 ```dart
-await AudienzzSdkFlutter.instance.initialize(companyId: 'YOUR_COMPANY_ID');
+MaterialApp(
+  // One adapter. Covers push, pop, replace and remove, and reports ad-free
+  // destinations too — that is what releases the previous page's banners.
+  navigatorObservers: [AudienzzNavigatorObserver()],
+  home: const ArticlePage(),
+);
 
-// Report the active screen on each navigation to an ad-bearing route.
-await AudienzzSdkFlutter.instance.pageImpression(name: 'home');
-```
-
-Report from a single place with a `RouteObserver` instead of inside each screen:
-
-```dart
-final RouteObserver<PageRoute<dynamic>> audienzzRouteObserver =
-    RouteObserver<PageRoute<dynamic>>();
-
-// Register it on your MaterialApp: navigatorObservers: [audienzzRouteObserver]
-
-class _AdScreenState extends State<AdScreen> with RouteAware {
+class ArticlePage extends StatelessWidget {
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final route = ModalRoute.of(context);
-    if (route is PageRoute) audienzzRouteObserver.subscribe(this, route);
-  }
-
-  @override
-  void didPush() => AudienzzSdkFlutter.instance.pageImpression(name: 'home');     // navigated to
-  @override
-  void didPopNext() => AudienzzSdkFlutter.instance.pageImpression(name: 'home');  // returned to
-
-  @override
-  void dispose() {
-    audienzzRouteObserver.unsubscribe(this);
-    super.dispose();
-  }
+  Widget build(BuildContext context) => AudienzzPage(
+        name: 'article',
+        child: ListView(children: const [
+          ArticleBody(),
+          // Reserves its height immediately and loads as it nears the viewport.
+          AudienzzBanner(adConfigId: '46', slotKey: 'in-content-1'),
+        ]),
+      );
 }
 ```
+
+`AudienzzPage` mints one page identity per route instance, so two article routes both named
+`article` own their banners separately. `AudienzzBanner` identifies a slot by
+`(page instance, slotKey)` — an `adConfigId` is not unique, the same placement can appear twice on
+one page.
+
+For a tab or an `IndexedStack`, pass whether this tab is selected, so a pre-built tab does not claim
+the active page and does not buy an ad the reader may never see:
+
+```dart
+AudienzzPage(name: 'feed', active: _selectedIndex == 0, child: …)
+```
+
+**Custom router?** There is one contract: mint a handle per route instance and activate it when that
+route becomes visible.
+
+```dart
+final page = createAudienzzPage('article');       // once per route instance
+await AudienzzSdkFlutter.instance.activatePage(page);  // when it becomes visible
+```
+
+Activate the destination on every transition, including to screens with no ads. Activating a page is
+what deactivates the previous one; nothing else needs to be called.
+
+### Reporting screens without the managed widgets
+
+If you place `RemoteBannerAd` yourself, you own the ordering: **report the page, then create its
+ads.** An ad created before its page is reported carries no page, and the next page impression
+sweeps it as belonging elsewhere.
+
+```dart
+await AudienzzSdkFlutter.instance.pageImpression(name: 'home');
+// …create this screen's ads now, not before.
+```
+
+Report from the navigation action — the router callback, the tab listener, the route observer.
+Do **not** report from `build`, `didChangeDependencies`, a layout callback or a parent `initState`
+that runs after its children: rendering, layout, theme changes and rebuilds are not navigation
+events, and a report that lands after a child has been constructed binds that child to the previous
+page permanently.
 
 Notes:
-- The screen name is any stable per-screen string (your route name works well). It's the screen
-  identity in analytics.
-
-### Reload on screen resume
-
-`pageImpression(name: ...)` fires the page impression. To also show a fresh creative when a
-route/tab becomes active again, **recreate** the banner on that screen — a Flutter banner is a
-platform view whose texture does not refresh on an in-place re-auction, so recreating (dispose then
-load a new ad) is what produces a new creative. Recreating also blanks the slot for a frame while
-the new ad loads, matching the native `blankOnScreenReload`.
-
-```dart
-// e.g. from a TabController listener, when tab 0 becomes active again:
-void _onTabChanged(int index) {
-  AudienzzSdkFlutter.instance.pageImpression(name: _tabKeys[index]); // analytics
-  if (index == 0) _bannerLoader.reload();                       // dispose -> fresh load
-}
-```
-
-See the example's tab handler and `RemoteBannerAdLoader.reload()` for a complete pattern.
+- `pageImpression(name:)` uses the name as the page identity. Two routes that share a name are the
+  same page to the coordinator; use `activatePage` with a handle when that matters.
+- A page impression is the whole transition. Native releases every banner that is not on the
+  incoming page and re-auctions the ones that are, and the Flutter widget remounts its platform view
+  when the native epoch changes. **Do not also reload manually** — that gives one transition two
+  owners and two auctions, the second discarding the creative the first just fetched.
 
 Two optional session-wide toggles tune smart-refresh (call **before** creating banners):
 

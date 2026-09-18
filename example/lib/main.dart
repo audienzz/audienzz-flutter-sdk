@@ -98,10 +98,35 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     // Tabs live inside ONE Navigator route, so the RouteObserver can't see them —
     // report them explicitly by key. (Pushed pages are reported automatically.)
     AudienzzSdkFlutter.instance.pageImpression(name: _tabKeys[i]);
-    if (i == 0) {
-      _loader46?.reload();
-      _loader48?.reload();
+    // No manual reload. The page impression above is the whole transition:
+    // native releases every banner that is not on the incoming page and
+    // re-auctions the ones that are, and the widget remounts its platform view
+    // when the native epoch changes. Reloading here as well gave one tab switch
+    // two owners and two auctions, the second discarding the creative the first
+    // had just fetched.
+  }
+
+  bool _loadersScheduled = false;
+
+  /// Creates the home tab's banner loaders once, after the first frame.
+  ///
+  /// This is the example's answer to "report the page, then create its ads"
+  /// with a hand-rolled loader. A screen built with `AudienzzPage` and
+  /// `AudienzzBanner` does not need any of this — the widgets sequence it.
+  void _scheduleLoaderCreation() {
+    if (_loadersScheduled || !useRemoteConfiguration) {
+      return;
     }
+    _loadersScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loader46 = RemoteBannerAdLoader(configId: '46');
+        _loader48 = RemoteBannerAdLoader(configId: '48');
+      });
+    });
   }
 
   @override
@@ -173,14 +198,17 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
 
     await AudienzzTargeting.addSingleGlobalTargeting("TEST", "1");
 
-    // Start loading AFTER all global SDK config is set (schain + targeting must
-    // be in place before fetchDemand constructs the OpenRTB request).
-    // Starting here — before FutureBuilder resolves — saves the FutureBuilder
-    // rebuild → widget mount → initState → loadAd() round-trip (~100–400 ms).
-    if (useRemoteConfiguration) {
-      _loader46 = RemoteBannerAdLoader(configId: '46');
-      _loader48 = RemoteBannerAdLoader(configId: '48');
-    }
+    // Deliberately NOT creating the banner loaders here.
+    //
+    // RemoteBannerAdLoader loads in its constructor, and this runs before the
+    // MaterialApp exists — so before AudienzzNavigatorObserver has reported the
+    // initial route. An ad created before its page is reported carries no page,
+    // and the next page impression sweeps it as belonging to somewhere else.
+    // The ~100–400 ms this used to save is not worth a slot that can be
+    // released the moment the reader navigates.
+    //
+    // They are created in _AdsHomeState.initState instead, which runs after the
+    // Navigator has reported the route this page lives on.
   }
 
   @override
@@ -189,6 +217,11 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
       future: init,
       builder: (_, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
+          // After this frame, the Navigator has built and
+          // AudienzzNavigatorObserver has reported the initial route — so the
+          // ordering contract ("report the page, then create its ads") holds.
+          // Creating the loaders any earlier stamps them with no page at all.
+          _scheduleLoaderCreation();
           return MaterialApp(
             // The observer auto-reports every named route pushed/returned below.
             navigatorObservers: [_navObserver],
