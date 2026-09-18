@@ -14,7 +14,19 @@ final class InterstitialAdEvent {
   final int loadId;
 
   /// loadRequested, loaded, loadFailed, showAttempted, presented, showFailed,
-  /// impression, dismissed, disposeDeferred, or disposed.
+  /// impression, dismissed, disposeDeferred, disposed, or
+  /// `discardedWithoutImpression`.
+  ///
+  /// `discardedWithoutImpression` fires at most once per load, when inventory
+  /// that loaded successfully is released before it records an impression.
+  /// [reason] then distinguishes `expired`, `disposed`, `replaced`,
+  /// `presentationFailed` and `dismissedWithoutImpression`. It never fires for
+  /// a load that failed, or for inventory that was shown and counted.
+  ///
+  /// It is a diagnostic, not a billing record: it does not replace Ad Manager's
+  /// responses-served or AdX render-rate reporting, which are measured
+  /// server-side across demand sources the SDK cannot see. A process killed
+  /// while inventory is held emits nothing, so these counts are a lower bound.
   final String name;
   final DateTime timestamp;
   final int? loadAgeMillis;

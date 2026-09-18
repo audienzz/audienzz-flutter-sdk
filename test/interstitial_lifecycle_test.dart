@@ -207,7 +207,21 @@ void main() {
     await ready;
     expect(ad.isReady, true);
     expect(calls.where((c) => c.method == 'loadInterstitialAd').length, 2);
-    expect(events.where((e) => e.reason == 'expired').length, 1);
+    // Counting by reason alone is ambiguous now that a release reports both
+    // the disposal and the unused-inventory discard, so assert each by name.
+    expect(
+        events
+            .where((e) => e.name == 'disposed' && e.reason == 'expired')
+            .length,
+        1);
+    expect(
+        events
+            .where((e) =>
+                e.name == 'discardedWithoutImpression' &&
+                e.reason == 'expired')
+            .length,
+        1,
+        reason: 'the expired fill was never seen and must be reported once');
   });
 
   test('channel load failure settles the readiness future', () async {

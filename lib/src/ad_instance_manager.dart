@@ -533,6 +533,48 @@ final class AdInstanceManager {
       _interstitialEvent(ad, state, reason, error: error);
     }
     _interstitialEvent(ad, state, 'disposed', reason: reason);
+    _reportDiscardIfUnused(ad, state, reason);
+  }
+
+  /// Release reasons translated into the cross-platform discard vocabulary, so
+  /// the same situation carries the same reason on every SDK.
+  static const _discardReasons = <String, String>{
+    'expired': 'expired',
+    'showFailed': 'presentationFailed',
+    'dismissed': 'dismissedWithoutImpression',
+    'publisher': 'disposed',
+    'replaced': 'replaced',
+  };
+
+  /// Reports, at most once per load, that inventory which loaded successfully
+  /// was released without ever recording an impression.
+  ///
+  /// Emitted from [_releaseInterstitial] — the single release choke point —
+  /// rather than as a separate stream, so it stays aligned with the `disposed`
+  /// event Flutter already synthesizes instead of duplicating it. Flutter does
+  /// not forward the natives' own lifecycle events; it drives this state
+  /// machine, so the native emission would otherwise double-count here.
+  ///
+  /// `state.loadedAt` is set only when the load succeeded, which is what
+  /// excludes load failures: there was never any inventory to waste.
+  /// `state.impression` excludes inventory that was actually used.
+  ///
+  /// It is a diagnostic, not a billing record. It counts what this SDK handed
+  /// to, and took back from, the ad server — not Ad Manager's responses-served
+  /// or render rate, which are measured server-side across demand sources this
+  /// SDK cannot see.
+  ///
+  /// A terminal event is not guaranteed: if the process is killed while
+  /// inventory is held, nothing is emitted for it, so these counts are a lower
+  /// bound.
+  void _reportDiscardIfUnused(
+      InterstitialAd ad, _InterstitialLoad state, String reason) {
+    if (state.loadedAt == null || state.impression || state.discardReported) {
+      return;
+    }
+    state.discardReported = true;
+    _interstitialEvent(ad, state, 'discardedWithoutImpression',
+        reason: _discardReasons[reason] ?? 'disposed');
   }
 
   void _onInterstitialEvent(
@@ -766,4 +808,8 @@ final class _InterstitialLoad {
   String? responseId;
   bool opened = false;
   bool impression = false;
+
+  /// One discard report per load, however many release paths this state
+  /// passes through.
+  bool discardReported = false;
 }
