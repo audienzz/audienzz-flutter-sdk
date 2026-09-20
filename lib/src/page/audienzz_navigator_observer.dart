@@ -60,7 +60,16 @@ class AudienzzNavigatorObserver extends NavigatorObserver {
       // integration, where two article routes must own their banners
       // separately without the publisher configuring anything. Name identity
       // stays where compatibility needs it: the legacy `pageImpression(name)`.
-      final page = bound ?? audienzzPageForObject(route, _nameOf(route));
+      //
+      // The fallback is the route's CANONICAL id — the same one a wrapper on
+      // this route adopts — so a screen that reports while it still shows a
+      // spinner, and then builds its page once its content arrives, is one
+      // visit under one identity rather than two.
+      final page = bound ??
+          AudienzzPageHandle(
+            id: AudienzzPageRegistry.instance.routeIdentity(route),
+            name: _nameOf(route),
+          );
       unawaited(
         AudienzzPageRegistry.instance.activateOnce(
           page,

@@ -300,16 +300,28 @@ void main() {
     });
   });
 
-  testWidgets('REVIEW post-frame example loader replaces the fallback owner', (tester) async {
-    await tester.pumpWidget(app(const RemoteBannerAdExample(configId:'managed')));
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(loadCount(),1,reason:'control: the fallback loaded during the first build');
-    final external = RemoteBannerAdLoader(configId:'managed');
-    try {
-      await tester.pumpWidget(app(RemoteBannerAdExample(configId:'managed',loader:external)));
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(loadCount(),2,reason:'control: exactly the two loads the example starts');
-      expect(tester.widget<AdWidget>(find.byType(AdWidget)).ad, same(external.ad),reason:'the supplied owner must actually be displayed, not left loading detached');
-    } finally { external.dispose(); }
+  // The injectable pre-created loader this case used to cover is gone: creating
+  // a RemoteBannerAd before its page has been reported is exactly the ordering
+  // defect, so the example no longer offers a way to do it. What replaces it is
+  // the property the example must now have — it waits for its page.
+  testWidgets('REVIEW the low-level example waits for its page before loading', (tester) async {
+    Widget page(bool active) => app(AudienzzPage(name:'article',active:active,child:const RemoteBannerAdExample(configId:'managed')));
+    // Fixed pumps rather than pumpAndSettle: the example's own placeholder is a
+    // CircularProgressIndicator, which never settles.
+    await tester.pumpWidget(page(false));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(loadCount(),0,reason:'an inactive page must not spend a request');
+
+    await tester.pumpWidget(page(true));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(loadCount(),1);
+    final reportIndex=calls.indexWhere((c)=>c.method=='pageImpression');
+    final loadIndex=calls.indexWhere((c)=>c.method=='loadBannerAd');
+    expect(reportIndex,isNonNegative,reason:'control: the page really was reported');
+    expect(reportIndex,lessThan(loadIndex));
+    expect((calls[loadIndex].arguments as Map)['pageKey'],
+        (calls[reportIndex].arguments as Map)['pageId']);
   });
 }

@@ -62,10 +62,17 @@ class AudienzzPage extends StatefulWidget {
   /// `pageImpression(name:)`.
   final String? id;
 
-  /// Whether this page currently owns the screen. The default is right for a
-  /// plain route, where building *is* navigating. For a tab or an
-  /// `IndexedStack`, pass whether this tab is the selected one, so a
-  /// pre-built tab does not claim the active page.
+  /// An extra condition on top of navigation focus. Defaults to `true`.
+  ///
+  /// Focus itself is the navigator's: a page on a route that is no longer the
+  /// topmost one is not active, however it is built. That is what stops a
+  /// screen whose content finishes loading after the reader has already moved
+  /// on from reclaiming the foreground, and it restores the page on a genuine
+  /// return without any extra wiring.
+  ///
+  /// Set this when the host has its own reason to stand a page down — the
+  /// unselected tab of an `IndexedStack`, which shares one route with the
+  /// selected tab, or a wizard step that is built but not yet reached.
   final bool active;
 
   final Widget child;
@@ -75,36 +82,63 @@ class AudienzzPage extends StatefulWidget {
 }
 
 class _AudienzzPageState extends State<AudienzzPage> {
-  late AudienzzPageHandle _page = _resolveHandle();
+  AudienzzPageHandle? _handle;
   bool _isActive = false;
   bool _activationScheduled = false;
+
+  /// Whether this page's route is the topmost one on its navigator. True for a
+  /// page outside any route, which has no navigator to defer to.
+  bool _focused = true;
 
   /// Cancels a scheduled activation whose page has since been replaced.
   int _generation = 0;
 
-  /// Unique by default. Two article routes must own their banners separately
-  /// without the publisher configuring matching ids in two places; the observer
-  /// resolves this same handle through the registry.
-  AudienzzPageHandle _resolveHandle() => widget.id == null
-      ? createManagedAudienzzPage(widget.name)
-      : AudienzzPageHandle(id: widget.id!, name: widget.name);
+  AudienzzPageHandle get _page => _handle ??= _resolveHandle();
 
-  @override
-  void initState() {
-    super.initState();
-    _maybeActivate();
+  /// The identity is the ROUTE INSTANCE's whenever there is one, so this
+  /// wrapper and the navigator observer describe the same visit even when this
+  /// wrapper is built long after the route was first reported. A second wrapper
+  /// on the same route — the other tab of an `IndexedStack` — is a separate
+  /// page and mints its own.
+  AudienzzPageHandle _resolveHandle() {
+    if (widget.id != null) {
+      return AudienzzPageHandle(id: widget.id!, name: widget.name);
+    }
+    final route = _route;
+    if (route != null) {
+      final claimed =
+          AudienzzPageRegistry.instance.claimRouteIdentity(route, this);
+      if (claimed != null) {
+        _identityRoute = route;
+        return AudienzzPageHandle(id: claimed, name: widget.name);
+      }
+    }
+    return createManagedAudienzzPage(widget.name);
   }
+
+  /// Reading this registers a dependency on the enclosing route's modal scope,
+  /// so [didChangeDependencies] runs again whenever this route stops being — or
+  /// becomes again — the topmost one. That is the navigator telling us about
+  /// focus through its own machinery; no second observer and no delay.
+  ModalRoute<dynamic>? get _route => ModalRoute.of(context);
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final route = _route;
+    _focused = route?.isCurrent ?? true;
     // Bind while the route's content builds, which is BEFORE the observer's
     // deferred activation runs — that is how the observer finds this handle
     // instead of deriving one of its own.
-    if (widget.active) {
+    if (_shouldBeActive) {
       _bindToRoute();
+      _maybeActivate();
+    } else {
+      _standDown(rebuild: false);
     }
   }
+
+  bool get _shouldBeActive => widget.active && _focused;
 
   @override
   void didUpdateWidget(AudienzzPage oldWidget) {
@@ -117,27 +151,19 @@ class _AudienzzPageState extends State<AudienzzPage> {
       // on a false -> true transition.
       _unbindFromRoute();
       AudienzzPageRegistry.instance.forgetManagedActivation(_page);
+      _releaseRouteIdentity();
       _generation++;
-      _page = _resolveHandle();
+      _handle = null;
       _isActive = false;
       _activationScheduled = false;
+      if (_shouldBeActive) {
+        _bindToRoute();
+      }
       _maybeActivate();
       return;
     }
     if (!widget.active && oldWidget.active) {
-      // Revoked, not sticky. A retained tab that loses focus must stop
-      // reporting itself active: otherwise a banner added to it afterwards is
-      // created as if it were on the foreground page, and the tab can never be
-      // re-activated when the reader comes back.
-      _activationScheduled = false;
-      // Hand the route back, so a sibling tab that gains focus becomes the
-      // authority for it, and forget the managed activation so returning here
-      // counts as a new visit.
-      _unbindFromRoute();
-      AudienzzPageRegistry.instance.forgetManagedActivation(_page);
-      if (_isActive) {
-        setState(() => _isActive = false);
-      }
+      _standDown();
       return;
     }
     if (widget.active && !oldWidget.active) {
@@ -145,8 +171,30 @@ class _AudienzzPageState extends State<AudienzzPage> {
     }
   }
 
+  /// Revoked, not sticky. A page that loses focus — an unselected tab, or a
+  /// route the reader has navigated away from — must stop reporting itself
+  /// active: otherwise a banner added to it afterwards is created as if it were
+  /// on the foreground page, and it can never be re-activated on a return.
+  void _standDown({bool rebuild = true}) {
+    _activationScheduled = false;
+    // Hand the route back, so a sibling tab that gains focus becomes the
+    // authority for it, and forget the managed activation so returning here
+    // counts as a new visit.
+    _unbindFromRoute();
+    AudienzzPageRegistry.instance.forgetManagedActivation(_page);
+    if (!_isActive) {
+      return;
+    }
+    if (rebuild) {
+      setState(() => _isActive = false);
+    } else {
+      // Called from didChangeDependencies, where a build already follows.
+      _isActive = false;
+    }
+  }
+
   void _maybeActivate() {
-    if (!widget.active || _isActive || _activationScheduled) {
+    if (!_shouldBeActive || _isActive || _activationScheduled) {
       return;
     }
     _activationScheduled = true;
@@ -158,9 +206,11 @@ class _AudienzzPageState extends State<AudienzzPage> {
       if (!mounted) {
         return;
       }
-      if (!widget.active || token != _generation) {
-        // Focus was withdrawn, or this page was replaced, before the frame
-        // landed.
+      // Focus is rechecked HERE, not only when this was scheduled: a push can
+      // land between the two, and the deferred callback would otherwise hand
+      // the foreground to a route the reader has already left.
+      if (!widget.active || !(_route?.isCurrent ?? true) ||
+          token != _generation) {
         _activationScheduled = false;
         return;
       }
@@ -182,8 +232,12 @@ class _AudienzzPageState extends State<AudienzzPage> {
   /// same handle. Null for a page outside any route.
   Route<dynamic>? _boundRoute;
 
+  /// The route whose canonical identity this wrapper holds, so it can be handed
+  /// back on disposal even after the element is detached.
+  Route<dynamic>? _identityRoute;
+
   void _bindToRoute() {
-    final route = ModalRoute.of(context);
+    final route = _route;
     if (route == null) {
       return;
     }
@@ -199,9 +253,18 @@ class _AudienzzPageState extends State<AudienzzPage> {
     }
   }
 
+  void _releaseRouteIdentity() {
+    final route = _identityRoute;
+    if (route != null) {
+      AudienzzPageRegistry.instance.releaseRouteIdentity(route, this);
+      _identityRoute = null;
+    }
+  }
+
   @override
   void dispose() {
     _unbindFromRoute();
+    _releaseRouteIdentity();
     AudienzzPageRegistry.instance.forgetManagedActivation(_page);
     super.dispose();
   }

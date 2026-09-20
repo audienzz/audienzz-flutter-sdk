@@ -37,6 +37,57 @@ class AudienzzPageRegistry {
 
   AudienzzPageHandle? handleFor(Route<dynamic> route) => _byRoute[route];
 
+  /// A canonical id per route INSTANCE, so the observer and a wrapper that
+  /// mounts later describe the same visit.
+  ///
+  /// Without it they each invented one: the observer derived an id from the
+  /// route, and a wrapper built after the first frame — a screen that shows a
+  /// spinner until its content arrives — minted a fresh managed id. The banner
+  /// then carried a page key the route had never reported, so the navigation
+  /// that brought the reader here was counted twice and the ownership
+  /// established under the first identity was invalidated without any
+  /// navigation.
+  ///
+  /// Deliberately free of the screen name: renaming a label is not a new visit.
+  final Expando<String> _idByRoute = Expando<String>();
+
+  /// Who currently speaks for a route's canonical identity. A second wrapper on
+  /// the SAME route — tabs inside one `IndexedStack` — is a separate page and
+  /// gets its own identity instead; sharing the route's would merge them.
+  final Expando<Object> _identityClaim = Expando<Object>();
+
+  int _routeSeq = 0;
+
+  /// The route instance's canonical id, minted on first use and stable for as
+  /// long as the route lives.
+  String routeIdentity(Route<dynamic> route) {
+    final existing = _idByRoute[route];
+    if (existing != null) {
+      return existing;
+    }
+    _routeSeq += 1;
+    final id = 'page#$_routeSeq';
+    _idByRoute[route] = id;
+    return id;
+  }
+
+  /// Take the route's canonical identity for [claimant], or null when another
+  /// live wrapper already holds it.
+  String? claimRouteIdentity(Route<dynamic> route, Object claimant) {
+    final holder = _identityClaim[route];
+    if (holder != null && !identical(holder, claimant)) {
+      return null;
+    }
+    _identityClaim[route] = claimant;
+    return routeIdentity(route);
+  }
+
+  void releaseRouteIdentity(Route<dynamic> route, Object claimant) {
+    if (identical(_identityClaim[route], claimant)) {
+      _identityClaim[route] = null;
+    }
+  }
+
   AudienzzPageHandle? _lastManagedActivation;
 
   /// Activate [page] unless the managed integration already activated it.
@@ -53,7 +104,11 @@ class AudienzzPageRegistry {
     AudienzzPageHandle page,
     Future<void> Function(AudienzzPageHandle) activate,
   ) async {
-    if (_lastManagedActivation == page) {
+    // Compared by id alone: the id identifies the VISIT, the name is what
+    // analytics records. A wrapper that adopts its route's identity but prefers
+    // its own screen name is the same visit, and counting it again reported one
+    // navigation as two page impressions.
+    if (_lastManagedActivation?.id == page.id) {
       return;
     }
     _lastManagedActivation = page;
@@ -63,7 +118,7 @@ class AudienzzPageRegistry {
   /// Forget the managed activation when its page goes away, so returning to it
   /// is a new visit rather than a silent no-op.
   void forgetManagedActivation(AudienzzPageHandle page) {
-    if (_lastManagedActivation == page) {
+    if (_lastManagedActivation?.id == page.id) {
       _lastManagedActivation = null;
     }
   }
