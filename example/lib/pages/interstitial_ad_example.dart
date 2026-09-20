@@ -1,8 +1,18 @@
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:flutter/material.dart';
 
-/// One preload per intended opportunity. Keep the owner until dismissal/failure;
-/// do not recreate inventory for orientation, rebuilds, or dependency changes.
+/// The three interstitial verbs, side by side.
+///
+///  * **Prefetch** obtains and retains one ad. Nothing is presented.
+///  * **Show at this transition** presents what is in hand, at a moment you chose. If nothing is
+///    ready it reports a skip and stops — it does not present later, when the reader has moved on.
+///  * **Prefetch and show** is the one call that presents something you did not explicitly time.
+///
+/// Every button is deliberately left enabled so the repeated-tap behaviour is visible: tapping
+/// prefetch twice does not buy two requests, and tapping show twice does not present twice.
+///
+/// Keep the owner until dismissal/failure; do not recreate inventory for orientation, rebuilds, or
+/// dependency changes.
 class InterstitialAdExample extends StatefulWidget {
   const InterstitialAdExample({super.key, this.configId});
   final String? configId;
@@ -56,14 +66,16 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
     _controller = InterstitialPresentationController(ad: ad);
   }
 
-  Future<void> _load() async {
-    if (_loading || _showing || _controller.isReady) return;
+  Future<void> _prefetch() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      await _controller.preload();
+      // Deliberately NOT guarded here: repeated taps must be safe at the SDK
+      // boundary, and they are — a second call joins the request in flight or
+      // reuses ready inventory.
+      await _controller.prefetch();
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -80,12 +92,11 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
   }
 
   Future<void> _show() async {
-    if (!_controller.isReady || _showing) return;
     setState(() {
       _showing = true;
     });
     try {
-      final submitted = await _controller.showAtOpportunity(eligible: true);
+      final submitted = await _controller.show(eligible: true);
       if (!submitted && mounted) {
         setState(() {
           _showing = false;
@@ -102,10 +113,34 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
     }
   }
 
+  Future<void> _prefetchAndShow() async {
+    setState(() {
+      _showing = true;
+      _error = null;
+    });
+    try {
+      final submitted = await _controller.prefetchAndShow();
+      if (!submitted && mounted) {
+        setState(() {
+          _showing = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _showing = false;
+          _error = error.toString();
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
-    _controller
-        .dispose(); // During presentation this defers cleanup until its terminal event.
+    // Disposing WHILE a load is in flight is a supported sequence: leave this
+    // screen with "Loading…" on it and nothing arrives later to present.
+    // During a presentation this defers cleanup until the terminal event.
+    _controller.dispose();
     super.dispose();
   }
 
@@ -114,11 +149,22 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
           child: Column(children: [
         if (_error != null) Text(_error!),
         ElevatedButton(
-            onPressed:
-                _loading || _showing || _controller.isReady ? null : _load,
-            child: Text(_loading ? 'Loading…' : 'Load interstitial')),
+            onPressed: _prefetch,
+            child: Text(_loading ? 'Loading…' : 'Prefetch')),
         ElevatedButton(
-            onPressed: _controller.isReady && !_showing ? _show : null,
-            child: const Text('Show at this transition')),
+            onPressed: _show,
+            child: Text(_showing ? 'Presenting…' : 'Show at this transition')),
+        ElevatedButton(
+            onPressed: _prefetchAndShow,
+            child: const Text('Prefetch and show')),
+        const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text(
+              'Tap any button twice: a second prefetch costs no extra request, '
+              'and a second show cannot present twice. Leaving this screen '
+              'while it says Loading… disposes the owner, and nothing arrives '
+              'afterwards to interrupt you.',
+              textAlign: TextAlign.center,
+            )),
       ]));
 }

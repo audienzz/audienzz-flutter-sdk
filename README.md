@@ -280,17 +280,32 @@ final interstitial = InterstitialAd(
 final controller = InterstitialPresentationController(ad: interstitial);
 
 Future<void> prepareNextOpportunity() async {
-  try { await controller.preload(); }
-  catch (error) { debugPrint('Preload failed: $error'); }
+  try { await controller.prefetch(); }
+  catch (error) { debugPrint('Prefetch failed: $error'); }
 }
 
 Future<void> onEligibleTransition(bool publisherAllowsAd) async {
   try {
-    final submitted = await controller.showAtOpportunity(eligible: publisherAllowsAd);
+    final submitted = await controller.show(eligible: publisherAllowsAd);
     // false means skipped. No late load completion will show this opportunity.
   } catch (error) { debugPrint('Presentation failed: $error'); }
 }
+
+// Or, when you want the ad shown as soon as it arrives — asked for by name:
+Future<void> showWhenReady() => controller.prefetchAndShow();
 ```
+
+### Migrating from `preload` / `showAtOpportunity`
+
+| Before | Now |
+| --- | --- |
+| `controller.preload()` | `controller.prefetch()` |
+| `controller.showAtOpportunity(eligible: x)` | `controller.show(eligible: x)` |
+| load, then show from the load callback | `controller.prefetchAndShow()` |
+
+The verb now decides whether anything is presented: `prefetch` never presents, `show` presents only
+what is already in hand and reports a skip otherwise, and `prefetchAndShow` is the one call that
+presents something you did not explicitly time. `eligible` defaults to `true` on `show`.
 
 Rewarded minimal usage
 ----------------------
@@ -440,14 +455,14 @@ final remoteInterstitial = RemoteInterstitialAd(
 );
 
 final controller = InterstitialPresentationController(ad: remoteInterstitial);
-// Preload ahead of a likely opportunity; catch load failures.
+// Prefetch ahead of a likely opportunity; catch load failures.
 Future<void> prepare() async {
-  try { await controller.preload(); }
-  catch (error) { debugPrint('Preload failed: $error'); }
+  try { await controller.prefetch(); }
+  catch (error) { debugPrint('Prefetch failed: $error'); }
 }
 // Called separately at the actual transition, after checking publisher frequency caps.
 Future<bool> showAtTransition(bool publisherAllowsAd) =>
-    controller.showAtOpportunity(eligible: publisherAllowsAd);
+    controller.show(eligible: publisherAllowsAd);
 // Handle errors from showAtTransition and dispose the controller when no longer needed.
 ```
 
@@ -963,7 +978,7 @@ flow, so loading a Flutter interstitial does not unexpectedly present it.
   and the returned future settles without an error. Check `isReady` before calling `show()`.
   For an awaited flow, use `await ad.load(throwOnFailure: true)` inside `try`/`catch`; this
   throws on failure, cancellation during loading, busy state, or a 120-second timeout.
-  `InterstitialPresentationController.preload()` always uses this strict mode.
+  `InterstitialPresentationController.prefetch()` always uses this strict mode.
 - Concurrent loads share one request; loading an already-ready ad does not replace it. After a
   terminal failure or dismissal the same Dart object may load again with a new ID.
 - `isReady` excludes expired and presenting inventory. Ads expire after one hour; call `load()`
@@ -982,27 +997,28 @@ flow, so loading a Flutter interstitial does not unexpectedly present it.
   showAttempted, presented, impression, dismissed/showFailed, and disposed separately.
 
 These changes improve correctness; a higher render rate alone does not demonstrate more revenue.
-Compare impressions and revenue per session alongside unused preloads and presentation failures.
+Compare impressions and revenue per session alongside unused prefetches and presentation failures.
 
 
 ### Recommended interstitial presentation controller
 
 `InterstitialPresentationController` works with original and remote interstitials. Retain one
-controller per logical placement outside transient page widgets, and use it exclusively to load,
-show and dispose its ad. `preload()` shares an outstanding load and keeps ready inventory.
-`showAtOpportunity(eligible: ...)` immediately skips if the publisher disallows the opportunity,
+controller per logical placement outside transient page widgets, and use it exclusively to prefetch,
+show and dispose its ad. `prefetch()` shares an outstanding load and keeps ready inventory; it never
+presents. `show(eligible: ...)` immediately skips if the publisher disallows the opportunity,
 the ad is unavailable/expired, Flutter is inactive, or another interstitial in this engine is
-presenting. A skipped opportunity is never queued, including across foreground or page changes.
-The ready ad remains available for a later explicit opportunity; no extra request is issued.
+presenting. A skipped opportunity is never queued, including across foreground or page changes —
+that is what `prefetchAndShow()` is for, and it has to be asked for by name. The ready ad remains
+available for a later explicit opportunity; no extra request is issued.
 
 A true result means the native show command was accepted. Use `onAdOpened`, `onAdImpression`,
 `onAdFailedToShow` and `onAdClosed` for the actual outcome. Presentation errors still throw.
 The controller does not infer your frequency cap or own other SDKs' fullscreen ads: compute
-`eligible` at the transition, including your own modal/ad policy. Preloading has no implicit
+`eligible` at the transition, including your own modal/ad policy. Prefetching has no implicit
 publisher eligibility decision. Check that policy before requesting too, when possible.
 
 There is no scheduled show, arbitrary wait period, or dependency on banner smart refresh.
-`dispose()` during presentation preserves callbacks until dismissal/failure. Repeated preload
+`dispose()` during presentation preserves callbacks until dismissal/failure. Repeated prefetch
 calls after dismissal may prepare the next opportunity; never request it just to raise render rate.
 `opportunitySkipped` lifecycle events include a reason when a load is registered. Google iOS
 interstitial load failures now preserve their original error code and domain; Android load events

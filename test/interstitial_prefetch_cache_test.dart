@@ -74,10 +74,10 @@ void main() {
 
   test('four prefetches in a row buy one ad', () async {
     final pending = [
-      controller.preload(),
-      controller.preload(),
-      controller.preload(),
-      controller.preload(),
+      controller.prefetch(),
+      controller.prefetch(),
+      controller.prefetch(),
+      controller.prefetch(),
     ];
     expect(loadCalls(), 1, reason: 'only the first may reach the ad server');
 
@@ -89,20 +89,20 @@ void main() {
   });
 
   test('prefetching again does not replace held inventory', () async {
-    final first = controller.preload();
+    final first = controller.prefetch();
     await event(ad, 'onAdLoaded');
     await first;
     expect(controller.isReady, true);
 
-    await controller.preload();
-    await controller.preload();
+    await controller.prefetch();
+    await controller.prefetch();
 
     expect(loadCalls(), 1, reason: 'a cached ad is not replaced by another prefetch');
     expect(controller.isReady, true);
   });
 
   test('an expired ad is replaced exactly once', () async {
-    final first = controller.preload();
+    final first = controller.prefetch();
     await event(ad, 'onAdLoaded');
     await first;
     expect(controller.isReady, true);
@@ -114,9 +114,9 @@ void main() {
     // Left in flight deliberately: what matters is how many requests were issued, not how they
     // end. Disposal in tearDown cancels them, so their errors are absorbed here.
     for (final pending in [
-      controller.preload(),
-      controller.preload(),
-      controller.preload(),
+      controller.prefetch(),
+      controller.prefetch(),
+      controller.prefetch(),
     ]) {
       unawaited(pending.catchError((Object _) {}));
     }

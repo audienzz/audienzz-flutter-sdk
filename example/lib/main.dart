@@ -7,6 +7,7 @@ import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter_example/pages/banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/interstitial_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/list_with_ads_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/managed_banner_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/ppid_usage_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/remote_banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/remote_interstitial_ad_example.dart';
@@ -64,26 +65,29 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     init = initializeSdk();
   }
 
-  /// Fires once per tab change: report the now-active tab as a screen (fresh page
-  /// impression) and reload that tab's banner ads. A Flutter banner is a platform
-  /// view that can't be re-auctioned in place, so we RECREATE the ad here — which
-  /// blanks the slot (placeholder) during the reload and shows a fresh creative,
-  /// matching the native screen-change reload. This is the recommended pattern for
-  /// screens whose ads stay mounted (tabs); stack routes that unmount reload for
-  /// free on remount.
+  /// Rebuild so each tab's [AudienzzPage] sees its new `active` value.
+  ///
+  /// Reporting the tab from here as well would be a second reporter for one
+  /// transition. Tabs live inside ONE Navigator route, so the observer cannot
+  /// tell them apart — that is exactly what the per-tab [AudienzzPage] wrappers
+  /// below are for. Mixing the two (observer route instances for pushed pages,
+  /// a name-only `pageImpression` for tabs) meant a banner created for the
+  /// initial route was never reassigned to the tab key reported on return.
   void _onTabChanged() {
     final i = _tabController.index;
     if (i == _lastTab) return;
-    _lastTab = i;
-    // Tabs live inside ONE Navigator route, so the RouteObserver can't see them —
-    // report them explicitly by key. (Pushed pages are reported automatically.)
-    AudienzzSdkFlutter.instance.pageImpression(name: _tabKeys[i]);
-    // No manual reload. The page impression above is the whole transition:
-    // native releases every banner that is not on the incoming page and
-    // re-auctions the ones that are, and the widget remounts its platform view
-    // when the native epoch changes. Reloading here as well gave one tab switch
-    // two owners and two auctions, the second discarding the creative the first
-    // had just fetched.
+    setState(() => _lastTab = i);
+  }
+
+  Widget _tabBody(int index) {
+    switch (index) {
+      case 0:
+        return AdsPages(useRemoteConfiguration: useRemoteConfiguration);
+      case 1:
+        return const ListWithAdsExample();
+      default:
+        return const LegacyBannerAdExample();
+    }
   }
 
   @override
@@ -188,15 +192,16 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
               body: TabBarView(
                 controller: _tabController,
                 children: [
-                  // No externally created loaders. Each RemoteBannerAdExample
-                  // owns exactly one, created in its own initState — which runs
-                  // after the Navigator has reported this route, so the ordering
-                  // contract holds with a single owner per slot. Supplying a
-                  // second owner after the first frame made one slot spend two
-                  // requests and display only one of them.
-                  AdsPages(useRemoteConfiguration: useRemoteConfiguration),
-                  ListWithAdsExample(),
-                  LegacyBannerAdExample(),
+                  // One page per tab, and only the selected one is active. Two
+                  // retained tabs are two screens: without this they would share
+                  // the enclosing route's identity, so switching tabs left every
+                  // banner belonging to a screen nobody was looking at.
+                  for (var i = 0; i < _tabKeys.length; i++)
+                    AudienzzPage(
+                      name: _tabKeys[i],
+                      active: _tabController.index == i,
+                      child: _tabBody(i),
+                    ),
                 ],
               ),
             ),
@@ -222,11 +227,15 @@ class _NavigationTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.pageBuilder,
+    this.bare = false,
   });
 
   final String title;
   final String subtitle;
   final WidgetBuilder pageBuilder;
+
+  /// The destination brings its own Scaffold; do not wrap it in another one.
+  final bool bare;
 
   @override
   Widget build(BuildContext context) {
@@ -241,10 +250,12 @@ class _NavigationTile extends StatelessWidget {
           context,
           MaterialPageRoute(
             settings: RouteSettings(name: title),
-            builder: (ctx) => Scaffold(
-              appBar: AppBar(title: Text(title)),
-              body: pageBuilder(ctx),
-            ),
+            builder: (ctx) => bare
+                ? pageBuilder(ctx)
+                : Scaffold(
+                    appBar: AppBar(title: Text(title)),
+                    body: pageBuilder(ctx),
+                  ),
           ),
         );
       },
@@ -339,6 +350,18 @@ final class AdsPages extends StatelessWidget {
                     letterSpacing: 1.1,
                   ),
                 ),
+              ),
+              _NavigationTile(
+                title: 'Managed Banner (recommended)',
+                subtitle: 'AudienzzPage + AudienzzBanner — no loader, no reload, no disposal',
+                pageBuilder: (_) => const ManagedBannerExample(configId: '46'),
+                bare: true,
+              ),
+              _NavigationTile(
+                title: 'Ad-free destination',
+                subtitle: 'Page A → ad-free B → A: leaving releases, returning recreates',
+                pageBuilder: (_) => const AdFreeExample(),
+                bare: true,
               ),
               _NavigationTile(
                 title: 'Test Screen',

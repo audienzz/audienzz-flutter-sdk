@@ -39,7 +39,7 @@ void main() {
   }
 
   Future<void> ready() async {
-    final pending = controller.preload();
+    final pending = controller.prefetch();
     await event(ad, 'onAdLoaded');
     await pending;
   }
@@ -66,25 +66,72 @@ void main() {
     messenger.setMockMethodCallHandler(channel, null);
   });
 
-  test('a missed opportunity never displays when a slow preload completes',
+  test('prefetch alone never presents, and prefetchAndShow reuses it', () async {
+    await ready();
+    expect(calls.where((c) => c.method == 'showAdWithoutView'), isEmpty,
+        reason: 'a prefetch must not present');
+
+    expect(await controller.prefetchAndShow(), true);
+    expect(calls.where((c) => c.method == 'showAdWithoutView').length, 1);
+    // Inventory already in hand: no second request was spent on it.
+    expect(calls.where((c) => c.method == 'loadInterstitialAd').length, 1);
+  });
+
+  test('prefetchAndShow presents once when the load completes', () async {
+    final pending = controller.prefetchAndShow();
+    expect(calls.where((c) => c.method == 'showAdWithoutView'), isEmpty,
+        reason: 'nothing to present until the ad arrives');
+    await event(ad, 'onAdLoaded');
+    expect(await pending, true);
+    expect(calls.where((c) => c.method == 'showAdWithoutView').length, 1);
+  });
+
+  test('concurrent prefetchAndShow calls share one load and one presentation',
       () async {
-    final first = controller.preload();
-    final second = controller.preload();
-    expect(await controller.showAtOpportunity(eligible: true), false);
+    final first = controller.prefetchAndShow();
+    final second = controller.prefetchAndShow();
+    expect(calls.where((c) => c.method == 'loadInterstitialAd').length, 1,
+        reason: 'repeated calls must join the request in flight');
+    await event(ad, 'onAdLoaded');
+    final results = await Future.wait([first, second]);
+    expect(results.where((submitted) => submitted).length, 1,
+        reason: 'one presentation, not one per caller');
+    expect(calls.where((c) => c.method == 'showAdWithoutView').length, 1);
+  });
+
+  test('prefetchAndShow is cancelled by a backgrounded app, not queued',
+      () async {
+    final pending = controller.prefetchAndShow();
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await event(ad, 'onAdLoaded');
+    expect(await pending, false);
+    expect(calls.where((c) => c.method == 'showAdWithoutView'), isEmpty);
+    // Returning to the foreground must not replay it; the ad is kept for an
+    // opportunity the publisher chooses.
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    expect(calls.where((c) => c.method == 'showAdWithoutView'), isEmpty);
+    expect(controller.isReady, true);
+  });
+
+  test('a missed opportunity never displays when a slow prefetch completes',
+      () async {
+    final first = controller.prefetch();
+    final second = controller.prefetch();
+    expect(await controller.show(eligible: true), false);
     await event(ad, 'onAdLoaded');
     await Future.wait([first, second]);
-    await controller.preload();
+    await controller.prefetch();
     expect(controller.isReady, true);
     expect(calls.where((c) => c.method == 'loadInterstitialAd').length, 1);
     expect(calls.where((c) => c.method == 'showAdWithoutView'), isEmpty);
-    expect(await controller.showAtOpportunity(eligible: true), true);
-    expect(await controller.showAtOpportunity(eligible: true), false);
+    expect(await controller.show(eligible: true), true);
+    expect(await controller.show(eligible: true), false);
     expect(calls.where((c) => c.method == 'showAdWithoutView').length, 1);
   });
 
   test('a frequency cap skips the opportunity and retains the ad', () async {
     await ready();
-    expect(await controller.showAtOpportunity(eligible: false), false);
+    expect(await controller.show(eligible: false), false);
     expect(controller.isReady, true);
     expect(calls.where((c) => c.method == 'showAdWithoutView'), isEmpty);
   });
@@ -92,45 +139,45 @@ void main() {
   test('background has no pending show to replay on foreground', () async {
     await ready();
     binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    expect(await controller.showAtOpportunity(eligible: true), false);
+    expect(await controller.show(eligible: true), false);
     binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     expect(calls.where((c) => c.method == 'showAdWithoutView'), isEmpty);
     expect(controller.isReady, true);
-    expect(await controller.showAtOpportunity(eligible: true), true);
+    expect(await controller.show(eligible: true), true);
   });
 
   test('another interstitial presentation preserves this ready ad', () async {
     await ready();
     final otherAd = makeAd();
     final other = InterstitialPresentationController(ad: otherAd);
-    final pending = other.preload();
+    final pending = other.prefetch();
     await event(otherAd, 'onAdLoaded');
     await pending;
-    expect(await other.showAtOpportunity(eligible: true), true);
-    expect(await controller.showAtOpportunity(eligible: true), false);
+    expect(await other.show(eligible: true), true);
+    expect(await controller.show(eligible: true), false);
     expect(controller.isReady, true);
     await event(otherAd, 'onAdClosed');
-    expect(await controller.showAtOpportunity(eligible: true), true);
+    expect(await controller.show(eligible: true), true);
     await other.dispose();
   });
 
   test('disposing a presenting controller retains callbacks until terminal',
       () async {
     await ready();
-    expect(await controller.showAtOpportunity(eligible: true), true);
+    expect(await controller.show(eligible: true), true);
     final id = adInstanceManager.adIdFor(ad);
     await controller.dispose();
     expect(adInstanceManager.adIdFor(ad), id);
-    expect(await controller.showAtOpportunity(eligible: true), false);
-    await expectLater(controller.preload(), throwsStateError);
+    expect(await controller.show(eligible: true), false);
+    await expectLater(controller.prefetch(), throwsStateError);
     await event(ad, 'onAdClosed');
     expect(adInstanceManager.adIdFor(ad), isNull);
   });
 
   test('disposed preload cannot resurrect an earlier show opportunity',
       () async {
-    final pending = expectLater(controller.preload(), throwsStateError);
-    expect(await controller.showAtOpportunity(eligible: true), false);
+    final pending = expectLater(controller.prefetch(), throwsStateError);
+    expect(await controller.show(eligible: true), false);
     await controller.dispose();
     await pending;
     expect(controller.isReady, false);
@@ -140,7 +187,7 @@ void main() {
   test('Google load code domain and message survive the event bridge',
       () async {
     final pending = expectLater(
-        controller.preload(),
+        controller.prefetch(),
         throwsA(isA<AdError>()
             .having((e) => e.code, 'code', 7)
             .having((e) => e.domain, 'domain', 'com.google.admob')
