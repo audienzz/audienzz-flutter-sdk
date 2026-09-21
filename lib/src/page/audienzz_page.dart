@@ -143,7 +143,7 @@ class _AudienzzPageState extends State<AudienzzPage> {
   @override
   void didUpdateWidget(AudienzzPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.id != widget.id || oldWidget.name != widget.name) {
+    if (oldWidget.id != widget.id) {
       // A different identity is a different page: retire the old owner
       // completely — including its route binding, under the OLD handle — and
       // activate the new one even if focus never dropped. Resetting _isActive
@@ -160,6 +160,24 @@ class _AudienzzPageState extends State<AudienzzPage> {
         _bindToRoute();
       }
       _maybeActivate();
+      return;
+    }
+    if (oldWidget.name != widget.name) {
+      // A LABEL, not an identity. Renaming what analytics calls this screen is not a
+      // navigation: the reader has not gone anywhere, the route is the same one, and the slots
+      // on it are the same slots. Retiring the page here reported a second visit and
+      // re-auctioned every banner on it.
+      //
+      // The handle is rebuilt so the NEXT report carries the new label, keeping the same id —
+      // which is what identity, route binding, the managed-activation dedupe and a banner's slot
+      // key are all matched on, so nothing downstream moves.
+      final renamed = AudienzzPageHandle(id: _page.id, name: widget.name);
+      _handle = renamed;
+      final route = _boundRoute;
+      if (route != null) {
+        AudienzzPageRegistry.instance.bind(route, renamed);
+      }
+      setState(() {});
       return;
     }
     if (!widget.active && oldWidget.active) {

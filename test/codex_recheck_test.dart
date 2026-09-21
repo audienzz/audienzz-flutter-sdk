@@ -147,6 +147,20 @@ void main() {
     expect(pageReports(),hasLength(1));
   });
 
+  testWidgets('RECHECK renaming the analytics label is not a new visit', (tester) async {
+    Widget page(String name) => app(AudienzzPage(name:name,child:const AudienzzBanner(adConfigId:'managed',slotKey:'a')));
+    await tester.pumpWidget(page('article')); await tester.pumpAndSettle();
+    expect(pageReports(),hasLength(1));
+    expect(loadCount(),1);
+    final id=pageReports().single['pageId'];
+
+    // Same screen, same route, a different label for analytics.
+    await tester.pumpWidget(page('article/detail')); await tester.pumpAndSettle();
+    expect(pageReports(),hasLength(1),reason:'a label is not a navigation');
+    expect(loadCount(),1,reason:'and it must not re-auction the slot');
+    expect(loadedPageKeys(),[id]);
+  });
+
   testWidgets('RECHECK managed article routes have distinct ownership by default', (tester) async {
     final nav=GlobalKey<NavigatorState>();
     const body=Scaffold(body:AudienzzPage(name:'article',child:AudienzzBanner(adConfigId:'managed',slotKey:'a')));
