@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/remote_banner_ad.dart';
+import 'package:audienzz_sdk_flutter/src/audienzz_diagnostics.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page.dart';
 import 'package:audienzz_sdk_flutter/src/widgets/ad_widget.dart';
@@ -218,6 +219,12 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
       return;
     }
     if (!scope.isActive) {
+      AudienzzDiagnostics.log('slot', 'hold', {
+        'slot': widget.slotKey,
+        'config': widget.adConfigId,
+        'page': scope.page.id,
+        'reason': 'pageNotActive',
+      });
       // A pre-built, unfocused tab must not buy an ad, and an ad created before
       // its page is reported would be swept as belonging to the previous page.
       //
@@ -258,6 +265,10 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
     }
     _ad = null;
     _ownedSlot = null;
+    AudienzzDiagnostics.log('slot', 'retire', {
+      'slot': widget.slotKey,
+      'config': widget.adConfigId,
+    });
     // Report the hold explicitly before disposing. Relying on AdWidget's own
     // dispose to send it is a race: `dispose()` deregisters the ad first, and
     // AdWidget then has no id to report against, so the last verdict native saw
@@ -277,6 +288,17 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
     _ownerGeneration++;
     final owner = _ownerGeneration;
     final scope = AudienzzPageScope.maybeOf(context);
+    // The ownership question, answered at birth: which page this slot belongs
+    // to. A slot whose page is not the one the reader is on is the shape of
+    // every "my banner never loads" report.
+    AudienzzDiagnostics.log('slot', 'create', {
+      'slot': widget.slotKey,
+      'config': widget.adConfigId,
+      'page': scope?.page.id,
+      'lazy': widget.isLazyLoad,
+      'paused': _publisherStopped,
+      'gen': owner,
+    });
     final ad = RemoteBannerAd(
       configId: widget.adConfigId,
       isLazyLoad: widget.isLazyLoad,

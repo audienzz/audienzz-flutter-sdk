@@ -896,6 +896,14 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             result(PPIDManager.shared.getPPID())
 
 
+        // One greppable AUDZ line per slot decision; see AUDiagnostics.
+        case "setDiagnosticsEnabled":
+            if let args = call.arguments as? [String: Any],
+               let enabled = args["enabled"] as? Bool {
+                Audienzz.shared.diagnosticsEnabled = enabled
+            }
+            result(nil)
+
         // Force smart-refresh v2 on/off, overriding the backend smartRefreshV2 config.
         case "setSmartRefreshV2Enabled":
             if let args = call.arguments as? [String: Any],

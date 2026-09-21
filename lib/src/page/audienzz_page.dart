@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audienzz_sdk_flutter/src/audienzz_diagnostics.dart';
 import 'package:audienzz_sdk_flutter/src/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page_handle.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page_registry.dart';
@@ -197,6 +198,14 @@ class _AudienzzPageState extends State<AudienzzPage> {
   /// active: otherwise a banner added to it afterwards is created as if it were
   /// on the foreground page, and it can never be re-activated on a return.
   void _standDown({bool rebuild = true}) {
+    // The reason matters more than the fact: "not focused" is the navigator
+    // having moved on, "host" is the app's own `active: false`. Reading a log
+    // back, those two look identical without this.
+    AudienzzDiagnostics.log('page', 'standDown', {
+      'id': _page.id,
+      'name': _page.name,
+      'reason': !_focused ? 'notFocused' : 'host',
+    });
     _activationScheduled = false;
     // Hand the route back, so a sibling tab that gains focus becomes the
     // authority for it, and forget the managed activation so returning here
@@ -236,6 +245,12 @@ class _AudienzzPageState extends State<AudienzzPage> {
         return;
       }
       _bindToRoute();
+      AudienzzDiagnostics.log('page', 'activate', {
+        'id': _page.id,
+        'name': _page.name,
+        'focused': _focused,
+        'hostActive': widget.active,
+      });
       unawaited(
         AudienzzPageRegistry.instance.activateOnce(
           _page,

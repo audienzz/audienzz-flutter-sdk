@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/ads/base/ad_with_view.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/banner_ad.dart';
+import 'package:audienzz_sdk_flutter/src/audienzz_diagnostics.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/refresh/smart_refresh_policy.dart';
 import 'package:flutter/foundation.dart';
@@ -312,6 +313,19 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
         banner,
         visible: shouldBeActive,
       ),
+    );
+    // Outside the kDebugMode guard below on purpose: the whole point of
+    // diagnostics is that they survive the build a tester is actually running.
+    AudienzzDiagnostics.log(
+      'viewport',
+      shouldBeActive ? 'visible' : 'hidden',
+      {
+        'fraction': fraction.toStringAsFixed(2),
+        'routeCurrent': routeIsCurrent,
+        'covered': covered,
+        'obscured': obscured,
+        'appResumed': _appResumed,
+      },
     );
     if (kDebugMode) {
       debugPrint(

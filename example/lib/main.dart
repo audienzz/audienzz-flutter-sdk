@@ -118,6 +118,10 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     // Opt into smart-refresh v2 (directional viewport gate) instead of the legacy 20% gate,
     // and blank the slot during a screen-resume reload — parity with the native iOS/Android SDKs.
     // Both override backend config for the session; call before creating banners.
+    // One greppable AUDZ line per slot decision, on the Dart side and in both native SDKs.
+    // Capture with `flutter logs` and grep AUDZ. On by default HERE because this app exists to
+    // be tested and have its log read back; in a real app it is off unless you ask for it.
+    await AudienzzSdkFlutter.instance.setDiagnosticsEnabled(true);
     await AudienzzSdkFlutter.instance.setSmartRefreshV2Enabled(true);
     await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
 

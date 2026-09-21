@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
+import 'package:audienzz_sdk_flutter/src/audienzz_diagnostics.dart';
 import 'package:audienzz_sdk_flutter/src/audienzz_targeting.dart';
 import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_publisher_configuration.dart';
@@ -146,6 +147,27 @@ final class AudienzzSdkFlutter {
     return adInstanceManager.methodChannel.invokeMethod(
       'setSchainObject',
       {'schain': schain},
+    );
+  }
+
+  /// Emit one greppable `AUDZ …` line per decision the SDK makes about a slot:
+  /// which page became current, which page a slot belongs to, when an auction
+  /// started, and why one did not.
+  ///
+  /// Off by default. Turn it on when you need a log you can capture on a device
+  /// and hand to someone else. This switches on the Dart side *and* both native
+  /// SDKs, which emit the same line format, so one capture covers the whole
+  /// stack — the Dart decision (focus, viewport gate) and the native
+  /// consequence (auction, refresh block) appear in one stream.
+  ///
+  /// Collect with `flutter logs`, `adb logcat -s flutter` or the Xcode console;
+  /// route it elsewhere with [AudienzzDiagnostics.sink].
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setDiagnosticsEnabled(bool enabled) {
+    AudienzzDiagnostics.isEnabled = enabled;
+    return adInstanceManager.methodChannel.invokeMethod(
+      'setDiagnosticsEnabled',
+      {'enabled': enabled},
     );
   }
 

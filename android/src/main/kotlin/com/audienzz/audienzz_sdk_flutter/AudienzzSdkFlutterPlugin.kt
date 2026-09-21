@@ -466,6 +466,12 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 result.success(null)
             }
 
+            // One greppable AUDZ line per slot decision; see AudienzzDiagnostics.
+            "setDiagnosticsEnabled" -> {
+                AudienzzPrebidMobile.diagnosticsEnabled = call.argument<Boolean>("enabled") ?: false
+                result.success(null)
+            }
+
             // Force smart-refresh v2 on/off, overriding the backend smartRefreshV2 config.
             "setSmartRefreshV2Enabled" -> {
                 AudienzzPrebidMobile.smartRefreshV2Override = call.argument<Boolean>("enabled") ?: false

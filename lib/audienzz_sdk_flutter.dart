@@ -9,6 +9,7 @@ export 'src/ads/implementation/remote_banner_ad.dart';
 export 'src/ads/implementation/remote_interstitial_ad.dart';
 export 'src/ads/implementation/rewarded_ad.dart';
 export 'src/ads/interstitial_presentation_controller.dart';
+export 'src/audienzz_diagnostics.dart';
 export 'src/audienzz_sdk_flutter.dart';
 export 'src/audienzz_targeting.dart';
 export 'src/entities/ad_error.dart';
