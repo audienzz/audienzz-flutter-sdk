@@ -8,6 +8,7 @@ import 'package:audienzz_sdk_flutter_example/pages/banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/interstitial_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/list_with_ads_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/managed_banner_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/managed_flows_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/ppid_usage_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/remote_banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/remote_interstitial_ad_example.dart';
@@ -76,6 +77,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   void _onTabChanged() {
     final i = _tabController.index;
     if (i == _lastTab) return;
+    AudienzzDiagnostics.logAppAction('selectTab', {'tab': _tabKeys[i]});
     setState(() => _lastTab = i);
   }
 
@@ -248,6 +250,7 @@ class _NavigationTile extends StatelessWidget {
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.chevron_right, size: 18),
       onTap: () {
+        AudienzzDiagnostics.logAppAction('navigate', {'to': title});
         // Name the route; AudienzzNavigatorObserver reports the screen on push and
         // reports the revealed screen again on return — no pageImpression call here.
         Navigator.push(
@@ -359,6 +362,12 @@ final class AdsPages extends StatelessWidget {
                 title: 'Managed Banner (recommended)',
                 subtitle: 'AudienzzPage + AudienzzBanner — no loader, no reload, no disposal',
                 pageBuilder: (_) => const ManagedBannerExample(configId: '46'),
+                bare: true,
+              ),
+              _NavigationTile(
+                title: 'Managed test flows',
+                subtitle: 'A→B→A, repeated articles, delayed content, retained tabs, cover',
+                pageBuilder: (_) => const ManagedFlowsExample(configId: '46'),
                 bare: true,
               ),
               _NavigationTile(

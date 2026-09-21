@@ -28,6 +28,14 @@ class AudienzzDiagnostics {
   /// the field can send back.
   static void Function(String line) sink = debugPrint;
 
+  /// Log an action the PERSON took, into the same stream as the SDK's own decisions.
+  ///
+  /// For example and QA apps. A captured log then reads back as a sequence — "navigated to
+  /// settings", then what the SDK did about it — instead of needing someone to remember what they
+  /// tapped and in what order. A no-op unless diagnostics are on, like everything else here.
+  static void logAppAction(String action, [Map<String, Object?> fields = const {}]) =>
+      log('app', action, fields);
+
   static void log(
     String subsystem,
     String event, [

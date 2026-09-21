@@ -14,8 +14,18 @@ buildscript {
     }
 }
 
+// Local-native testing hook. The DEFAULT is the published pin below; setting
+// `audienzzNativeVersion` (see example/android/gradle.properties) swaps in a build you published
+// with `./gradlew :Audienzz:publishToMavenLocal` in the android-sdk checkout.
+//
+// Deliberately a property rather than an edit: this file ships inside the pub package, and a
+// hardcoded `-local` version in it would follow every publisher who installs the SDK.
+def audienzzNativeVersion = project.findProperty("audienzzNativeVersion") ?: "0.2.2"
+
 allprojects {
     repositories {
+        // Consulted first so a locally published build wins when one is asked for. Harmless
+        // otherwise: nothing resolves from it unless the requested version is only there.
         mavenLocal()
         google()
         mavenCentral()
@@ -59,7 +69,7 @@ android {
 
     dependencies {
         implementation 'com.google.android.gms:play-services-ads:25.1.0'
-        implementation 'com.audienzz:sdk:0.2.2'
+        implementation "com.audienzz:sdk:$audienzzNativeVersion"
         implementation 'androidx.multidex:multidex:2.0.1'
         implementation 'androidx.core:core-ktx:1.15.0'
 
