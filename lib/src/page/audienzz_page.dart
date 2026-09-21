@@ -171,14 +171,17 @@ class _AudienzzPageState extends State<AudienzzPage> {
       // The handle is rebuilt so the NEXT report carries the new label, keeping the same id —
       // which is what identity, route binding, the managed-activation dedupe and a banner's slot
       // key are all matched on, so nothing downstream moves.
+      //
+      // Deliberately NOT a `return`: one rebuild can change the label AND the selection, which is
+      // exactly what a tab bar that names its tabs from data does. Returning here swallowed the
+      // focus change — selecting the page left its slot empty, deselecting it left the banner's
+      // owner live. No setState either; didUpdateWidget is always followed by a build.
       final renamed = AudienzzPageHandle(id: _page.id, name: widget.name);
       _handle = renamed;
       final route = _boundRoute;
       if (route != null) {
         AudienzzPageRegistry.instance.bind(route, renamed);
       }
-      setState(() {});
-      return;
     }
     if (!widget.active && oldWidget.active) {
       _standDown();

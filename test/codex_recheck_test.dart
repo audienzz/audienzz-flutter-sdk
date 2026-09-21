@@ -161,6 +161,32 @@ void main() {
     expect(loadedPageKeys(),[id]);
   });
 
+  testWidgets('RECHECK a label change alongside focus still applies the focus', (tester) async {
+    Widget page(String name, bool active) => app(AudienzzPage(name:name,active:active,child:const AudienzzBanner(adConfigId:'managed',slotKey:'a')));
+    // Deselected to begin with: nothing exists.
+    await tester.pumpWidget(page('article',false)); await tester.pumpAndSettle();
+    expect(loadCount(),0);
+
+    // Selected AND relabelled in the same rebuild — a tab bar that names its tabs dynamically
+    // does exactly this.
+    await tester.pumpWidget(page('article/detail',true)); await tester.pumpAndSettle();
+    expect(pageReports(),hasLength(1),reason:'becoming current must still report');
+    expect(loadCount(),1,reason:'and the slot must not be left empty');
+    expect(pageReports().single['name'],'article/detail');
+  });
+
+  testWidgets('RECHECK a label change alongside deselection still stands the page down', (tester) async {
+    Widget page(String name, bool active) => app(AudienzzPage(name:name,active:active,child:const AudienzzBanner(adConfigId:'managed',slotKey:'a')));
+    await tester.pumpWidget(page('article',true)); await tester.pump(const Duration(seconds:1));
+    expect(loadCount(),1);
+    final verdicts = () => calls.where((c)=>c.method=='setBannerViewportVisible').map((c)=>(c.arguments as Map)['visible']).toList();
+    expect(verdicts().last,true,reason:'control: the banner really was live');
+
+    // Deselected AND relabelled in the same rebuild.
+    await tester.pumpWidget(page('article/detail',false)); await tester.pump(const Duration(seconds:2));
+    expect(verdicts().last,false,reason:'a deselected page must not keep an active owner');
+  });
+
   testWidgets('RECHECK managed article routes have distinct ownership by default', (tester) async {
     final nav=GlobalKey<NavigatorState>();
     const body=Scaffold(body:AudienzzPage(name:'article',child:AudienzzBanner(adConfigId:'managed',slotKey:'a')));
