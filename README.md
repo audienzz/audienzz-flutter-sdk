@@ -9,7 +9,8 @@ Audienzz SDK Flutter
 > (`com.audienzz:sdk:0.2.2`) and `example/ios/Podfile` (`AudienzziOSSDK 0.3.2`) name the
 > **currently published** versions, which do not provide them. Ship in this order:
 >
-> 1. Release the native SDKs (iOS and Android) carrying these APIs.
+> 1. Release the native SDKs (iOS and Android) carrying these APIs — their version constants are
+>    already bumped to **iOS 0.3.3 / Android 0.2.3**, so those are the versions to re-pin to.
 > 2. Re-pin this package's `android/build.gradle` and `example/ios/Podfile` to those
 >    versions, and bump `pubspec.yaml`.
 > 3. Build and run **those exact combinations** — a local `:path` / `mavenLocal` build
@@ -19,6 +20,89 @@ Audienzz SDK Flutter
 > To verify locally in the meantime, point `example/ios/Podfile` at the iOS checkout with
 > `:path` and publish the Android SDK to `mavenLocal`, then **restore both pins** before
 > committing.
+
+## Quick integration (remote config + `pageImpression`)
+
+The recommended path: your ad units come from the Audienzz publisher config, and you tell the SDK
+which screen is current. Four steps.
+
+### 1. Install
+
+```yaml
+dependencies:
+  audienzz_sdk_flutter: ^<latest>
+```
+
+Add your GAM/AdMob app ID to `Info.plist` (`GADApplicationIdentifier`) and
+`AndroidManifest.xml` (`com.google.android.gms.ads.APPLICATION_ID`).
+
+### 2. Initialize once, before `runApp` completes
+
+```dart
+final status = await AudienzzSdkFlutter.instance.initializeRemote(
+  publisherId: 'YOUR_PUBLISHER_ID',   // provided by Audienzz
+  remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1',
+);
+```
+
+Run your CMP **before** this and forward the result through `AudienzzTargeting` — see
+[Consent](#consent). Initializing first requests ads without the consent signals.
+
+### 3. Report every screen
+
+Add the navigator observer once, and the SDK follows your routes:
+
+```dart
+MaterialApp(
+  navigatorObservers: [AudienzzNavigatorObserver()],
+  ...
+)
+```
+
+For a screen the observer cannot see (a tab, a nested navigator, a dialog), report it yourself:
+
+```dart
+await AudienzzSdkFlutter.instance.pageImpression(context: context);
+// or, with no context: pageImpression(name: 'article')
+```
+
+This is the one thing the SDK cannot do for you: it groups a visit's ad events, and it is what
+releases the *previous* screen's banners. **Report ad-free screens too** — skipping them leaves the
+previous screen's banners auctioning for a screen nobody is looking at.
+
+### 4. Place ads
+
+Banner — keep `AdWidget` in the tree from the first build so the platform view attaches (that is
+what lets lazy loading fire):
+
+```dart
+final ad = RemoteBannerAd(
+  configId: 'YOUR_CONFIG_ID',
+  onAdLoaded: (_) => setState(() {}),
+  onAdFailedToLoad: (_, error) => debugPrint('banner failed: $error'),
+)..load();
+
+// in build():
+SizedBox(width: w, height: h, child: AdWidget(ad: ad))
+```
+
+Interstitial — three verbs, and the distinction between them is deliberate:
+
+```dart
+final controller = InterstitialPresentationController(ad: ad);
+
+await controller.prefetch();         // obtain and retain one ad; never presents
+await controller.show(eligible: true); // present what is in hand, or skip — never later
+await controller.prefetchAndShow();  // the one call that presents something you did not time
+```
+
+### That's it
+
+You do not have to wait for initialization before building ad widgets. An auction that would start
+before the native SDK is ready is deferred and taken as soon as it is — so a banner built during
+launch fills normally rather than losing its one request.
+
+---
 
 ## Overview
 
