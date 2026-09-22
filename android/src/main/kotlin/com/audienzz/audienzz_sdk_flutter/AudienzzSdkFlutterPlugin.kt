@@ -70,10 +70,9 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
 
             "initialize" -> {
                 // Flutter fetches the publisher config in Dart, so the native SDK never sees it and
-                // cannot read these itself. Absent values stay null and native keeps its default.
+                // cannot read this itself. An absent value stays null and native keeps its default.
                 AudienzzPrebidMobile.applyBackendPpidConfig(
                     ppidEnabled = call.argument<Boolean?>("ppidEnabled"),
-                    automaticPpidEnabled = call.argument<Boolean?>("automaticPpidEnabled"),
                 )
                 audienzzSdkWrapper.initialize(
                     context,

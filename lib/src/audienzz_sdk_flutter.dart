@@ -128,9 +128,8 @@ final class AudienzzSdkFlutter {
       companyId: config?.ortb.schain?.sellerId ?? '1',
       prebidServerUrl: config?.prebidServer.url,
       // Flutter fetches the publisher config in Dart, so the native SDK never sees it and cannot
-      // read these itself. Absent values stay null and native applies its own default (enabled).
+      // read this itself. An absent value stays null and native applies its own default (enabled).
       ppidEnabled: config?.ppidEnabled,
-      automaticPpidEnabled: config?.automaticPpidEnabled,
     );
   }
 

@@ -587,13 +587,11 @@ PpidManager
 A PPID is **always** sent with ad requests — the SDK generates one (persisted
 locally, rotated every 12 months) whenever you haven't supplied your own. There
 is no enable/disable switch in the SDK: a missing PPID costs frequency capping
-and cross-session targeting. It is suppressed only when consent is missing, or
-when your publisher config turns it off:
+and cross-session targeting. One backend switch suppresses it:
 
 | Publisher config field | Effect when `false` | Absent |
 |---|---|---|
 | `ppidEnabled` | No PPID is sent at all, including one you supplied | Enabled |
-| `automaticPpidEnabled` | The SDK stops generating its own UUID; a PPID you supplied is still sent | Enabled |
 
 API Reference
 =============

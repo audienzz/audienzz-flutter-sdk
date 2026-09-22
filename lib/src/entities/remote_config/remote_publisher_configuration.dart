@@ -11,7 +11,6 @@ class RemotePublisherConfiguration {
     this.android,
     this.ios,
     this.ppidEnabled,
-    this.automaticPpidEnabled,
     this.smartRefreshV2,
   });
 
@@ -29,7 +28,6 @@ class RemotePublisherConfiguration {
           ? IosConfig.fromJson(json['ios'] as Map<String, dynamic>)
           : null,
       ppidEnabled: json['ppidEnabled'] as bool?,
-      automaticPpidEnabled: json['automaticPpidEnabled'] as bool?,
       smartRefreshV2: json['smartRefreshV2'] as bool?,
     );
   }
@@ -45,10 +43,6 @@ class RemotePublisherConfiguration {
   /// privacy switch, not a preference. Absent/null → enabled.
   final bool? ppidEnabled;
 
-  /// Backend switch for the SDK-generated PPID only. `false` stops the SDK minting and rotating
-  /// its own UUID; a PPID the app supplied is still sent. Absent/null → enabled.
-  final bool? automaticPpidEnabled;
-
   /// Backend selection of the smart-refresh viewport gate. `true` selects the
   /// v2 directional rule, `false` or absent keeps the legacy v1 threshold.
   /// A local override set through
@@ -62,8 +56,6 @@ class RemotePublisherConfiguration {
         if (android != null) 'android': android!.toJson(),
         if (ios != null) 'ios': ios!.toJson(),
         if (ppidEnabled != null) 'ppidEnabled': ppidEnabled,
-        if (automaticPpidEnabled != null)
-          'automaticPpidEnabled': automaticPpidEnabled,
         if (smartRefreshV2 != null) 'smartRefreshV2': smartRefreshV2,
       };
 }

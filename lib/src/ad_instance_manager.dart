@@ -158,7 +158,6 @@ final class AdInstanceManager {
     required String companyId,
     String? prebidServerUrl,
     bool? ppidEnabled,
-    bool? automaticPpidEnabled,
   }) async {
     try {
       final initializationStatus =
@@ -168,8 +167,6 @@ final class AdInstanceManager {
           'companyId': companyId,
           if (prebidServerUrl != null) 'prebidServerUrl': prebidServerUrl,
           if (ppidEnabled != null) 'ppidEnabled': ppidEnabled,
-          if (automaticPpidEnabled != null)
-            'automaticPpidEnabled': automaticPpidEnabled,
         },
       );
 
