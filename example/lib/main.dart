@@ -314,6 +314,22 @@ final class AdsPages extends StatelessWidget {
       ),
     );
 
+    // One under every ad slot, matching the native examples: the screen-navigation test is about
+    // what happens to THAT banner when you leave and come back, so the button has to be reachable
+    // while the slot it concerns is on screen. Which one you tapped is printed, because four
+    // identical buttons would otherwise make a captured log ambiguous.
+    Widget openTestScreen(BuildContext context, String from) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ElevatedButton(
+            onPressed: () {
+              debugPrint('[Example] opening test screen ($from)');
+              Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const TestScreenExample()));
+            },
+            child: Text('Open test screen ($from)'),
+          ),
+        );
+
     return Padding(
       padding: viewPadding,
       child: Scaffold(
@@ -326,6 +342,7 @@ final class AdsPages extends StatelessWidget {
                 child: Text('Remote Banner Ad (46)'),
               ),
               RemoteBannerAdExample(configId: '46'),
+              openTestScreen(context, 'from banner 46'),
 
               loremIpsum(),
 
@@ -335,6 +352,7 @@ final class AdsPages extends StatelessWidget {
                 child: Text('Remote Banner Ad (48)'),
               ),
               RemoteBannerAdExample(configId: '48'),
+              openTestScreen(context, 'from banner 48'),
 
               loremIpsum(),
 

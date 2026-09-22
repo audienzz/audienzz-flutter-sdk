@@ -28,12 +28,27 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
   bool _showing = false;
   String? _error;
 
+  /// One line that always says where the ad is.
+  ///
+  /// The button labels carried this before, which meant the two states that matter most could not
+  /// be told apart: an ad sitting ready and an ad never fetched both showed "Prefetch". Matches
+  /// the vocabulary the native examples print, so a log reads the same on every platform.
+  String _status = 'not loaded';
+
+  void _setStatus(String status) {
+    if (!mounted) return;
+    setState(() => _status = status);
+    debugPrint('[Interstitial] $status');
+  }
+
   void _terminal(InterstitialAd ad, [AdError? error]) {
     if (!mounted || !identical(ad, _ad)) return;
     setState(() {
       _showing = false;
       _error = error?.message;
     });
+    // Inventory is spent on presentation, so the slot really is empty again.
+    _setStatus(error == null ? 'closed — not loaded' : 'failed to show: ${error.message}');
   }
 
   @override
@@ -44,23 +59,28 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
       ad = RemoteInterstitialAd(
           configId: widget.configId!,
           adFormat: AdFormat.bannerAndVideo,
-          onAdLoaded: (_) {},
-          onAdFailedToLoad: (_, __) {},
+          // After a plain prefetch this is where it stops: ready, nothing on screen.
+          onAdLoaded: (_) => _setStatus('ready to show'),
+          onAdFailedToLoad: (_, error) => _setStatus('load failed: ${error?.message ?? 'unknown'}'),
           onAdClosed: _terminal,
           onAdFailedToShow: _terminal,
-          onLifecycleEvent: (_, event) =>
-              debugPrint('Interstitial ${event.loadId}: ${event.name}'));
+          onLifecycleEvent: (_, event) {
+            if (event.name == 'opportunitySkipped') _setStatus('opportunity skipped');
+            debugPrint('Interstitial ${event.loadId}: ${event.name}');
+          });
     } else {
       ad = InterstitialAd(
           adFormat: AdFormat.bannerAndVideo,
           adUnitId: '/21775744923/example/interstitial',
           auConfigId: '34400101',
-          onAdLoaded: (_) {},
-          onAdFailedToLoad: (_, __) {},
+          onAdLoaded: (_) => _setStatus('ready to show'),
+          onAdFailedToLoad: (_, error) => _setStatus('load failed: ${error?.message ?? 'unknown'}'),
           onAdClosed: _terminal,
           onAdFailedToShow: _terminal,
-          onLifecycleEvent: (_, event) =>
-              debugPrint('Interstitial ${event.loadId}: ${event.name}'));
+          onLifecycleEvent: (_, event) {
+            if (event.name == 'opportunitySkipped') _setStatus('opportunity skipped');
+            debugPrint('Interstitial ${event.loadId}: ${event.name}');
+          });
     }
     _ad = ad;
     _controller = InterstitialPresentationController(ad: ad);
@@ -71,6 +91,7 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
       _loading = true;
       _error = null;
     });
+    _setStatus('loading…');
     try {
       // Deliberately NOT guarded here: repeated taps must be safe at the SDK
       // boundary, and they are — a second call joins the request in flight or
@@ -97,6 +118,8 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
     });
     try {
       final submitted = await _controller.show(eligible: true);
+      // Reported rather than silently queued: `show` takes an opportunity or skips it.
+      _setStatus(submitted ? 'showing' : 'not ready — nothing to show (prefetch first)');
       if (!submitted && mounted) {
         setState(() {
           _showing = false;
@@ -118,6 +141,7 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
       _showing = true;
       _error = null;
     });
+    _setStatus('loading… (will show when ready)');
     try {
       final submitted = await _controller.prefetchAndShow();
       if (!submitted && mounted) {
@@ -147,13 +171,18 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
   @override
   Widget build(BuildContext context) => Center(
           child: Column(children: [
+        Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(_status,
+                style: const TextStyle(fontFamily: 'monospace'),
+                textAlign: TextAlign.center)),
         if (_error != null) Text(_error!),
         ElevatedButton(
             onPressed: _prefetch,
             child: Text(_loading ? 'Loading…' : 'Prefetch')),
         ElevatedButton(
             onPressed: _show,
-            child: Text(_showing ? 'Presenting…' : 'Show at this transition')),
+            child: Text(_showing ? 'Presenting…' : 'Show')),
         ElevatedButton(
             onPressed: _prefetchAndShow,
             child: const Text('Prefetch and show')),
