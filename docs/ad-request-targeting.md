@@ -46,9 +46,35 @@ or refresh cannot relabel an outstanding request. Existing publisher targeting i
 the SDK overwrites these three reserved keys. They are request-local, not global targeting.
 
 These fields are independent of clickstream `slot_reload`, which remains a binary `0`/`1`.
-No analytics schema or refresh scheduling behavior changes. Rendering-API requests are outside
-this change. GAM-managed automatic refresh is not an SDK-owned request and does not advance
+The analytics schema is unchanged. Rendering-API requests are outside this change. GAM-managed automatic refresh is not an SDK-owned request and does not advance
 these counters; keep GAM automatic refresh unset, as required by the SDK-owned refresh setup.
+
+## Banner refresh limit
+
+Each logical banner slot can start **one initial request plus ten refreshes per page impression**
+(`au_refresh=0` through `10`). This applies to Original-API banners and RemoteBanners on all four
+platforms, automatically. No new publisher parameter is needed.
+
+- Every admitted attempt uses the allowance, including manual reloads, transport retries, failed
+  requests and requests cancelled by a lifecycle transition. Blocked/coalesced attempts do not.
+- The last allowed request may finish normally. Afterwards the SDK keeps the current creative
+  and cancels further periodic/retry work; it does not keep waking up to check the limit.
+- Visibility changes, publisher pause/resume, repeated `load`/`reload`, and native replacements
+  sharing the logical slot cannot reset the allowance. Changing delivery settings at the limit
+  does not replace an existing banner. A publisher explicitly removing/destroying the displayed
+  view can still remove the creative; the cap does not retain views after disposal.
+- A real native `pageImpression` resets the allowance, including an automatic foreground report.
+  Returning without a new report does not. A reset clears only the quota hold, preserving other
+  holds such as publisher pause and host-reported concealment.
+- Before the first page report, the same limit applies to page sequence `0`. Interstitials use
+  explicit display opportunities and are not subject to this banner refresh cap.
+
+This is a request ceiling, not idle detection: an active reader on the same page also reaches it.
+At a 30-second refresh interval that is roughly five minutes plus load time. Keep page reports tied
+to real page/foreground transitions; periodically reporting a page would repeatedly reset the cap.
+A wholly new logical owner is a new slot, as described above; do not recreate ad owners on every
+layout/build. GAM-managed automatic refresh must remain disabled: this cap controls SDK requests,
+not refreshes initiated independently by Google.
 
 ## Internal extension point
 

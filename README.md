@@ -1046,3 +1046,7 @@ also carry their error domain.
 Original and remote banners/interstitials automatically include `au_page_seq`, `au_slot` and
 `au_refresh` in GAM custom targeting. See [the request targeting contract](docs/ad-request-targeting.md)
 for page resets, automatic slot ordering and request-count semantics. No new publisher parameter is required.
+
+Banners allow one initial request plus at most **10 refreshes per slot per page impression**.
+The last creative stays displayed at the limit; a new page impression resets the allowance.
+Retries and manual reloads count too. Keep GAM automatic refresh disabled.
