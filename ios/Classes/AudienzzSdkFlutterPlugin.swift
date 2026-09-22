@@ -194,6 +194,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             if args["publisherPaused"] as? Bool == true {
                 bannerAd.pauseAutoRefresh()
             }
+            if let slot = args["requestSlot"] as? String {
+                bannerAd.requestContext = AUAdRequestContext.forSlot(slot, pageKey: args["pageKey"] as? String)
+            }
             manager.loadAd(ad: bannerAd)
             result(nil)
 
@@ -317,6 +320,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 manager: manager
             )
 
+            if let slot = args["requestSlot"] as? String {
+                interstitialAd.requestContext = AUAdRequestContext.forSlot(slot)
+            }
             manager.loadAd(ad: interstitialAd)
             result(nil)
 

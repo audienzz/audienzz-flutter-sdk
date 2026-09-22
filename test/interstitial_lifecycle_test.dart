@@ -73,6 +73,21 @@ void main() {
     messenger.setMockMethodCallHandler(channel, null);
   });
 
+  test('repeated inventory for one placement keeps its request slot identity', () async {
+    await makeReady();
+    await ad.show();
+    await event('onAdClosed');
+    await makeReady();
+    final loads = calls.where((c) => c.method == 'loadInterstitialAd').toList();
+    expect(loads, hasLength(2));
+    final first = loads.first.arguments as Map;
+    final second = loads.last.arguments as Map;
+    expect(first['requestSlot'], isA<String>());
+    expect(second['requestSlot'], first['requestSlot']);
+    expect(second['adId'], isNot(first['adId']),
+        reason: 'native load identity changes while the logical placement survives');
+  });
+
   test('load waits for Google readiness and concurrent calls share one request',
       () async {
     var complete = false;

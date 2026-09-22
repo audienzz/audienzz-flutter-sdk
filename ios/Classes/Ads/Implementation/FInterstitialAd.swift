@@ -3,6 +3,8 @@ import GoogleMobileAds
 import AudienzziOSSDK
 
 class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenContentDelegate {
+    var requestContext = AUAdRequestContext()
+
     private let adUnitId: String
     private let auConfigId: String
     private let rootViewController: UIViewController
@@ -201,6 +203,7 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
             }
         }
         // Install the handoff before starting demand (including synchronous failures).
+        interstitialView?.requestContext = requestContext
         interstitialView?.createAd(with: gamRequest, adUnitID: adUnitId)
     }
     

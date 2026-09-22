@@ -1040,3 +1040,9 @@ calls after dismissal may prepare the next opportunity; never request it just to
 `opportunitySkipped` lifecycle events include a reason when a load is registered. Google iOS
 interstitial load failures now preserve their original error code and domain; Android load events
 also carry their error domain.
+
+### Automatic request counters
+
+Original and remote banners/interstitials automatically include `au_page_seq`, `au_slot` and
+`au_refresh` in GAM custom targeting. See [the request targeting contract](docs/ad-request-targeting.md)
+for page resets, automatic slot ordering and request-count semantics. No new publisher parameter is required.

@@ -320,6 +320,21 @@ final class AdInstanceManager {
   /// re-auction does not repaint an AndroidViewSurface / UiKitView on its own.
   final ValueNotifier<int> pageEpoch = ValueNotifier<int>(0);
 
+  // Weak identity keys keep identical configurations as separate slots.
+  // Load ids change on prefetch; this id follows the logical Dart ad.
+  final Expando<String> _requestSlots = Expando<String>();
+  final String _requestSession =
+      DateTime.now().microsecondsSinceEpoch.toString();
+  int _nextRequestSlot = 0;
+
+  String _requestSlotFor(Object owner) => _requestSlots[owner] ??=
+      'flutter-$_requestSession-${_nextRequestSlot++}';
+
+  /// Managed widgets retain the slot across internal Ad replacements.
+  void bindRequestSlot(Ad ad, Object owner) {
+    _requestSlots[ad] = _requestSlotFor(owner);
+  }
+
   /// The page each ad was created under, so an [AdWidget] can tell whether a
   /// page impression is for ITS page. Matching on `ModalRoute.isCurrent`
   /// instead would remount whichever route happens to be on top when the
@@ -362,6 +377,7 @@ final class AdInstanceManager {
         'loadBannerAd',
         {
           'adId': adId,
+          'requestSlot': _requestSlotFor(ad),
           'adUnitId': ad.adUnitId,
           'auConfigId': ad.auConfigId,
           if (owningPage != null) 'pageKey': owningPage,
@@ -460,6 +476,7 @@ final class AdInstanceManager {
       'loadInterstitialAd',
       {
         'adId': adId,
+        'requestSlot': _requestSlotFor(ad),
         'adUnitId': ad.adUnitId,
         'auConfigId': ad.auConfigId,
         'adFormat': ad.adFormat,

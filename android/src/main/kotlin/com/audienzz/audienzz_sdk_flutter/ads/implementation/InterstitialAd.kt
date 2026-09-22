@@ -40,6 +40,8 @@ class InterstitialAd(
     private val interstitialAdLoadedListener: AudienzzInterstitialAdLoadCallback,
     private val fullScreenContentListener: AudienzzFullScreenContentCallback,
 ) : OverlayAd() {
+    var requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext()
+
     private var interstitialAd: AdManagerInterstitialAd? = null
 
     // GAM interstitials are single-use; guard against a silent second show().
@@ -94,7 +96,7 @@ class InterstitialAd(
         }
 
 
-        AudienzzInterstitialAdHandler(adUnit, adUnitId).load(
+        AudienzzInterstitialAdHandler(adUnit, adUnitId, requestContext).load(
             adLoadCallback = interstitialAdLoadedListener,
             fullScreenContentCallback = fullScreenContentListener,
             resultCallback = { resultCode, request, adLoadCallback ->

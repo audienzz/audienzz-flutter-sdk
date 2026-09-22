@@ -3,6 +3,8 @@ import GoogleMobileAds
 import AudienzziOSSDK
 
 class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDelegate {
+    var requestContext = AUAdRequestContext()
+
     private let adUnitId: String
     private let auConfigId: String
     private let sizes: [FAdSize]
@@ -344,6 +346,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
             auBannerView?.adUnitConfiguration.stopAutoRefresh()
         }
 
+        auBannerView?.requestContext = requestContext
         auBannerView?.createAd(
             with: request,
             gamBanner: bannerViewInstance!,

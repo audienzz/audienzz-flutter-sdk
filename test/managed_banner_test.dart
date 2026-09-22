@@ -250,6 +250,11 @@ void main() {
           .map((c) => (c.arguments as Map)['adId'])
           .toList();
       expect(loads.toSet(), hasLength(2));
+      final slots = calls.where((c) => c.method == 'loadBannerAd')
+          .map((c) => (c.arguments as Map)['requestSlot']).toList();
+      expect(slots, everyElement(isA<String>()));
+      expect(slots.toSet(), hasLength(2),
+          reason: 'the same config must not collapse distinct logical placements');
       expect(loadedPageKeys().toSet(), hasLength(1));
     });
 

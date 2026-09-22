@@ -109,6 +109,9 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     context,
                 )
 
+                call.argument<String>("requestSlot")?.let {
+                    bannerAd.requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext.forSlot(it, call.argument<String>("pageKey"))
+                }
                 adInstanceManager?.trackAd(bannerAd, adId)
                 // Before load(): an eager banner requests as soon as it loads, so a pause
                 // installed afterwards would arrive after that first request.
@@ -168,6 +171,9 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     adInstanceManager!!.createOverlayAdFullscreenContentListener(adId),
                 )
 
+                call.argument<String>("requestSlot")?.let {
+                    interstitialAd.requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext.forSlot(it)
+                }
                 adInstanceManager?.trackAd(interstitialAd, adId)
                 interstitialAd.load()
                 result.success(null)

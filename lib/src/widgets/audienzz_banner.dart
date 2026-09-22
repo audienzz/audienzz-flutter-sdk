@@ -350,6 +350,7 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
         widget.onAdFailedToLoad?.call(widget, error);
       },
     );
+    adInstanceManager.bindRequestSlot(ad, this);
     _ad = ad;
     unawaited(
       ad

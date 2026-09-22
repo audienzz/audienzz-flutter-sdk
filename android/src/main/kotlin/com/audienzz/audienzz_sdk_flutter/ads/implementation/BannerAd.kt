@@ -44,6 +44,8 @@ class BannerAd(
     private val adListener: AdListener?,
     private val context: Context,
 ) : Ad() {
+    var requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext()
+
     private var adView: AdManagerAdView? = null
     private var adViewHandler: AudienzzAdViewHandler? = null
     // Kept as a field so pauseAutoRefresh() / resumeAutoRefresh() can reach it
@@ -114,7 +116,7 @@ class BannerAd(
         }
 
         currentAdView?.let { adView ->
-            val handler = AudienzzAdViewHandler(adView, adUnit)
+            val handler = AudienzzAdViewHandler(adView, adUnit, requestContext)
             adViewHandler = handler
             // A Flutter banner lives in the single FlutterActivity, so the native page coordinator
             // cannot tell one route's ads from another's by host identity. Tag the handler with the
