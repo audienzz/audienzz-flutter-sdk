@@ -3,11 +3,9 @@ import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_ad_config
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Lazy loading and the prefetch margin are delivery decisions a publisher has
-/// to be able to make.
-///
-/// [RemoteBannerAd] derived both from the ad config alone, so a publisher whose
-/// slot auctioned at the wrong moment had no lever without a backend change.
+/// Lazy loading and the prefetch margin of a remote banner are backend-driven
+/// only: the ad config's `lazyLoad` and `prefetchDistanceDp`, else the SDK
+/// defaults. There is no publisher argument for either.
 void main() {
   RemoteAdConfiguration config({bool? lazyLoad, int? prefetchDistanceDp}) {
     return RemoteAdConfiguration.fromJson({
@@ -36,13 +34,11 @@ void main() {
     );
   }
 
-  RemoteBannerAd build({bool? isLazyLoad, int? prefetchMargin}) {
+  RemoteBannerAd build() {
     return RemoteBannerAd(
       configId: 'remote-banner',
       onAdLoaded: (_) {},
       onAdFailedToLoad: (_, __) {},
-      isLazyLoad: isLazyLoad,
-      prefetchMargin: prefetchMargin,
     );
   }
 
@@ -71,23 +67,14 @@ void main() {
       expect(ad.prefetchMargin, 600);
     });
 
-    test('the publisher overrides the ad config', () {
-      seed(lazyLoad: true, prefetchDistanceDp: 600);
-      final ad = build(isLazyLoad: false, prefetchMargin: 900);
-      expect(ad.isLazyLoad, isFalse);
-      expect(ad.prefetchMargin, 900);
+    test('a backend eager choice wins over nothing', () {
+      seed(lazyLoad: false);
+      expect(build().isLazyLoad, isFalse);
     });
 
-    test('omitting the publisher argument falls back to the ad config', () {
-      seed(lazyLoad: true, prefetchDistanceDp: 600);
-      final ad = build(prefetchMargin: 900);
-      expect(ad.isLazyLoad, isTrue, reason: 'only the margin was overridden');
-      expect(ad.prefetchMargin, 900);
-    });
-
-    test('a prefetch margin of 0 is honoured, not treated as unset', () {
-      seed(prefetchDistanceDp: 600);
-      expect(build(prefetchMargin: 0).prefetchMargin, 0);
+    test('a prefetch distance of 0 is honoured, not treated as unset', () {
+      seed(lazyLoad: true, prefetchDistanceDp: 0);
+      expect(build().prefetchMargin, 0);
     });
   });
 

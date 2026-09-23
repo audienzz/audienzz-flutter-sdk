@@ -6,6 +6,7 @@ import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_ad_configuration.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:audienzz_sdk_flutter/src/utils/ad_size_mapper.dart';
+import 'package:meta/meta.dart';
 
 final class RemoteBannerAd extends BannerAd {
   RemoteBannerAd({
@@ -26,8 +27,15 @@ final class RemoteBannerAd extends BannerAd {
     super.onAdClosed,
     super.onAdOpened,
     super.onAdImpression,
-    bool? isLazyLoad,
-    int? prefetchMargin,
+    // Lazy loading and the prefetch margin are deliberately not arguments:
+    // they come from the ad config's `lazyLoad` and `prefetchDistanceDp`
+    // alone, so a placement behaves the same in every app and on every
+    // platform.
+    //
+    // SDK-internal, not a publisher setting: the fallback when the ad config
+    // says nothing about lazy loading. `AudienzzBanner` passes `true` because
+    // it owns the sized placeholder that makes deferral safe.
+    @internal bool lazyLoadWhenUnconfigured = _defaultLazyLoad,
     super.pageKey,
     super.startPublisherPaused,
   }) : super(
@@ -42,10 +50,9 @@ final class RemoteBannerAd extends BannerAd {
           auConfigId: _getAuConfigId(configId),
           refreshTimeInterval: _getRefreshTime(configId),
           isAdaptiveSize: _getIsAdaptive(configId),
-          // Publisher argument -> ad config -> SDK default, for both
-          // delivery settings.
-          isLazyLoad: isLazyLoad ?? _getLazyLoad(configId),
-          prefetchMargin: prefetchMargin ?? _getPrefetchMargin(configId),
+          // Ad config -> SDK default, for both delivery settings.
+          isLazyLoad: _getLazyLoad(configId, lazyLoadWhenUnconfigured),
+          prefetchMargin: _getPrefetchMargin(configId),
           // Always enable smart refresh for remote-config banners: pause auto-refresh
           // when the ad scrolls off-screen, resume (or force-refresh if stale) on return.
           smartRefresh: true,
@@ -100,8 +107,8 @@ final class RemoteBannerAd extends BannerAd {
   /// `load()` completes. See the lazy-loading note in the README.
   static const _defaultLazyLoad = false;
 
-  static bool _getLazyLoad(String configId) {
-    return _getConfig(configId)?.config.lazyLoad ?? _defaultLazyLoad;
+  static bool _getLazyLoad(String configId, bool whenUnconfigured) {
+    return _getConfig(configId)?.config.lazyLoad ?? whenUnconfigured;
   }
 
   static int _getRefreshTime(String configId) {

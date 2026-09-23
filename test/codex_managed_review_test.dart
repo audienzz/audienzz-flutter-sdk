@@ -264,20 +264,37 @@ void main() {
       expect((load.arguments as Map)['isLazyLoad'], isTrue);
     });
 
-    testWidgets('an explicit eager choice still wins', (tester) async {
+    testWidgets('the ad config decides: a backend eager choice wins',
+        (tester) async {
+      AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([
+        RemoteAdConfiguration.fromJson({
+          'id': 'managed',
+          'config': {
+            'adType': 'banner',
+            'refreshTimeSeconds': 30,
+            'lazyLoad': false,
+            'prefetchDistanceDp': 600,
+          },
+          'gamConfig': {
+            'adUnitPath': '/1234/test',
+            'adSizes': ['320x50'],
+          },
+          'prebidConfig': {
+            'placementId': 'test',
+            'adSizes': ['320x50'],
+          },
+        }),
+      ]);
       await tester.pumpWidget(app(
         const AudienzzPage(
           name: 'article',
-          child: AudienzzBanner(
-            adConfigId: 'managed',
-            slotKey: 'one',
-            isLazyLoad: false,
-          ),
+          child: AudienzzBanner(adConfigId: 'managed', slotKey: 'one'),
         ),
       ));
       await tester.pumpAndSettle();
       final load = calls.firstWhere((c) => c.method == 'loadBannerAd');
       expect((load.arguments as Map)['isLazyLoad'], isFalse);
+      expect((load.arguments as Map)['prefetchMargin'], 600);
     });
 
     testWidgets('the slot is laid out with a real size before loading',

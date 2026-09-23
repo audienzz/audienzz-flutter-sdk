@@ -68,7 +68,20 @@ void main() {
           'placementId': 'test',
           'adSizes': ['320x50'],
         },
-      })
+      }),
+      // Eager comes from the ad config: there is no app-side lazy setting.
+      RemoteAdConfiguration.fromJson({
+        'id': 'managed-eager',
+        'config': {'adType': 'banner', 'refreshTimeSeconds': 30, 'lazyLoad': false},
+        'gamConfig': {
+          'adUnitPath': '/1234/test',
+          'adSizes': ['320x50'],
+        },
+        'prebidConfig': {
+          'placementId': 'test',
+          'adSizes': ['320x50'],
+        },
+      }),
     ]);
   });
 
@@ -117,7 +130,7 @@ void main() {
 
   testWidgets('REVIEW retained publisher stop is installed before native eager load', (tester) async {
     final controller=AudienzzBannerController();
-    Widget page(bool active) => app(AudienzzPage(name:'A',active:active,child:AudienzzBanner(adConfigId:'managed',slotKey:'a',isLazyLoad:false,controller:controller)));
+    Widget page(bool active) => app(AudienzzPage(name:'A',active:active,child:AudienzzBanner(adConfigId:'managed-eager',slotKey:'a',controller:controller)));
     await tester.pumpWidget(page(false)); await tester.pumpAndSettle();
     await controller.stopAutoRefresh();
     await tester.pumpWidget(page(true)); await tester.pumpAndSettle();

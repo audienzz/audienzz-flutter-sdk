@@ -53,8 +53,6 @@ class AudienzzBanner extends StatefulWidget {
     required this.adConfigId,
     required this.slotKey,
     this.placeholderHeight = 250,
-    this.isLazyLoad = true,
-    this.prefetchMargin,
     this.controller,
     this.onAdLoaded,
     this.onAdFailedToLoad,
@@ -79,14 +77,6 @@ class AudienzzBanner extends StatefulWidget {
   /// lazy loading can never trigger. An integration that mounts its ad view
   /// only after `onAdLoaded` deadlocks for exactly this reason.
   final double placeholderHeight;
-
-  /// Defer the auction until the slot approaches the viewport. Defaults to
-  /// `true` here, unlike [RemoteBannerAd], because this widget owns the sized
-  /// placeholder that makes deferral work.
-  final bool isLazyLoad;
-
-  /// How far ahead of the viewport the auction starts, in logical pixels.
-  final int? prefetchMargin;
 
   final void Function(AudienzzBanner banner)? onAdLoaded;
   final void Function(AudienzzBanner banner, AdError? error)? onAdFailedToLoad;
@@ -295,14 +285,16 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
       'slot': widget.slotKey,
       'config': widget.adConfigId,
       'page': scope?.page.id,
-      'lazy': widget.isLazyLoad,
       'paused': _publisherStopped,
       'gen': owner,
     });
     final ad = RemoteBannerAd(
       configId: widget.adConfigId,
-      isLazyLoad: widget.isLazyLoad,
-      prefetchMargin: widget.prefetchMargin,
+      // Lazy loading and the margin come from the ad config. When it says
+      // nothing this widget waits for the viewport — unlike a bare
+      // [RemoteBannerAd] — because it owns the sized placeholder that makes
+      // deferral safe.
+      lazyLoadWhenUnconfigured: true,
       // Explicit, not inherited. A banner created on a retained-but-unfocused
       // screen would otherwise capture the foreground page.
       pageKey: scope?.page.id,
