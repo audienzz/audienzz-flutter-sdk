@@ -167,6 +167,8 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 adUnitId: adUnitId,
                 auConfigId: auConfigId,
                 sizes: adSizes,
+                // Absent from Dart unless it differs; FBannerAd falls back to adSizes.
+                prebidSizes: args["prebidAdSizes"] as? [FAdSize],
                 isAdaptiveSize: isAdaptiveSize,
                 isLazyLoad: isLazyLoad,
                 smartRefresh: smartRefresh,

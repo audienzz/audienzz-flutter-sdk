@@ -20,6 +20,7 @@ class BannerAd extends AdWithView {
     required super.auConfigId,
     required this.onAdLoaded,
     required this.onAdFailedToLoad,
+    this.prebidSizes,
     this.adFormat = AdFormat.banner,
     this.apiParameters = const {
       ApiParameter.mraid1,
@@ -69,6 +70,15 @@ class BannerAd extends AdWithView {
   /// Specify width and height of the ad unit, will be used in a bid request
   /// at minimum one size is required
   final Set<AdSize> sizes;
+
+  /// The sizes to ask Prebid for, when they differ from [sizes].
+  ///
+  /// `null` (the default) means Prebid gets [sizes] too — what a banner built
+  /// by hand wants, and what every banner got before this existed. A remote
+  /// banner sets it from `prebidConfig.adSizes`: a publisher may allow a size
+  /// in GAM (say, for direct-sold line items) that they deliberately keep out
+  /// of header bidding, and Prebid must not be asked for it.
+  final Set<AdSize>? prebidSizes;
 
   /// Specify if the ad size should be adaptive, by default - false
   final bool isAdaptiveSize;
@@ -213,6 +223,7 @@ class BannerAd extends AdWithView {
         adUnitId,
         auConfigId,
         sizes,
+        prebidSizes,
         onAdLoaded,
         onAdFailedToLoad,
         onAdImpression,

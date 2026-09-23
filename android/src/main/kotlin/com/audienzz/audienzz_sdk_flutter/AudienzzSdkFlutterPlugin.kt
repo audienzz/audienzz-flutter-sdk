@@ -107,6 +107,8 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<String?>("pageKey"),
                     adInstanceManager?.createBannerAdListener(adId),
                     context,
+                    // Absent from Dart unless it differs; BannerAd falls back to adSizes.
+                    call.argument<List<AdSize>>("prebidAdSizes"),
                 )
 
                 call.argument<String>("requestSlot")?.let {

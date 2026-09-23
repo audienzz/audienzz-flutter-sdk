@@ -43,7 +43,30 @@ class BannerAd(
     private val pageKey: String?,
     private val adListener: AdListener?,
     private val context: Context,
+    /**
+     * Sizes for the Prebid ad unit when they differ from [adSizes]; null or empty means use
+     * [adSizes]. Last and defaulted so positional callers are unchanged.
+     */
+    private val prebidAdSizes: List<AdSize>? = null,
 ) : Ad() {
+    /**
+     * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
+     * A publisher can allow a size in GAM (for direct-sold line items) that they keep out of
+     * header bidding, and one list for both asked bidders for it anyway. Falls back to [adSizes]
+     * because the ad unit is built from the first size and an empty list would crash.
+     */
+    private val prebidSizes: List<AdSize> = prebidAdSizes?.takeIf { it.isNotEmpty() } ?: adSizes
+
+    /**
+     * Builds the Prebid ad unit. A seam so a test can see which size it was built from: the size
+     * lives inside Prebid's own ad unit, with no public way to read it back.
+     */
+    internal var adUnitFactory: (String, Int, Int, EnumSet<AudienzzAdUnitFormat>) -> AudienzzBannerAdUnit =
+        { configId, width, height, formats -> AudienzzBannerAdUnit(configId, width, height, formats) }
+
+    /** The sizes GAM was given. Read-only, for tests. */
+    internal val gamAdSizes: List<AdSize>
+        get() = adView?.adSizes?.toList().orEmpty()
     var requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext()
 
     private var adView: AdManagerAdView? = null
@@ -91,11 +114,13 @@ class BannerAd(
             maxDuration = videoDuration.maxDuration
         }
 
-        val adUnit = when (adFormat) {
-            AdFormat.BANNER -> AudienzzBannerAdUnit(auConfigId, adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.BANNER))
-            AdFormat.VIDEO ->  AudienzzBannerAdUnit(auConfigId, adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.VIDEO))
-            AdFormat.BANNER_AND_VIDEO ->  AudienzzBannerAdUnit(auConfigId,adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO))
+        val formats = when (adFormat) {
+            AdFormat.BANNER -> EnumSet.of(AudienzzAdUnitFormat.BANNER)
+            AdFormat.VIDEO -> EnumSet.of(AudienzzAdUnitFormat.VIDEO)
+            AdFormat.BANNER_AND_VIDEO -> EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO)
         }
+        val prebidPrimary = prebidSizes.first()
+        val adUnit = adUnitFactory(auConfigId, prebidPrimary.width, prebidPrimary.height, formats)
         bannerAdUnit = adUnit
 
         adUnit.apply {
@@ -104,9 +129,9 @@ class BannerAd(
             pbAdSlot = bannerPbAdSlot
             gpid = gpId
             // The primary size is already set via the AudienzzBannerAdUnit
-            // constructor (adSizes.first()). Only the remaining sizes are
+            // constructor (prebidSizes.first()). Only the remaining sizes are
             // "additional" — adding the first again duplicated it in the request.
-            adSizes.drop(1).forEach { size ->
+            prebidSizes.drop(1).forEach { size ->
                 addAdditionalSize(size.width, size.height)
             }
             // refreshTimeInterval arrives in milliseconds from Dart (seconds * 1000).

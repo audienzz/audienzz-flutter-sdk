@@ -382,6 +382,10 @@ final class AdInstanceManager {
           'auConfigId': ad.auConfigId,
           if (owningPage != null) 'pageKey': owningPage,
           'adSizes': ad.sizes.toList(),
+          // Absent unless it differs by construction; both plugins fall back
+          // to adSizes, so an older plugin or a hand-built banner is unchanged.
+          if (ad.prebidSizes != null)
+            'prebidAdSizes': ad.prebidSizes!.toList(),
           'isAdaptiveSize': ad.isAdaptiveSize,
           'isLazyLoad': ad.isLazyLoad,
           'smartRefresh': ad.smartRefresh,

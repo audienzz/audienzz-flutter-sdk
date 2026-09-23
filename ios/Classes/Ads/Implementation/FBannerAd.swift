@@ -8,6 +8,8 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private let adUnitId: String
     private let auConfigId: String
     private let sizes: [FAdSize]
+    /// Sizes for the Prebid ad unit when they differ from [sizes]; nil or empty means use [sizes].
+    private let prebidSizes: [FAdSize]?
     private let isAdaptiveSize: Bool
     private let isLazyLoad: Bool
     private let smartRefresh: Bool
@@ -198,6 +200,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         adUnitId: String,
         auConfigId: String,
         sizes: [FAdSize],
+        prebidSizes: [FAdSize]? = nil,
         isAdaptiveSize: Bool,
         isLazyLoad: Bool,
         smartRefresh: Bool,
@@ -221,6 +224,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     ) {
         self.adUnitId = adUnitId
         self.sizes = sizes
+        self.prebidSizes = prebidSizes
         self.auConfigId = auConfigId
         self.isAdaptiveSize = isAdaptiveSize
         self.isLazyLoad = isLazyLoad
@@ -279,9 +283,20 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         case FAdFormat.bannerAndVideo: bannerAdFormat = [AUAdFormat.banner, AUAdFormat.video]
         }
 
+        // GAM is sized from `sizes`, Prebid from `prebidSizes` — the split AURemoteConfigBannerView
+        // makes. A publisher can allow a size in GAM (for direct-sold line items) that they keep out
+        // of header bidding; one list for both asked bidders for it anyway. Falls back to `sizes`,
+        // because an empty list has no primary size to build the ad unit from. The view's frame
+        // below stays on the GAM size: that is what renders, so layout does not move.
+        let prebidList = (prebidSizes?.isEmpty == false) ? prebidSizes! : sizes
+        let prebidMainSize = prebidList.first ?? mainSize
+        let prebidAdditionalSizes: [CGSize] = prebidList.dropFirst().map {
+            CGSize(width: $0.width, height: $0.height)
+        }
+
         auBannerView = AUBannerView(
             configId: auConfigId,
-            adSize: CGSize(width: mainSize.width, height: mainSize.height),
+            adSize: CGSize(width: prebidMainSize.width, height: prebidMainSize.height),
             adFormats: bannerAdFormat,
             isLazyLoad: isLazyLoad
         )
@@ -330,7 +345,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         videoParameters.maxDuration = videoDuration.max.intValue
         auBannerView?.videoParameters = videoParameters
 
-        auBannerView?.addAdditionalSize(sizes: cgSizes)
+        auBannerView?.addAdditionalSize(sizes: prebidAdditionalSizes)
         auBannerView?.adUnitConfiguration.adSlot = pbAdSlot
         auBannerView?.adUnitConfiguration?.setGPID(gpId)
 

@@ -31,7 +31,11 @@ final class RemoteBannerAd extends BannerAd {
     super.pageKey,
     super.startPublisherPaused,
   }) : super(
+          // GAM gets the GAM slot's sizes and Prebid gets Prebid's, the split
+          // the native remote banners make. Feeding Prebid the GAM list asked
+          // bidders for sizes the publisher kept out of header bidding.
           sizes: _getSizes(configId),
+          prebidSizes: _getPrebidSizes(configId),
           adUnitId: _getAdUnitId(configId),
           auConfigId: _getAuConfigId(configId),
           refreshTimeInterval: _getRefreshTime(configId),
@@ -53,6 +57,21 @@ final class RemoteBannerAd extends BannerAd {
 
   static Set<AdSize> _getSizes(String configId) {
     return AdSizeMapper.map(_getConfig(configId)?.gamConfig.adSizes ?? []);
+  }
+
+  /// `prebidConfig.adSizes`, largest first — the order the native remote
+  /// banners use, and the one that decides Prebid's primary size.
+  ///
+  /// `null` when the config lists none, so the banner falls back to [sizes]:
+  /// the plugins build the Prebid ad unit from the first size, and an empty
+  /// list would crash them. What an empty Prebid list SHOULD mean is still
+  /// undecided — Android native refuses to load, iOS native goes GAM-only —
+  /// so this keeps Flutter's behaviour for that case exactly as it was.
+  static Set<AdSize>? _getPrebidSizes(String configId) {
+    final adSizes = _getConfig(configId)?.prebidConfig.adSizes ?? [];
+    final sizes = AdSizeMapper.map(adSizes).toList()
+      ..sort((a, b) => (b.width * b.height).compareTo(a.width * a.height));
+    return sizes.isEmpty ? null : sizes.toSet();
   }
 
   static String _getAdUnitId(String configId) {
