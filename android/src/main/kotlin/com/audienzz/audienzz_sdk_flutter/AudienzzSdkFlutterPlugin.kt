@@ -109,6 +109,8 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     context,
                     // Absent from Dart unless it differs; BannerAd falls back to adSizes.
                     call.argument<List<AdSize>>("prebidAdSizes"),
+                    // Absent from Dart unless header bidding is off.
+                    call.argument<Boolean>("headerBidding") ?: true,
                 )
 
                 call.argument<String>("requestSlot")?.let {

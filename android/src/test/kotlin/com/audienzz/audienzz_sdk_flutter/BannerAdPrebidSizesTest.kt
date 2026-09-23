@@ -26,14 +26,20 @@ class BannerAdPrebidSizesTest {
 
     private lateinit var prebidPrimary: MutableList<String>
     private lateinit var prebidAdditional: MutableList<String>
+    private var headerBiddingSetTo: Boolean? = null
 
     @Before
     fun setUp() {
         prebidPrimary = mutableListOf()
         prebidAdditional = mutableListOf()
+        headerBiddingSetTo = null
         mockkConstructor(AudienzzAdViewHandler::class)
         every { anyConstructed<AudienzzAdViewHandler>().setScreen(any()) } just Runs
         every { anyConstructed<AudienzzAdViewHandler>().load(any(), any(), any(), any()) } just Runs
+        // Captured at the setter: a constructor mock's getter answers its default, not the field.
+        every {
+            anyConstructed<AudienzzAdViewHandler>() setProperty "headerBiddingEnabled" value any<Boolean>()
+        } answers { headerBiddingSetTo = firstArg() }
     }
 
     @After
@@ -41,7 +47,11 @@ class BannerAdPrebidSizesTest {
 
     private fun size(s: String) = s.split('x').let { AdSize(it[0].toInt(), it[1].toInt()) }
 
-    private fun banner(adSizes: List<String>, prebidAdSizes: List<String>?) = BannerAd(
+    private fun banner(
+        adSizes: List<String>,
+        prebidAdSizes: List<String>?,
+        headerBidding: Boolean = true,
+    ) = BannerAd(
         adUnitId = "/1234/test",
         auConfigId = "test",
         adSizes = adSizes.map(::size),
@@ -64,6 +74,7 @@ class BannerAdPrebidSizesTest {
         adListener = null,
         context = RuntimeEnvironment.getApplication(),
         prebidAdSizes = prebidAdSizes?.map(::size),
+        headerBidding = headerBidding,
     ).apply {
         adUnitFactory = { _, width, height, _ ->
             prebidPrimary += "${width}x$height"
@@ -125,5 +136,21 @@ class BannerAdPrebidSizesTest {
 
         assertEquals(listOf("320x480"), prebidPrimary)
         assertEquals(listOf("300x250", "320x50"), prebidAdditional)
+    }
+
+    @Test
+    fun `header bidding off reaches the handler`() {
+        // Dart sends headerBidding=false for a remote banner with no Prebid sizes (config 49).
+        banner(listOf("300x250"), null, headerBidding = false).load()
+
+        assertEquals(false, headerBiddingSetTo)
+    }
+
+    @Test
+    fun `header bidding stays on by default`() {
+        // Control: proves the capture sees the setter, so the case above is not vacuous.
+        banner(listOf("300x250"), null).load()
+
+        assertEquals(true, headerBiddingSetTo)
     }
 }

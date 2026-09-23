@@ -10,6 +10,8 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private let sizes: [FAdSize]
     /// Sizes for the Prebid ad unit when they differ from [sizes]; nil or empty means use [sizes].
     private let prebidSizes: [FAdSize]?
+    /// False serves GAM-only; a remote banner with no Prebid sizes turns it off.
+    private let headerBidding: Bool
     private let isAdaptiveSize: Bool
     private let isLazyLoad: Bool
     private let smartRefresh: Bool
@@ -201,6 +203,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         auConfigId: String,
         sizes: [FAdSize],
         prebidSizes: [FAdSize]? = nil,
+        headerBidding: Bool = true,
         isAdaptiveSize: Bool,
         isLazyLoad: Bool,
         smartRefresh: Bool,
@@ -225,6 +228,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         self.adUnitId = adUnitId
         self.sizes = sizes
         self.prebidSizes = prebidSizes
+        self.headerBidding = headerBidding
         self.auConfigId = auConfigId
         self.isAdaptiveSize = isAdaptiveSize
         self.isLazyLoad = isLazyLoad
@@ -300,6 +304,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
             adFormats: bannerAdFormat,
             isLazyLoad: isLazyLoad
         )
+        // False serves GAM-only: the banner never asks Prebid and reports no bid events. A remote
+        // banner with no Prebid sizes turns it off. Must precede createAd, which starts the first load.
+        auBannerView?.headerBiddingEnabled = headerBidding
         // A Flutter banner lives in the single FlutterViewController, so the native page
         // coordinator cannot tell one route's ads from another's by host identity. Tag the view with
         // the route key reported to pageImpression so it matches by value instead — this is what

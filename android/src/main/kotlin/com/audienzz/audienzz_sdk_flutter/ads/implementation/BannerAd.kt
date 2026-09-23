@@ -48,6 +48,11 @@ class BannerAd(
      * [adSizes]. Last and defaulted so positional callers are unchanged.
      */
     private val prebidAdSizes: List<AdSize>? = null,
+    /**
+     * False serves GAM-only: the handler never asks Prebid, and reports no bid events. A remote
+     * banner with no Prebid sizes turns it off.
+     */
+    private val headerBidding: Boolean = true,
 ) : Ad() {
     /**
      * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
@@ -143,6 +148,7 @@ class BannerAd(
         currentAdView?.let { adView ->
             val handler = AudienzzAdViewHandler(adView, adUnit, requestContext)
             adViewHandler = handler
+            handler.headerBiddingEnabled = headerBidding
             // A Flutter banner lives in the single FlutterActivity, so the native page coordinator
             // cannot tell one route's ads from another's by host identity. Tag the handler with the
             // route key reported to pageImpression so it matches by value instead — this is what

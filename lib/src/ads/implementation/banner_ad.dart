@@ -21,6 +21,7 @@ class BannerAd extends AdWithView {
     required this.onAdLoaded,
     required this.onAdFailedToLoad,
     this.prebidSizes,
+    this.headerBidding = true,
     this.adFormat = AdFormat.banner,
     this.apiParameters = const {
       ApiParameter.mraid1,
@@ -79,6 +80,13 @@ class BannerAd extends AdWithView {
   /// in GAM (say, for direct-sold line items) that they deliberately keep out
   /// of header bidding, and Prebid must not be asked for it.
   final Set<AdSize>? prebidSizes;
+
+  /// Whether each request asks Prebid for a bid before loading GAM.
+  ///
+  /// `false` serves GAM-only: no Prebid request is sent and no bid event is
+  /// reported, while refresh, pages and targeting work as usual. A remote
+  /// banner turns it off when its `prebidConfig` lists no sizes.
+  final bool headerBidding;
 
   /// Specify if the ad size should be adaptive, by default - false
   final bool isAdaptiveSize;
@@ -224,6 +232,7 @@ class BannerAd extends AdWithView {
         auConfigId,
         sizes,
         prebidSizes,
+        headerBidding,
         onAdLoaded,
         onAdFailedToLoad,
         onAdImpression,

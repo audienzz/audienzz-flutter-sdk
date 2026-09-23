@@ -107,17 +107,30 @@ void main() {
         reason: 'the GAM request is left exactly as it was');
   });
 
-  test('an empty Prebid list (prod 49) is not sent, so the plugin falls back',
-      () async {
-    // Sending it would crash both plugins, which build the ad unit from the
-    // first size. What an empty list SHOULD mean is undecided (Android native
-    // refuses to load, iOS native goes GAM-only), so this keeps today's
-    // behaviour: the plugin uses adSizes for Prebid, as before.
+  test('an empty Prebid list (prod 49) serves GAM-only', () async {
+    // The placement is sold through GAM alone, as the native remote banners
+    // treat it. Falling back to the GAM sizes asked Prebid for a bid the
+    // publisher never set up. The empty list itself is still not sent: both
+    // plugins build their (unused) ad unit from the first size.
     seed(['300x250'], []);
 
     final payload = await loadPayload();
 
+    expect(payload['headerBidding'], isFalse);
     expect(payload.containsKey('prebidAdSizes'), isFalse);
-    expect(sizes(payload['adSizes']), ['300x250']);
+    expect(
+      sizes(payload['adSizes']),
+      ['300x250'],
+      reason: 'GAM still serves the slot',
+    );
+  });
+
+  test('a placement with Prebid sizes keeps header bidding', () async {
+    // Absent means on, so an older plugin or a hand-built banner is unchanged.
+    seed(['300x250'], ['300x250']);
+
+    final payload = await loadPayload();
+
+    expect(payload.containsKey('headerBidding'), isFalse);
   });
 }

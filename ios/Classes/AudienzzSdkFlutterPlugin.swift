@@ -169,6 +169,8 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 sizes: adSizes,
                 // Absent from Dart unless it differs; FBannerAd falls back to adSizes.
                 prebidSizes: args["prebidAdSizes"] as? [FAdSize],
+                // Absent from Dart unless header bidding is off.
+                headerBidding: args["headerBidding"] as? Bool ?? true,
                 isAdaptiveSize: isAdaptiveSize,
                 isLazyLoad: isLazyLoad,
                 smartRefresh: smartRefresh,
