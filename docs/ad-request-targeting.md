@@ -8,12 +8,12 @@ counter or new integration parameter is required.
 | --- | --- | --- |
 | `au_page_seq` | Session sequence of the native `pageImpression` report | `1` |
 | `au_slot` | Automatically assigned logical placement number within the page impression | `1` |
-| `au_refresh` | Additional admitted requests for this slot in this page impression | `0` |
+| `hb_refresh_count` | Additional admitted requests for this slot in this page impression | `0` |
 
 Values are decimal strings. For example, on the first page, the second slot's first request
-contains `au_page_seq=1`, `au_slot=2`, `au_refresh=0`. Its next request has `au_refresh=1`.
+contains `au_page_seq=1`, `au_slot=2`, `hb_refresh_count=0`. Its next request has `hb_refresh_count=1`.
 Refreshing that slot does not change the first slot's counter. Another `pageImpression` produces
-`au_page_seq=2` and each slot starts at `au_refresh=0` again.
+`au_page_seq=2` and each slot starts at `hb_refresh_count=0` again.
 
 ## Page and slot ownership
 
@@ -39,11 +39,16 @@ Refreshing that slot does not change the first slot's counter. Another `pageImpr
 Counters advance only when a request passes the SDK's gates and begins an auction. Coalesced
 prefetches, readiness checks, visibility updates and rejected/blocked load attempts do not advance
 it. An admitted retry or manual reload does advance it, even if that request fails or is later
-cancelled. `au_refresh` is therefore a request counter, not an impression counter.
+cancelled. `hb_refresh_count` is therefore a request counter, not an impression counter.
 
 Each request carries its own snapshot through Prebid and into Google. A subsequent page report
 or refresh cannot relabel an outstanding request. Existing publisher targeting is preserved;
 the SDK overwrites these three reserved keys. They are request-local, not global targeting.
+
+`hb_refresh_count` shares Prebid's `hb_` prefix, and Prebid iOS removes every `hb_` key from the
+GAM request at the start of each auction. The SDK re-applies the request's own snapshot after
+Prebid finishes and before GAM loads, so the key reaches GAM on every platform. Prebid Android
+removes only the keys it applied itself.
 
 These fields are independent of clickstream `slot_reload`, which remains a binary `0`/`1`.
 No analytics schema or refresh scheduling behavior changes. Rendering-API requests are outside

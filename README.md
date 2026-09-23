@@ -1116,5 +1116,5 @@ also carry their error domain.
 ### Automatic request counters
 
 Original and remote banners/interstitials automatically include `au_page_seq`, `au_slot` and
-`au_refresh` in GAM custom targeting. See [the request targeting contract](docs/ad-request-targeting.md)
+`hb_refresh_count` in GAM custom targeting. See [the request targeting contract](docs/ad-request-targeting.md)
 for page resets, automatic slot ordering and request-count semantics. No new publisher parameter is required.
