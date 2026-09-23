@@ -52,10 +52,8 @@ void main() {
       final ad = build();
       expect(
         ad.isLazyLoad,
-        isFalse,
-        reason: 'Flutter keeps eager loading: its lazy path needs a mounted, '
-            'sized AdWidget, which an integration that mounts only after '
-            'onAdLoaded does not have. Deliberately unlike the native SDKs.',
+        isTrue,
+        reason: 'lazy by default, like every other platform',
       );
       expect(ad.prefetchMargin, 200);
     });

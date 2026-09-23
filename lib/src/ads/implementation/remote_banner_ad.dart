@@ -6,7 +6,6 @@ import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_ad_configuration.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:audienzz_sdk_flutter/src/utils/ad_size_mapper.dart';
-import 'package:meta/meta.dart';
 
 final class RemoteBannerAd extends BannerAd {
   RemoteBannerAd({
@@ -31,11 +30,6 @@ final class RemoteBannerAd extends BannerAd {
     // they come from the ad config's `lazyLoad` and `prefetchDistanceDp`
     // alone, so a placement behaves the same in every app and on every
     // platform.
-    //
-    // SDK-internal, not a publisher setting: the fallback when the ad config
-    // says nothing about lazy loading. `AudienzzBanner` passes `true` because
-    // it owns the sized placeholder that makes deferral safe.
-    @internal bool lazyLoadWhenUnconfigured = _defaultLazyLoad,
     super.pageKey,
     super.startPublisherPaused,
   }) : super(
@@ -51,7 +45,7 @@ final class RemoteBannerAd extends BannerAd {
           refreshTimeInterval: _getRefreshTime(configId),
           isAdaptiveSize: _getIsAdaptive(configId),
           // Ad config -> SDK default, for both delivery settings.
-          isLazyLoad: _getLazyLoad(configId, lazyLoadWhenUnconfigured),
+          isLazyLoad: _getLazyLoad(configId),
           prefetchMargin: _getPrefetchMargin(configId),
           // Always enable smart refresh for remote-config banners: pause auto-refresh
           // when the ad scrolls off-screen, resume (or force-refresh if stale) on return.
@@ -92,23 +86,17 @@ final class RemoteBannerAd extends BannerAd {
   static const _defaultRefreshSeconds = 30;
   static const _defaultPrefetchMargin = 200;
 
-  /// Flutter keeps eager loading as its default, where the native SDKs default
-  /// to lazy.
+  /// Lazy when the ad config says nothing, like every other platform.
   ///
-  /// This asymmetry is deliberate, not an oversight. Flutter's lazy path needs
-  /// the platform view to exist and be sized before a viewport verdict can be
-  /// produced, so an integration that mounts its `AdWidget` only after
-  /// `onAdLoaded` — a common pattern, since the size is not known before then —
-  /// would deadlock: no widget, no viewport, no load, no callback. Existing
-  /// Flutter integrations were written against eager loading and changing the
-  /// default would break that contract silently and remotely.
-  ///
-  /// `lazyLoad: true` is safe only once a sized placeholder is mounted before
-  /// `load()` completes. See the lazy-loading note in the README.
-  static const _defaultLazyLoad = false;
+  /// Flutter's lazy path needs the platform view to exist and be sized before
+  /// a viewport verdict can be produced, so an integration must mount its
+  /// `AdWidget` (or a sized placeholder around it) before `load()` completes.
+  /// One that mounts it only after `onAdLoaded` never loads: no widget, no
+  /// viewport, no load, no callback. See the lazy-loading note in the README.
+  static const _defaultLazyLoad = true;
 
-  static bool _getLazyLoad(String configId, bool whenUnconfigured) {
-    return _getConfig(configId)?.config.lazyLoad ?? whenUnconfigured;
+  static bool _getLazyLoad(String configId) {
+    return _getConfig(configId)?.config.lazyLoad ?? _defaultLazyLoad;
   }
 
   static int _getRefreshTime(String configId) {

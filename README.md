@@ -477,13 +477,13 @@ await remoteBanner.load();
 
 #### When the auction starts
 
-Both delivery settings of a `RemoteBannerAd` come from the ad config only — `lazyLoad` and `prefetchDistanceDp` (default `200` dp/pt) — so a placement is tuned in the backend, behaves the same on every platform, and changes without an app release. There are no arguments for them. When the ad config says nothing, a `RemoteBannerAd` auctions as soon as `load()` runs; an `AudienzzBanner` waits for the viewport, because it owns the sized placeholder that makes waiting safe.
+Both delivery settings of a `RemoteBannerAd` come from the ad config only — `lazyLoad` and `prefetchDistanceDp` (default `200` dp/pt) — so a placement is tuned in the backend, behaves the same on every platform, and changes without an app release. There are no arguments for them. When the ad config says nothing, both `RemoteBannerAd` and `AudienzzBanner` wait for the viewport (`lazyLoad` defaults to `true`), as on every other platform.
 
-> **Flutter defaults to eager, and unlike the native SDKs that is deliberate.** Flutter's lazy path needs the platform view to exist and to have a non-zero size before the viewport can be evaluated. An integration that mounts its `AdWidget` only after `onAdLoaded` — a common pattern, because the ad size is not known until then — would deadlock: no widget means no viewport, no viewport means no load, no load means no `onAdLoaded`.
+> **Flutter defaults to eager, and > **Mount the `AdWidget` before the ad loads.** Flutter's lazy path needs the platform view to exist and to have a non-zero size before the viewport can be evaluated. An integration that mounts its `AdWidget` only after `onAdLoaded` — a common pattern, because the ad size is not known until then — never loads: no widget means no viewport, no viewport means no load, no load means no `onAdLoaded`.
 >
-> So do **not** turn `lazyLoad` on remotely for Flutter clients without first confirming their integration. It is safe only when a sized placeholder `AdWidget` (or a `SizedBox` of the expected height around it) is mounted *before* `load()` completes. The example app does this; your publishers' apps may not.
+> Mount a sized placeholder `AdWidget` (or a `SizedBox` of the expected height around it) *before* `load()` completes, as the example app does. `AudienzzBanner` does this for you. A placement that must load at once, wherever it sits, can be set to `lazyLoad: false` in the ad config.
 >
-> Lazy loading here defers the **native** request until the platform view reports itself in the viewport. It is not the Dart-driven deferred-request design described in `docs/banner-delivery-policy.md`.
+tive** request until the platform view reports itself in the viewport. It is not the Dart-driven deferred-request design described in `docs/banner-delivery-policy.md`.
 
 #### Fixed Size Banner
 The SDK will use the sizes defined in the remote configuration. To ensure the banner is displayed correctly, you should place the `AdWidget` inside a container (like a `SizedBox`) that matches the intended ad size:

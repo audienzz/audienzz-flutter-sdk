@@ -290,11 +290,8 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
     });
     final ad = RemoteBannerAd(
       configId: widget.adConfigId,
-      // Lazy loading and the margin come from the ad config. When it says
-      // nothing this widget waits for the viewport — unlike a bare
-      // [RemoteBannerAd] — because it owns the sized placeholder that makes
-      // deferral safe.
-      lazyLoadWhenUnconfigured: true,
+      // Lazy loading and the margin come from the ad config, else the SDK
+      // defaults (lazy, 200). The sized placeholder is what makes lazy safe.
       // Explicit, not inherited. A banner created on a retained-but-unfocused
       // screen would otherwise capture the foreground page.
       pageKey: scope?.page.id,
