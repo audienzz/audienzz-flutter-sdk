@@ -372,7 +372,6 @@ Interstitial minimal usage
 final interstitial = InterstitialAd(
   adUnitId: 'YOUR_AD_UNIT_ID',
   auConfigId: 'YOUR_AU_CONFIG_ID',
-  adFormat: AdFormat.bannerAndVideo,
   onAdLoaded: (_) => debugPrint('Interstitial loaded'),
   onAdFailedToLoad: (_, error) => debugPrint('Interstitial fail: ${error?.message}'),
   onAdClosed: (_) => debugPrint('Interstitial dismissed'),
@@ -532,7 +531,6 @@ Use `RemoteInterstitialAd` to load an interstitial defined by a remote configura
 // 1. Create the remote interstitial ad with the configuration ID
 final remoteInterstitial = RemoteInterstitialAd(
   configId: 'YOUR_CONFIG_ID',
-  adFormat: AdFormat.bannerAndVideo,
   onAdLoaded: (ad) {
     debugPrint('Remote interstitial loaded successfully');
   },
@@ -840,12 +838,13 @@ await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
 | `resumeAutoRefresh()` | `Future<void>`                               | Resumes auto-refresh for this banner, with stale-aware timing.          |
 
 ## InterstitialAd (extends AdWithoutView)
+
+An interstitial's formats and API frameworks are not arguments: they are backend-controlled (`prebidConfig.format` / `prebidConfig.apis`). A `RemoteInterstitialAd` uses its ad config's values; a hand-built `InterstitialAd` requests banner + video with MRAID 1/2/3 + OMID 1. See [docs/interstitial-capabilities.md](docs/interstitial-capabilities.md).
+
 | Property/Method     | Type                                               | Description                                                   |
 |---------------------|----------------------------------------------------|---------------------------------------------------------------|
-| `adFormat`          | `AdFormat`                                         | Required. Desired ad format.                                  |
 | `minSizePercentage` | `MinSizePercentage`                                | Minimum ad size in percent. Default: `width: 80, height: 60`. |
 | `sizes`             | `Set<AdSize>`                                      | Ad sizes for the bid request. Optional.                       |
-| `apiParameters`     | `Set<ApiParameter>`                                | API frameworks for bid response. Default: `{mraid3, omid1}`.  |
 | `protocols`         | `Set<Protocol>`                                    | Supported video protocols. Optional.                          |
 | `placement`         | `Placement`                                        | Placement type. Default: `Placement.inBanner`.                |
 | `playbackMethods`   | `Set<PlaybackMethod>`                              | Video playback methods. Default: `{enterSoundOff}`.           |

@@ -24,7 +24,6 @@ void main() {
     final value = InterstitialAd(
       adUnitId: '/prefetch',
       auConfigId: 'prefetch',
-      adFormat: AdFormat.banner,
       onAdLoaded: (_) {},
       onAdFailedToLoad: (_, __) {},
     );

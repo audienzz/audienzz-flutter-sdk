@@ -21,7 +21,6 @@ void main() {
     final value = InterstitialAd(
       adUnitId: '/discard',
       auConfigId: 'discard',
-      adFormat: AdFormat.banner,
       onAdLoaded: (_) {},
       onAdFailedToLoad: (_, __) {},
       onLifecycleEvent: (_, e) => events.add(e),

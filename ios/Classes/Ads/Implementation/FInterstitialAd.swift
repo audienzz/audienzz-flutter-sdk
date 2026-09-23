@@ -1,6 +1,8 @@
 import Flutter
 import GoogleMobileAds
-import AudienzziOSSDK
+// SPI: the one bridge-only entry point that hands the ad config's raw interstitial values to the
+// native SDK. Formats and API frameworks are backend-controlled; this is not a publisher setting.
+@_spi(AudienzzBridge) import AudienzziOSSDK
 
 class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenContentDelegate {
     var requestContext = AUAdRequestContext()
@@ -8,9 +10,11 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
     private let adUnitId: String
     private let auConfigId: String
     private let rootViewController: UIViewController
-    private let adFormat: FAdFormat
     private let minSizePercentage: FMinSizePercentage
-    private let apiParameters: [AUApi]
+    /// The ad config's raw `prebidConfig.format` / `prebidConfig.apis`, for a remote interstitial;
+    /// nil otherwise, and the native SDK then applies its default.
+    private let backendFormat: String?
+    private let backendApis: [Int]?
     private let videoProtocols: [AUVideoProtocols]
     private let videoPlacement: AUPlacement
     private let videoPlaybackMethods: [AUVideoPlaybackMethod]
@@ -31,9 +35,9 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
     
     init(adUnitId: String,
          auConfigId: String,
-         adFormat: FAdFormat,
          minSizePercentage: FMinSizePercentage,
-         apiParameters: [AUApi],
+         backendFormat: String? = nil,
+         backendApis: [Int]? = nil,
          videoProtocols: [AUVideoProtocols],
          videoPlacement: AUPlacement,
          videoPlaybackMethods: [AUVideoPlaybackMethod],
@@ -48,9 +52,9 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
          manager: AdInstanceManager) {
         self.adUnitId = adUnitId
         self.auConfigId = auConfigId
-        self.adFormat = adFormat
         self.minSizePercentage = minSizePercentage
-        self.apiParameters = apiParameters
+        self.backendFormat = backendFormat
+        self.backendApis = backendApis
         self.videoProtocols = videoProtocols
         self.videoPlacement = videoPlacement
         self.videoPlaybackMethods = videoPlaybackMethods
@@ -68,7 +72,7 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
     func load() {
         let request = AdManagerRequest()
         
-        loadInterstitialAd(gamRequest: request,adFormat: adFormat)
+        loadInterstitialAd(gamRequest: request)
     }
     
     //TODO: remove this hack when fixed https://github.com/prebid/prebid-mobile-ios/issues/1135
@@ -104,54 +108,29 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
         return json
     }
     
-    private func loadInterstitialAd(gamRequest: AdManagerRequest, adFormat: FAdFormat) {
-        let adFormats: [AUAdFormat]
-        let videoParameters: AUVideoParameters?
+    private func loadInterstitialAd(gamRequest: AdManagerRequest) {
+        // One ad unit whatever the format: formats and API frameworks are backend-controlled. The
+        // native view resolves them from the ad config values Dart sent for a remote interstitial
+        // (validated exactly as the native remote interstitial does), and otherwise requests
+        // banner + video with MRAID 1/2/3 + OMID 1.
+        interstitialView = AUInterstitialView(
+            configId: auConfigId,
+            isLazyLoad: false,
+            minWidthPerc: minSizePercentage.width.intValue,
+            minHeightPerc: minSizePercentage.height.intValue)
+        interstitialView?.setBackendCapabilities(format: backendFormat, apis: backendApis)
 
-        switch adFormat {
-        case .banner:
-            adFormats = [.banner]
-            videoParameters = nil
-            interstitialView = AUInterstitialView(
-                configId: auConfigId,
-                adFormats: adFormats,
-                isLazyLoad: false)
-        case .video:
-            adFormats = [.video]
-            videoParameters = AUVideoParameters(mimes: ["video/mp4"])
-            videoParameters?.protocols = videoProtocols
-            videoParameters?.playbackMethod = videoPlaybackMethods
-            videoParameters?.placement = videoPlacement
-            videoParameters?.api = apiParameters
-            videoParameters?.minBitrate = videoBitrate.min.intValue
-            videoParameters?.maxBitrate = videoBitrate.max.intValue
-            videoParameters?.minDuration = videoDuration.min.intValue
-            videoParameters?.maxDuration = videoDuration.max.intValue
-            interstitialView = AUInterstitialView(
-                configId: auConfigId,
-                adFormats: adFormats,
-                isLazyLoad: false,
-                minWidthPerc: minSizePercentage.width.intValue,
-                minHeightPerc:  minSizePercentage.height.intValue)
-        case .bannerAndVideo:
-            adFormats = [.banner, .video]
-            videoParameters = AUVideoParameters(mimes: ["video/mp4"])
-            videoParameters?.protocols = videoProtocols
-            videoParameters?.playbackMethod = videoPlaybackMethods
-            videoParameters?.placement = videoPlacement
-            videoParameters?.api = apiParameters
-            videoParameters?.minBitrate = videoBitrate.min.intValue
-            videoParameters?.maxBitrate = videoBitrate.max.intValue
-            videoParameters?.minDuration = videoDuration.min.intValue
-            videoParameters?.maxDuration = videoDuration.max.intValue
-            interstitialView = AUInterstitialView(
-                configId: auConfigId,
-                adFormats: adFormats,
-                isLazyLoad: false,
-                minWidthPerc: minSizePercentage.width.intValue,
-                minHeightPerc:  minSizePercentage.height.intValue)
-        }
-        
+        // The video settings Dart sent. Used only when the backend asks for video, and without an
+        // `api` list: the native view sets that from the backend.
+        let videoParameters: AUVideoParameters? = AUVideoParameters(mimes: ["video/mp4"])
+        videoParameters?.protocols = videoProtocols
+        videoParameters?.playbackMethod = videoPlaybackMethods
+        videoParameters?.placement = videoPlacement
+        videoParameters?.minBitrate = videoBitrate.min.intValue
+        videoParameters?.maxBitrate = videoBitrate.max.intValue
+        videoParameters?.minDuration = videoDuration.min.intValue
+        videoParameters?.maxDuration = videoDuration.max.intValue
+
         interstitialView?.adUnitConfiguration.adSlot = pbAdSlot
         interstitialView?.adUnitConfiguration.setGPID(gpId)
         

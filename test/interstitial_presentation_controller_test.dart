@@ -18,7 +18,6 @@ void main() {
     final value = InterstitialAd(
       adUnitId: '/opportunity',
       auConfigId: 'opportunity',
-      adFormat: AdFormat.banner,
       onAdLoaded: (_) {},
       onAdFailedToLoad: (_, error) => loadErrors.add(error),
     );

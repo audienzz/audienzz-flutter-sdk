@@ -4,29 +4,25 @@ import android.app.Activity
 import android.content.Context
 import android.os.SystemClock
 import com.audienzz.audienzz_sdk_flutter.ads.base.OverlayAd
-import com.audienzz.audienzz_sdk_flutter.entities.AdFormat
 import com.audienzz.audienzz_sdk_flutter.entities.MinSizePercentage
 import com.audienzz.audienzz_sdk_flutter.entities.VideoBitrate
 import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
 import com.google.android.gms.ads.AdSize
-import org.audienzz.mobile.api.data.AudienzzAdUnitFormat
 import com.google.android.gms.ads.admanager.AdManagerInterstitialAd
 import com.google.android.gms.ads.admanager.AdManagerInterstitialAdLoadCallback
 import org.audienzz.mobile.AudienzzAdSize
+import org.audienzz.mobile.AudienzzBridgeApi
 import org.audienzz.mobile.AudienzzInterstitialAdUnit
 import org.audienzz.mobile.AudienzzSignals
 import org.audienzz.mobile.AudienzzVideoParameters
 import org.audienzz.mobile.original.AudienzzInterstitialAdHandler
 import org.audienzz.mobile.original.callbacks.AudienzzFullScreenContentCallback
 import org.audienzz.mobile.original.callbacks.AudienzzInterstitialAdLoadCallback
-import java.util.EnumSet
 
 class InterstitialAd(
     private val adUnitId: String,
     private val auConfigId: String,
-    private val adFormat: AdFormat,
     private val minSizePercentage: MinSizePercentage,
-    private val apiParameters: List<AudienzzSignals.Api>,
     private val videoProtocols: List<AudienzzSignals.Protocols>,
     private val videoPlacement: AudienzzSignals.Placement,
     private val playbackMethods: List<AudienzzSignals.PlaybackMethod>,
@@ -39,6 +35,10 @@ class InterstitialAd(
     private val context: Context,
     private val interstitialAdLoadedListener: AudienzzInterstitialAdLoadCallback,
     private val fullScreenContentListener: AudienzzFullScreenContentCallback,
+    /** The ad config's raw `prebidConfig.format`, for a remote interstitial; null otherwise. */
+    private val backendFormat: String? = null,
+    /** The ad config's raw `prebidConfig.apis`, for a remote interstitial; null otherwise. */
+    private val backendApis: List<Int>? = null,
 ) : OverlayAd() {
     var requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext()
 
@@ -79,12 +79,15 @@ class InterstitialAd(
         }
     }
 
+    @OptIn(AudienzzBridgeApi::class)
     override fun load() {
-        val adUnit = when (adFormat) {
-            AdFormat.BANNER -> createInterstitialBannerAdUnit()
-            AdFormat.VIDEO -> createInterstitialVideoAdUnit()
-            AdFormat.BANNER_AND_VIDEO -> createInterstitialMultiformatAdUnit()
-        }
+        // One ad unit whatever the format: formats and API frameworks are backend-controlled.
+        // The native unit resolves them from the ad config values Dart sent for a remote
+        // interstitial (validated exactly as the native remote interstitial does), and otherwise
+        // requests banner + video with MRAID 1/2/3 + OMID 1.
+        val adUnit = AudienzzInterstitialAdUnit(auConfigId, minSizePercentage.width, minSizePercentage.height)
+        adUnit.setBackendCapabilities(backendFormat, backendApis)
+        adUnit.videoParameters = configureVideoParameters()
 
         this.adUnit = adUnit
         adUnit.apply {
@@ -105,39 +108,14 @@ class InterstitialAd(
         )
     }
 
-    private fun createInterstitialBannerAdUnit(): AudienzzInterstitialAdUnit {
-        return AudienzzInterstitialAdUnit(
-            auConfigId,
-            minSizePercentage.width,
-            minSizePercentage.height
-        )
-    }
-
-    private fun createInterstitialVideoAdUnit(): AudienzzInterstitialAdUnit {
-        val adUnit = AudienzzInterstitialAdUnit(
-            auConfigId,
-            EnumSet.of(AudienzzAdUnitFormat.VIDEO),
-        )
-        adUnit.videoParameters = configureVideoParameters()
-
-        return adUnit
-    }
-
-    private fun createInterstitialMultiformatAdUnit(): AudienzzInterstitialAdUnit {
-        val adUnit = AudienzzInterstitialAdUnit(
-            auConfigId,
-            EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO),
-        )
-        adUnit.setMinSizePercentage(minSizePercentage.width, minSizePercentage.height)
-        adUnit.videoParameters = configureVideoParameters()
-
-        return adUnit
-    }
-
+    /**
+     * The video settings Dart sent. Used only when the backend asks for video, and without an
+     * `api` list: the native unit sets that from the backend. MP4 only — the one container Google's
+     * player renders; `video/x-flv` was advertised here without being playable.
+     */
     private fun configureVideoParameters(): AudienzzVideoParameters {
-        return AudienzzVideoParameters(listOf("video/x-flv", "video/mp4")).apply {
+        return AudienzzVideoParameters(listOf("video/mp4")).apply {
             placement = AudienzzSignals.Placement.Interstitial
-            api = apiParameters
             maxBitrate = videoBitrate.maxBitrate
             minBitrate = videoBitrate.minBitrate
             maxDuration = videoDuration.maxDuration

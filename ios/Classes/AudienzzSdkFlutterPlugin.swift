@@ -267,10 +267,8 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                   let adId = args["adId"] as? NSNumber,
                   let adUnitId = args["adUnitId"] as? String,
                   let auConfigId = args["auConfigId"] as? String,
-                  let adFormat = args["adFormat"] as? FAdFormat,
                   let minSizePercentage = args["minSizePercentage"]
                   as? FMinSizePercentage,
-                  let apiParameters = args["apiParameters"] as? [AUApi],
                   let videoProtocols = args["protocols"] as? [AUVideoProtocols],
                   let videoPlacement = args["placement"] as? AUPlacement,
                   let videoPlaybackMethods = args["playbackMethods"]
@@ -307,9 +305,11 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             let interstitialAd = FInterstitialAd(
                 adUnitId: adUnitId,
                 auConfigId: auConfigId,
-                adFormat: adFormat,
                 minSizePercentage: minSizePercentage,
-                apiParameters: apiParameters,
+                // Remote interstitials only: the ad config's raw values, read by Dart when this
+                // accepted load was sent. Absent means "not configured".
+                backendFormat: args["backendFormat"] as? String,
+                backendApis: (args["backendApis"] as? [NSNumber])?.map { $0.intValue },
                 videoProtocols: videoProtocols,
                 videoPlacement: videoPlacement,
                 videoPlaybackMethods: videoPlaybackMethods,

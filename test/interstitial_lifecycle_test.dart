@@ -58,7 +58,6 @@ void main() {
     ad = InterstitialAd(
         adUnitId: '/probe',
         auConfigId: 'probe',
-        adFormat: AdFormat.banner,
         onAdLoaded: (_) => loaded++,
         onAdClosed: (_) => closed++,
         onAdFailedToLoad: (_, __) => loadFailures++,
@@ -294,7 +293,6 @@ void main() {
       () async {
     final remote = RemoteInterstitialAd(
         configId: 'missing-review-config',
-        adFormat: AdFormat.banner,
         onAdLoaded: (_) => loaded++,
         onAdFailedToLoad: (_, __) => loadFailures++);
     unawaited(remote.load());

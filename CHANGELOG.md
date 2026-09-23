@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **Breaking — interstitial formats and API frameworks are backend-controlled.** Removed the
+  `adFormat` and `apiParameters` arguments from `InterstitialAd` and `RemoteInterstitialAd`. A
+  remote interstitial forwards its ad config's `prebidConfig.format` / `prebidConfig.apis` with each
+  accepted load and the native SDK validates them (defaults `bannerAndVideo`, `[3, 5, 6, 7]`); a
+  hand-built interstitial always uses the defaults. Both plugins now build one ad unit for every
+  format (the minimum size percentages always apply) and advertise MP4 only. See
+  `docs/interstitial-capabilities.md`.
+
 - Restore callback-based error handling for interstitial `load()` by default, including remote
   configuration failures. Existing unawaited calls no longer acquire an unhandled error future.
 - Add `load(throwOnFailure: true)` for explicit awaited readiness/error handling.

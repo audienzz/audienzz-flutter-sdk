@@ -58,7 +58,6 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
     if (widget.configId != null) {
       ad = RemoteInterstitialAd(
           configId: widget.configId!,
-          adFormat: AdFormat.bannerAndVideo,
           // After a plain prefetch this is where it stops: ready, nothing on screen.
           onAdLoaded: (_) => _setStatus('ready to show'),
           onAdFailedToLoad: (_, error) => _setStatus('load failed: ${error?.message ?? 'unknown'}'),
@@ -70,7 +69,6 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
           });
     } else {
       ad = InterstitialAd(
-          adFormat: AdFormat.bannerAndVideo,
           adUnitId: '/21775744923/example/interstitial',
           auConfigId: '34400101',
           onAdLoaded: (_) => _setStatus('ready to show'),

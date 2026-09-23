@@ -5,6 +5,7 @@ import 'package:audienzz_sdk_flutter/src/ads/base/ad.dart';
 import 'package:audienzz_sdk_flutter/src/ads/base/ad_without_view.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/banner_ad.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/interstitial_ad.dart';
+import 'package:audienzz_sdk_flutter/src/ads/implementation/remote_interstitial_ad.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/rewarded_ad.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
@@ -16,6 +17,7 @@ import 'package:audienzz_sdk_flutter/src/entities/interstitial_ad_event.dart';
 import 'package:audienzz_sdk_flutter/src/entities/reward_item.dart';
 import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
 import 'package:audienzz_sdk_flutter/src/refresh/smart_refresh_policy.dart';
+import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -450,6 +452,23 @@ final class AdInstanceManager {
     }
   }
 
+  /// The ad config's raw `prebidConfig.format` / `prebidConfig.apis`, for a
+  /// remote interstitial only: a hand-built one has no ad config. There is no
+  /// public hook for this, and [RemoteInterstitialAd] cannot be subclassed, so
+  /// an app cannot put its own values here.
+  Map<String, Object>? _backendCapabilities(InterstitialAd ad) {
+    if (ad is! RemoteInterstitialAd) {
+      return null;
+    }
+    final prebid = AudienzzRemoteConfig.instance
+        .remoteConfigFor(ad.configId)
+        ?.prebidConfig;
+    return {
+      if (prebid?.format != null) 'backendFormat': prebid!.format!,
+      if (prebid?.apis != null) 'backendApis': prebid!.apis!,
+    };
+  }
+
   Future<void> loadInterstitialAd(InterstitialAd ad) {
     var existing = _interstitialLoads[adIdFor(ad)];
     if (existing?.phase == _InterstitialPhase.ready &&
@@ -485,8 +504,13 @@ final class AdInstanceManager {
         'requestSlot': _requestSlotFor(ad),
         'adUnitId': ad.adUnitId,
         'auConfigId': ad.auConfigId,
-        'adFormat': ad.adFormat,
-        'apiParameters': ad.apiParameters.toList(),
+        // Formats and API frameworks are backend-controlled. Read here, when an
+        // accepted load is sent, so a config change never touches an ad that
+        // is ready, loading or on screen. Absent means "not configured": the
+        // native SDK applies its default (banner + video, MRAID 1/2/3 + OMID 1)
+        // and validates whatever is sent exactly as its own remote
+        // interstitial does.
+        ...?_backendCapabilities(ad),
         'protocols': ad.protocols.toList(),
         'placement': ad.placement,
         'playbackMethods': ad.playbackMethods.toList(),

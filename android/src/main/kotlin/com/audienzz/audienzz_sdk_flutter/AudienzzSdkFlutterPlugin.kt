@@ -158,9 +158,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 val interstitialAd = InterstitialAd(
                     call.argument<String>("adUnitId")!!,
                     call.argument<String>("auConfigId")!!,
-                    call.argument<AdFormat>("adFormat")!!,
                     call.argument<MinSizePercentage>("minSizePercentage")!!,
-                    call.argument<List<AudienzzSignals.Api>>("apiParameters")!!,
                     call.argument<List<AudienzzSignals.Protocols>>("protocols")!!,
                     call.argument<AudienzzSignals.Placement>("placement")!!,
                     call.argument<List<AudienzzSignals.PlaybackMethod>>("playbackMethods")!!,
@@ -173,6 +171,10 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     context,
                     adInstanceManager!!.createInterstitialAdLoadedListener(adId),
                     adInstanceManager!!.createOverlayAdFullscreenContentListener(adId),
+                    // Remote interstitials only: the ad config's raw values, read by Dart when this
+                    // accepted load was sent. Absent means "not configured".
+                    call.argument<String>("backendFormat"),
+                    call.argument<List<Int>>("backendApis"),
                 )
 
                 call.argument<String>("requestSlot")?.let {

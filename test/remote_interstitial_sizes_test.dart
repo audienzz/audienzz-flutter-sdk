@@ -1,5 +1,4 @@
 import 'package:audienzz_sdk_flutter/src/ads/implementation/remote_interstitial_ad.dart';
-import 'package:audienzz_sdk_flutter/src/entities/ad_format.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_ad_configuration.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,7 +29,6 @@ void main() {
 
   RemoteInterstitialAd build() => RemoteInterstitialAd(
         configId: 'remote-interstitial',
-        adFormat: AdFormat.banner,
         onAdLoaded: (_) {},
         onAdFailedToLoad: (_, __) {},
       );

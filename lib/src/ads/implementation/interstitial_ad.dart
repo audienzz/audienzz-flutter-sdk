@@ -1,9 +1,7 @@
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/ads/base/ad_without_view.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
-import 'package:audienzz_sdk_flutter/src/entities/ad_format.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
-import 'package:audienzz_sdk_flutter/src/entities/api_parameter.dart';
 import 'package:audienzz_sdk_flutter/src/entities/interstitial_ad_event.dart';
 import 'package:audienzz_sdk_flutter/src/entities/min_size_percentage.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/placement.dart';
@@ -12,22 +10,20 @@ import 'package:audienzz_sdk_flutter/src/entities/video_parameters/protocol.dart
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_bitrate.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_duration.dart';
 
-/// Class for work with interstitial ads
+/// Class for work with interstitial ads.
+///
+/// The formats and API frameworks it requests are not arguments: they are
+/// backend-controlled. A hand-built interstitial asks for banner and video
+/// with MRAID 1/2/3 + OMID 1; a [RemoteInterstitialAd] uses its ad config's
+/// `prebidConfig.format` / `prebidConfig.apis`.
 class InterstitialAd extends AdWithoutView {
   const InterstitialAd({
     required super.adUnitId,
     required super.auConfigId,
-    required this.adFormat,
     required this.onAdLoaded,
     required this.onAdFailedToLoad,
     this.minSizePercentage = const MinSizePercentage(width: 80, height: 60),
     this.sizes = const <AdSize>{},
-    this.apiParameters = const {
-      ApiParameter.mraid1,
-      ApiParameter.mraid2,
-      ApiParameter.mraid3,
-      ApiParameter.omid1,
-    },
     this.protocols = const {},
     this.placement = Placement.inBanner,
     this.playbackMethods = const {PlaybackMethod.enterSoundOff},
@@ -44,20 +40,12 @@ class InterstitialAd extends AdWithoutView {
     this.onLifecycleEvent,
   });
 
-  /// Ad desired format, [AdFormat.banner], [AdFormat.video]
-  /// or [AdFormat.bannerAndVideo] (used by multiformat banner ads)
-  final AdFormat adFormat;
-
   /// Specify width and height of the ad unit in percents, will be used
   /// in a bid request
   final MinSizePercentage minSizePercentage;
 
   /// Specify width and height of the ad unit, will be used in a bid request
   final Set<AdSize> sizes;
-
-  /// The property is dedicated to adding values for API Frameworks to a bid
-  /// response according to the OpenRTB 2.5 spec.
-  final Set<ApiParameter> apiParameters;
 
   /// Array or enum of OpenRTB 2.5 supported Protocols.
   final Set<Protocol> protocols;
@@ -137,7 +125,6 @@ class InterstitialAd extends AdWithoutView {
   List<Object?> get props => [
         adUnitId,
         auConfigId,
-        adFormat,
         onAdLoaded,
         onAdFailedToLoad,
         onAdOpened,
@@ -146,7 +133,6 @@ class InterstitialAd extends AdWithoutView {
         onAdImpression,
         onAdFailedToShow,
         onLifecycleEvent,
-        apiParameters,
         protocols,
         placement,
         playbackMethods,
