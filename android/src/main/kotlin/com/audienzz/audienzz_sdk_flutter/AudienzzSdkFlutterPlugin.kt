@@ -504,11 +504,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     // Identity and analytics name are separate. Every Flutter ad lives in the one
                     // host Activity, so host identity can never separate two routes — the id is the
                     // only thing that can, and a screen name repeats.
-                    if (pageId != null) {
-                        AudienzzPrebidMobile.pageImpression(pageId, name)
-                    } else {
-                        AudienzzPrebidMobile.pageImpression(name)
-                    }
+                    adInstanceManager?.pageImpression(pageId ?: name, name)
                 }
                 result.success(null)
             }
@@ -524,6 +520,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
      */
     private fun observeNativePageImpressions() {
         AudienzzPrebidMobile.pageImpressionObserver = { name ->
+            adInstanceManager?.didReportPageImpression(name)
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 methodChannel?.invokeMethod("onPageImpression", mapOf("name" to name))
             }
@@ -535,6 +532,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
         // Tear down every live ad so auctions/refresh loops don't continue with
         // no Dart side to receive events (add-to-app / multi-engine teardown).
         adInstanceManager?.disposeAllAds()
+        adInstanceManager?.setActivity(null)
         methodChannel?.setMethodCallHandler(null)
     }
 

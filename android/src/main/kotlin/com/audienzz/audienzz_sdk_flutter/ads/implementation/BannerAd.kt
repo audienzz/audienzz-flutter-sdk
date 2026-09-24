@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.core.view.doOnAttach
 import androidx.core.view.doOnNextLayout
 import com.audienzz.audienzz_sdk_flutter.ads.base.Ad
+import com.audienzz.audienzz_sdk_flutter.ads.base.FullScreenCoverableAd
 import com.audienzz.audienzz_sdk_flutter.entities.AdFormat
 import com.audienzz.audienzz_sdk_flutter.entities.VideoBitrate
 import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
@@ -53,7 +54,7 @@ class BannerAd(
      * banner with no Prebid sizes turns it off.
      */
     private val headerBidding: Boolean = true,
-) : Ad() {
+) : Ad(), FullScreenCoverableAd {
     /**
      * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
      * A publisher can allow a size in GAM (for direct-sold line items) that they keep out of
@@ -156,7 +157,7 @@ class BannerAd(
             handler.setScreen(pageKey)
             // Before handler.load(): an eager banner requests inside that call, so a pause the
             // publisher installed before this ad existed has to be in place first.
-            if (publisherPaused) {
+            if (publisherPaused || fullScreenCovered) {
                 handler.stopAutoRefresh()
             }
             handler.load(
@@ -201,15 +202,26 @@ class BannerAd(
      * here until there is something to apply it to.
      */
     private var publisherPaused = false
+    private var fullScreenCovered = false
 
     fun pauseAutoRefresh() {
         publisherPaused = true
-        adViewHandler?.stopAutoRefresh()
+        syncRefreshPause()
     }
 
     fun resumeAutoRefresh() {
         publisherPaused = false
-        adViewHandler?.resumeAutoRefresh()
+        syncRefreshPause()
+    }
+
+    override fun setFullScreenCovered(covered: Boolean) {
+        fullScreenCovered = covered
+        syncRefreshPause()
+    }
+
+    private fun syncRefreshPause() {
+        if (publisherPaused || fullScreenCovered) adViewHandler?.stopAutoRefresh()
+        else adViewHandler?.resumeAutoRefresh()
     }
 
     fun setViewportVisible(visible: Boolean) {

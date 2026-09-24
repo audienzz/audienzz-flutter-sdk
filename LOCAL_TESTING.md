@@ -85,13 +85,45 @@ Everything the reviews asked about is reachable in at most two taps from the hom
 | Repeated taps / ineligible opportunity | same screen — every button stays enabled on purpose |
 | Disposal during loading | tap **Prefetch** then immediately leave the screen |
 | Test screen from an inline button | **Open test screen** below a home banner — normal text, app bar and back button; one PI before its banner request |
-| iOS interstitial return | Show an interstitial over a loaded banner, wait past the refresh interval, dismiss — no refresh under the ad, one return PI, then blank/reload on the active page |
+| Interstitial return (Android and iOS) | Show an interstitial over a loaded banner, wait past the refresh interval, dismiss — no refresh under the ad, one return PI, then blank/reload on the active page |
 
-For the iOS interstitial flow, also repeat with a publisher-paused banner, a failed presentation,
+For the interstitial flow, also repeat with a publisher-paused banner, a failed presentation,
 and a background/foreground round trip while the ad is open. A manual pause must survive dismissal;
 a failed show must not report a page return; native foreground recovery must not be followed by a
 duplicate return PI. Off-screen banners remain deferred until eligible. These checks require a
 device/live test ad to validate actual Google presentation and painting.
+
+### Android interstitial return regression
+
+Native `0.3.0` can latch `APP_BACKGROUND` after a translucent Google `AdActivity` closes: SDK
+initialization missed the host's first start, and returning only resumes it. The fix on native
+`feature/page-impression-api` also records resumed/paused activities as started. Flutter's return
+PI cannot override an incorrect native background verdict.
+
+Until that native patch is released, publish the patched checkout locally with a unique version
+(verified with `0.3.1-flutter-review`), then build this example with
+`-PaudienzzNativeVersion=0.3.1-flutter-review`. Keep the local override out of committed pins.
+
+Verify this exact sequence on a clean launch:
+
+1. Let a home banner load, then show and dismiss an interstitial.
+2. Confirm one return PI and a fresh load for the visible banner.
+3. Open the Test Screen from below a banner; its banner must load.
+4. Go back; the home banner must blank and then load its replacement.
+5. Background for over 30 seconds, then return; no auctions while backgrounded, one recovery PI.
+
+The Flutter bridge unit suite is `./gradlew :audienzz_sdk_flutter:testDebugUnitTest` from
+`example/android`. Native regression tests cover both the foreground monitor and actual banner
+handler handoffs. The release remains blocked on publishing the native fix and updating the pin.
+
+Device verification on 2026-09-24 (vivo 2004, Android 12; local native `0.3.1-flutter-review`):
+interstitial open for 42 seconds with no banner auctions; dismissal produced one PI and blanked
+both home slots. Each slot loaded its deferred replacement when scrolled into view. The inline
+Test Screen banner loaded and rendered; returning home blanked and rendered a new banner.
+Another 43 seconds in the actual background produced no auctions; returning produced one PI and
+one successful replacement for the visible slot.
+Native unit tests: 251 passed. Flutter Android bridge tests: 23 passed. Removing the foreground
+fix fails five regressions, and removing the bridge's return report/cover fails six regression tests.
 
 Native bridge regressions run in the example's `RunnerTests` target, against the normal published
 SDK pin (no local native override):

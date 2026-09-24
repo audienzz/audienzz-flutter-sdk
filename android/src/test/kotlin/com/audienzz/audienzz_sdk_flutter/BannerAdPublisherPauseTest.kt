@@ -5,6 +5,7 @@ import io.mockk.*
 import org.audienzz.mobile.original.AudienzzAdViewHandler
 import org.junit.After
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,6 +32,9 @@ class BannerAdPublisherPauseTest {
         mockkConstructor(AudienzzAdViewHandler::class)
         every { anyConstructed<AudienzzAdViewHandler>().stopAutoRefresh() } answers {
             stops += "stop"
+        }
+        every { anyConstructed<AudienzzAdViewHandler>().resumeAutoRefresh() } answers {
+            stops += "resume"
         }
         every { anyConstructed<AudienzzAdViewHandler>().setScreen(any()) } just Runs
         every { anyConstructed<AudienzzAdViewHandler>().load(any(), any(), any(), any()) } answers {
@@ -96,5 +100,28 @@ class BannerAdPublisherPauseTest {
 
         assertTrue(stops.contains("load"))
         assertTrue("a resume must clear the intent, not latch it", !stops.contains("stop"))
+    }
+
+    @Test
+    fun `interstitial cover is installed before an eager first load`() {
+        val ad = banner()
+        ad.setFullScreenCovered(true)
+        ad.load()
+        assertEquals(listOf("stop", "load"), stops)
+    }
+
+    @Test
+    fun `publisher and interstitial pauses cannot undo each other`() {
+        val ad = banner()
+        ad.load()
+        stops.clear()
+        ad.setFullScreenCovered(true)
+        ad.resumeAutoRefresh()
+        assertEquals(listOf("stop", "stop"), stops)
+        ad.pauseAutoRefresh()
+        ad.setFullScreenCovered(false)
+        assertEquals(listOf("stop", "stop", "stop", "stop"), stops)
+        ad.resumeAutoRefresh()
+        assertEquals("resume", stops.last())
     }
 }
