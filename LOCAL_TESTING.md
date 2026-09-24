@@ -1,8 +1,8 @@
 # Running this example against the LOCAL native SDKs
 
-This bridge targets `com.audienzz:sdk:0.3.0` and `AudienzziOSSDK ~> 0.4.0`. Until those are
-published, the example **cannot run without the local checkouts** below. Both overrides are
-opt-in; the distributable manifests name the release versions.
+The bridge and example use published `com.audienzz:sdk:0.3.0` and
+`AudienzziOSSDK ~> 0.4.0` by default. No native checkout is needed for normal builds.
+The overrides below are optional and only for developing native changes.
 
 ## Android — one Gradle property
 
@@ -14,7 +14,8 @@ sed -i '' 's/audienzzSdkVersion = "0.3.0"/audienzzSdkVersion = "0.3.0-local"/' A
 ./gradlew :Audienzz:publishToMavenLocal
 ```
 
-`example/android/gradle.properties` already carries:
+After publishing a local build, add this temporary override to `example/android/gradle.properties`
+(or pass `-PaudienzzNativeVersion=0.3.0-local` when invoking Gradle):
 
 ```properties
 audienzzNativeVersion=0.3.0-local
@@ -41,9 +42,8 @@ unset AUDIENZZ_IOS_SDK_PATH
 cd audienzz-flutter-sdk/example/ios && pod install
 ```
 
-`pod install` prints which one it chose. It is an env var rather than an edit so the committed
-`Podfile` and `Podfile.lock` keep naming a real tag — an absolute path checked into a lock file
-only resolves on one machine, which is how one got into this repo before.
+`pod install` prints when it uses the local checkout. The environment variable lets you switch
+sources without editing the committed `Podfile`; the generated lockfile records the selected source.
 
 ## Run
 
@@ -110,13 +110,13 @@ matches the `page impression` before it, then at `refresh block … held=`.
 
 ## A note on `Podfile.lock`
 
-Running `pod install` with `AUDIENZZ_IOS_SDK_PATH` set rewrites `example/ios/Podfile.lock` to point
-at your checkout, so the file will show as modified while you are testing. **Do not commit it** —
-an absolute path in a tracked lock only resolves on one machine. `git checkout -- example/ios/Podfile.lock`
-puts it back; the installed Pods are unaffected.
+`example/ios/Podfile.lock` is generated locally and ignored by Git. Running `pod install` with
+`AUDIENZZ_IOS_SDK_PATH` set records your checkout in it. To return to the published dependency,
+unset the variable and run `pod update AudienzziOSSDK` from `example/ios`.
 
 ## Before releasing
 
 1. Delete `audienzzNativeVersion` from `example/android/gradle.properties`.
 2. `unset AUDIENZZ_IOS_SDK_PATH` and `pod install`.
-3. Release the native SDKs, then re-pin this package to those versions and rebuild.
+3. Build both platforms against the published dependencies. The current required releases are
+   Android 0.3.0 and iOS 0.4.0; no local override should be active.

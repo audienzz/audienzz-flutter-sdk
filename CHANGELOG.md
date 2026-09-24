@@ -1,6 +1,8 @@
 ## Unreleased
 
 - Requires AudienzziOSSDK `~> 0.4.0` and `com.audienzz:sdk:0.3.0`.
+- Examples now resolve the published native releases by default; local native builds require
+  an explicit override. The iOS example resolves the native SDK through CocoaPods trunk.
 - `InterstitialAd` video defaults now match the native interstitial: `protocols` `{vast2_0}`
   (was empty), `placement` `Placement.interstitial` (was `inBanner`), `playbackMethods`
   `{autoPlaySoundOff}` (was `{enterSoundOff}`); iOS also sends `plcmnt` interstitial.
