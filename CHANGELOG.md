@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Requires AudienzziOSSDK `~> 0.4.0` and `com.audienzz:sdk:0.3.0`.
+- `InterstitialAd` video defaults now match the native interstitial: `protocols` `{vast2_0}`
+  (was empty), `placement` `Placement.interstitial` (was `inBanner`), `playbackMethods`
+  `{autoPlaySoundOff}` (was `{enterSoundOff}`); iOS also sends `plcmnt` interstitial.
+
 - **Breaking — interstitial formats and API frameworks are backend-controlled.** Removed the
   `adFormat` and `apiParameters` arguments from `InterstitialAd` and `RemoteInterstitialAd`. A
   remote interstitial forwards its ad config's `prebidConfig.format` / `prebidConfig.apis` with each

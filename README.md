@@ -845,9 +845,9 @@ An interstitial's formats and API frameworks are not arguments: they are backend
 |---------------------|----------------------------------------------------|---------------------------------------------------------------|
 | `minSizePercentage` | `MinSizePercentage`                                | Minimum ad size in percent. Default: `width: 80, height: 60`. |
 | `sizes`             | `Set<AdSize>`                                      | Ad sizes for the bid request. Optional.                       |
-| `protocols`         | `Set<Protocol>`                                    | Supported video protocols. Optional.                          |
-| `placement`         | `Placement`                                        | Placement type. Default: `Placement.inBanner`.                |
-| `playbackMethods`   | `Set<PlaybackMethod>`                              | Video playback methods. Default: `{enterSoundOff}`.           |
+| `protocols`         | `Set<Protocol>`                                    | Supported video protocols. Default: `{vast2_0}`.              |
+| `placement`         | `Placement`                                        | Placement type. Default: `Placement.interstitial`.            |
+| `playbackMethods`   | `Set<PlaybackMethod>`                              | Video playback methods. Default: `{autoPlaySoundOff}`.        |
 | `videoBitrate`      | `VideoBitrate`                                     | Video bitrate range. Default: `min: 300, max: 1500`.          |
 | `videoDuration`     | `VideoDuration`                                    | Video duration range. Default: `min: 1, max: 30`.             |
 | `pbAdSlot`          | `String?`                                          | PB Ad Slot identifier. Optional.                              |

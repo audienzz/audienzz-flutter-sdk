@@ -24,9 +24,13 @@ class InterstitialAd extends AdWithoutView {
     required this.onAdFailedToLoad,
     this.minSizePercentage = const MinSizePercentage(width: 80, height: 60),
     this.sizes = const <AdSize>{},
-    this.protocols = const {},
-    this.placement = Placement.inBanner,
-    this.playbackMethods = const {PlaybackMethod.enterSoundOff},
+    // The native interstitial defaults: VAST 2.0, interstitial placement, muted
+    // autoplay. They were empty protocols and an in-banner placement, which
+    // the plugins forwarded as-is, so every Flutter video interstitial was
+    // described to bidders as a banner slot with no supported protocol.
+    this.protocols = const {Protocol.vast2_0},
+    this.placement = Placement.interstitial,
+    this.playbackMethods = const {PlaybackMethod.autoPlaySoundOff},
     this.videoBitrate = const VideoBitrate(min: 300, max: 1500),
     this.videoDuration = const VideoDuration(min: 1, max: 30),
     this.pbAdSlot,

@@ -107,6 +107,24 @@ void main() {
     expect(payload.containsKey('backendApis'), isFalse);
   });
 
+  test('video defaults describe an interstitial, as native does', () async {
+    // They were empty protocols and an in-banner placement, forwarded as-is:
+    // a video interstitial was described to bidders as a banner slot.
+    final ad = InterstitialAd(
+      adUnitId: '/1/int',
+      auConfigId: 'p',
+      onAdLoaded: (_) {},
+      onAdFailedToLoad: (_, __) {},
+    );
+    ads.add(ad);
+    await start(ad);
+
+    final payload = loads().single;
+    expect(payload['protocols'], [Protocol.vast2_0]);
+    expect(payload['placement'], Placement.interstitial);
+    expect(payload['playbackMethods'], [PlaybackMethod.autoPlaySoundOff]);
+  });
+
   test('a remote interstitial forwards its ad config values', () async {
     seed({'format': 'banner', 'apis': [7, 3]});
     await start(remote());

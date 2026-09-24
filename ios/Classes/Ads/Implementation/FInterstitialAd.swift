@@ -126,6 +126,9 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
         videoParameters?.protocols = videoProtocols
         videoParameters?.playbackMethod = videoPlaybackMethods
         videoParameters?.placement = videoPlacement
+        // OpenRTB 2.6 placement, which modern DSPs read instead of `placement`. Always an
+        // interstitial here, as the native default sets it.
+        videoParameters?.plcmnt = .interstitial
         videoParameters?.minBitrate = videoBitrate.min.intValue
         videoParameters?.maxBitrate = videoBitrate.max.intValue
         videoParameters?.minDuration = videoDuration.min.intValue

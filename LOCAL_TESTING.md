@@ -1,10 +1,8 @@
 # Running this example against the LOCAL native SDKs
 
-This bridge calls native APIs that are **not in any published release** — `pageImpression`,
-per-view `setScreen`, the interstitial `prefetch`/`show`/`prefetchAndShow` contract and the
-analytics corrections. The published pins (`com.audienzz:sdk:0.2.2`, `AudienzziOSSDK 0.3.2`) do
-not provide them, so the example **cannot run against them**. Both overrides below are opt-in and
-leave the distributable manifests naming real releases.
+This bridge targets `com.audienzz:sdk:0.3.0` and `AudienzziOSSDK ~> 0.4.0`. Until those are
+published, the example **cannot run without the local checkouts** below. Both overrides are
+opt-in; the distributable manifests name the release versions.
 
 ## Android — one Gradle property
 
@@ -12,22 +10,22 @@ Publish the native SDK to your local Maven repository once:
 
 ```bash
 cd ~/Documents/audienzz-android-sdk
-sed -i '' 's/audienzzSdkVersion = "0.2.2"/audienzzSdkVersion = "0.2.3-local"/' Audienzz/build.gradle.kts
+sed -i '' 's/audienzzSdkVersion = "0.3.0"/audienzzSdkVersion = "0.3.0-local"/' Audienzz/build.gradle.kts
 ./gradlew :Audienzz:publishToMavenLocal
 ```
 
 `example/android/gradle.properties` already carries:
 
 ```properties
-audienzzNativeVersion=0.2.3-local
+audienzzNativeVersion=0.3.0-local
 ```
 
 That property is what switches `android/build.gradle` over and adds `mavenLocal()`. **Delete the
-line to go back to the published pin** — the default in `android/build.gradle` is still `0.2.2`,
-so nothing about the shipped package changes.
+line to go back to the published pin**, and before releasing — the default in `android/build.gradle`
+is `0.3.0`, so nothing about the shipped package depends on it.
 
 Re-publish after every native change; Gradle caches by version, so either re-publish over
-`0.2.3-local` or bump the suffix.
+`0.3.0-local` or bump the suffix.
 
 ## iOS — one environment variable
 

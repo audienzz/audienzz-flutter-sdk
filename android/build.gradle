@@ -20,7 +20,7 @@ buildscript {
 //
 // Deliberately a property rather than an edit: this file ships inside the pub package, and a
 // hardcoded `-local` version in it would follow every publisher who installs the SDK.
-def audienzzNativeVersion = project.findProperty("audienzzNativeVersion") ?: "0.2.2"
+def audienzzNativeVersion = project.findProperty("audienzzNativeVersion") ?: "0.3.0"
 
 allprojects {
     repositories {
