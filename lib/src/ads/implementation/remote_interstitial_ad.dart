@@ -12,9 +12,7 @@ final class RemoteInterstitialAd extends InterstitialAd {
     required this.configId,
     required super.onAdLoaded,
     required super.onAdFailedToLoad,
-    required super.adFormat,
     super.minSizePercentage,
-    super.apiParameters,
     super.protocols,
     super.placement,
     super.playbackMethods,
@@ -27,6 +25,8 @@ final class RemoteInterstitialAd extends InterstitialAd {
     super.onAdClosed,
     super.onAdClicked,
     super.onAdImpression,
+    super.onAdFailedToShow,
+    super.onLifecycleEvent,
   }) : super(
           adUnitId: _getAdUnitId(configId),
           auConfigId: _getAuConfigId(configId),
@@ -39,8 +39,20 @@ final class RemoteInterstitialAd extends InterstitialAd {
     return AudienzzRemoteConfig.instance.remoteConfigFor(configId);
   }
 
+  /// The Prebid banner format for this interstitial: `prebidConfig.adSizes`,
+  /// largest first — the field and order the native remote interstitials use.
+  ///
+  /// These sizes go ONLY to Prebid: both plugins put them on
+  /// `bannerParameters.adSizes` (iOS also into the #1135 `banner.format`
+  /// merge), and a GAM interstitial takes no sizes. They were read from
+  /// `gamConfig.adSizes`, the GAM slot's list. The two match in every config
+  /// today, so the request was right by coincidence; a publisher whose Prebid
+  /// and GAM sizes differ got the wrong Prebid format on Flutter only.
   static Set<AdSize> _getSizes(String configId) {
-    return AdSizeMapper.map(_getConfig(configId)?.gamConfig.adSizes ?? []);
+    final adSizes = _getConfig(configId)?.prebidConfig.adSizes ?? [];
+    final sizes = AdSizeMapper.map(adSizes).toList()
+      ..sort((a, b) => (b.width * b.height).compareTo(a.width * a.height));
+    return sizes.toSet();
   }
 
   static String _getAdUnitId(String configId) {
@@ -52,15 +64,15 @@ final class RemoteInterstitialAd extends InterstitialAd {
   }
 
   @override
-  Future<void> load() async {
+  Future<void> load({bool throwOnFailure = false}) async {
     if (_getConfig(configId) == null) {
       log('Config with id $configId not found');
-      onAdFailedToLoad(
-        this,
-        AdError(code: -1, message: 'Config with id $configId not found'),
-      );
+      final error =
+          AdError(code: -1, message: 'Config with id $configId not found');
+      onAdFailedToLoad(this, error);
+      if (throwOnFailure) throw error;
       return;
     }
-    return super.load();
+    return super.load(throwOnFailure: throwOnFailure);
   }
 }

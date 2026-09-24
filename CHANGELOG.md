@@ -1,3 +1,24 @@
+## Unreleased
+
+- Requires AudienzziOSSDK `~> 0.4.0` and `com.audienzz:sdk:0.3.0`.
+- `InterstitialAd` video defaults now match the native interstitial: `protocols` `{vast2_0}`
+  (was empty), `placement` `Placement.interstitial` (was `inBanner`), `playbackMethods`
+  `{autoPlaySoundOff}` (was `{enterSoundOff}`); iOS also sends `plcmnt` interstitial.
+
+- **Breaking — interstitial formats and API frameworks are backend-controlled.** Removed the
+  `adFormat` and `apiParameters` arguments from `InterstitialAd` and `RemoteInterstitialAd`. A
+  remote interstitial forwards its ad config's `prebidConfig.format` / `prebidConfig.apis` with each
+  accepted load and the native SDK validates them (defaults `bannerAndVideo`, `[3, 5, 6, 7]`); a
+  hand-built interstitial always uses the defaults. Both plugins now build one ad unit for every
+  format (the minimum size percentages always apply) and advertise MP4 only. See
+  `docs/interstitial-capabilities.md`.
+
+- Restore callback-based error handling for interstitial `load()` by default, including remote
+  configuration failures. Existing unawaited calls no longer acquire an unhandled error future.
+- Add `load(throwOnFailure: true)` for explicit awaited readiness/error handling.
+  `InterstitialPresentationController.preload()` retains its throwing contract.
+  A default `load()` future completing does not prove readiness; use `isReady` or `onAdLoaded`.
+
 ## 0.1.9
 
 * Honor `pauseAutoRefresh()` / `resumeAutoRefresh()` (and the all-ads variants) on iOS: a manual pause — e.g. when a same-route overlay covers the banner, which the native geometry poll can't detect — is no longer auto-resumed by the visibility poll within half a second (Android already honored these)

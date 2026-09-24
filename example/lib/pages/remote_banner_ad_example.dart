@@ -5,23 +5,22 @@ import 'package:flutter/material.dart';
 // RemoteBannerAdLoader
 // ---------------------------------------------------------------------------
 
-/// Manages the lifecycle of a [RemoteBannerAd] and kicks off loading
-/// immediately on construction so the Prebid + GAM round-trip can begin
-/// *before* the widget tree is fully built.
+/// Manages the lifecycle of a [RemoteBannerAd] and starts loading as soon as it
+/// is constructed.
 ///
-/// Typical usage — pre-load during SDK initialisation, then hand the loader
-/// to [RemoteBannerAdExample]:
+/// **This is the advanced, low-level sample.** The recommended integration is
+/// `AudienzzPage` + `AudienzzBanner` (see `ManagedBannerExample`), which owns
+/// all of this for you. Everything below exists because a publisher who wants
+/// to drive the ad object directly has to reproduce it by hand — and the part
+/// that is easy to get wrong is the ORDER.
 ///
-/// ```dart
-/// // In initializeSdk(), after all global SDK config is set:
-/// _loader = RemoteBannerAdLoader(configId: '46');
-///
-/// // In build():
-/// RemoteBannerAdExample(configId: '46', loader: _loader)
-/// ```
-///
-/// When no loader is passed to [RemoteBannerAdExample], the widget creates and
-/// owns one internally — identical behaviour to the pre-refactor version.
+/// A [RemoteBannerAd] is stamped with the page that is current when it is
+/// created. Constructing it during `initState`, or during SDK initialisation,
+/// happens before the navigator observer has reported the route the widget is
+/// on, so the ad carries no page (or the previous one) and the next page
+/// impression sweeps it as belonging somewhere else. [RemoteBannerAdExample]
+/// therefore waits for its page before creating this loader; do not construct
+/// one eagerly and pass it in.
 class RemoteBannerAdLoader extends ChangeNotifier {
   RemoteBannerAdLoader({required this.configId}) {
     _createAndLoad();
@@ -96,48 +95,70 @@ class RemoteBannerAdLoader extends ChangeNotifier {
 // RemoteBannerAdExample
 // ---------------------------------------------------------------------------
 
+/// The low-level RemoteBanner sample. Prefer `ManagedBannerExample`.
 class RemoteBannerAdExample extends StatefulWidget {
   const RemoteBannerAdExample({
     required this.configId,
-    this.loader,
     super.key,
   });
 
   final String configId;
-
-  /// Optional pre-created loader. When provided this widget observes it but
-  /// does NOT dispose it — the caller owns the loader's lifecycle.
-  /// When null, a [RemoteBannerAdLoader] is created internally and disposed
-  /// with this widget (same behaviour as before this refactor).
-  final RemoteBannerAdLoader? loader;
 
   @override
   State<RemoteBannerAdExample> createState() => _RemoteBannerAdExampleState();
 }
 
 class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
-  late RemoteBannerAdLoader _loader;
-
-  /// True when this state created the loader and must dispose it.
-  bool _ownsLoader = false;
+  RemoteBannerAdLoader? _loader;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.loader != null) {
-      _loader = widget.loader!;
-      _ownsLoader = false;
-    } else {
-      _loader = RemoteBannerAdLoader(configId: widget.configId);
-      _ownsLoader = true;
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _createWhenPageIsKnown();
+  }
+
+  /// Create the ad only once this widget's page has been reported.
+  ///
+  /// Two cases, and both are ordinary app situations rather than test
+  /// scaffolding:
+  ///
+  ///  * Inside an `AudienzzPage`, the scope says when its page has been
+  ///    activated. Creating before that stamps the ad with the previous page.
+  ///  * On a bare route, `AudienzzNavigatorObserver` reports in a post-frame
+  ///    callback it registered when the route was pushed — which is before this
+  ///    widget's own. Deferring by that one frame is what makes the ad belong
+  ///    to the screen it is on. It used to be created in `initState`, i.e.
+  ///    before the report, and the very next page impression released it.
+  void _createWhenPageIsKnown() {
+    if (_loader != null) {
+      return;
     }
-    _loader.addListener(_onLoaderChanged);
+    final scope = AudienzzPageScope.maybeOf(context);
+    if (scope != null) {
+      if (scope.isActive) {
+        _attach(RemoteBannerAdLoader(configId: widget.configId));
+      }
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _loader != null) {
+        return;
+      }
+      setState(() {
+        _attach(RemoteBannerAdLoader(configId: widget.configId));
+      });
+    });
+  }
+
+  void _attach(RemoteBannerAdLoader loader) {
+    _loader = loader;
+    loader.addListener(_onLoaderChanged);
   }
 
   @override
   void dispose() {
-    _loader.removeListener(_onLoaderChanged);
-    if (_ownsLoader) _loader.dispose();
+    _loader?.removeListener(_onLoaderChanged);
+    _loader?.dispose();
     super.dispose();
   }
 
@@ -149,7 +170,16 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
 
   @override
   Widget build(BuildContext context) {
-    final errorMessage = _loader.errorMessage;
+    final loader = _loader;
+    if (loader == null) {
+      // Waiting for this widget's page to be reported. Reserving the height
+      // here is what keeps the article from reflowing when the ad appears.
+      return const SizedBox(
+        height: 50,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final errorMessage = loader.errorMessage;
     if (errorMessage != null) {
       return Center(child: Text('Error: $errorMessage'));
     }
@@ -164,7 +194,7 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
     //
     // If the ad or its sizes aren't available yet (e.g. remote config hasn't
     // loaded or the ad failed) fall back to a 50 dp placeholder.
-    final ad = _loader.ad;
+    final ad = loader.ad;
     if (ad == null || ad.sizes.isEmpty) {
       return const SizedBox(
         height: 50,
@@ -172,8 +202,8 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
       );
     }
 
-    final isLoaded = _loader.isLoaded;
-    final adSize = _loader.adSize;
+    final isLoaded = loader.isLoaded;
+    final adSize = loader.adSize;
     final width = adSize?.width.toDouble() ?? ad.sizes.first.width.toDouble();
     final height = adSize?.height.toDouble() ?? ad.sizes.first.height.toDouble();
 

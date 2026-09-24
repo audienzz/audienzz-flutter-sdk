@@ -40,9 +40,40 @@ class BannerAd(
     private val bannerPbAdSlot: String?,
     private val gpId: String?,
     private val customImpOrtbConfig: String?,
+    private val pageKey: String?,
     private val adListener: AdListener?,
     private val context: Context,
+    /**
+     * Sizes for the Prebid ad unit when they differ from [adSizes]; null or empty means use
+     * [adSizes]. Last and defaulted so positional callers are unchanged.
+     */
+    private val prebidAdSizes: List<AdSize>? = null,
+    /**
+     * False serves GAM-only: the handler never asks Prebid, and reports no bid events. A remote
+     * banner with no Prebid sizes turns it off.
+     */
+    private val headerBidding: Boolean = true,
 ) : Ad() {
+    /**
+     * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
+     * A publisher can allow a size in GAM (for direct-sold line items) that they keep out of
+     * header bidding, and one list for both asked bidders for it anyway. Falls back to [adSizes]
+     * because the ad unit is built from the first size and an empty list would crash.
+     */
+    private val prebidSizes: List<AdSize> = prebidAdSizes?.takeIf { it.isNotEmpty() } ?: adSizes
+
+    /**
+     * Builds the Prebid ad unit. A seam so a test can see which size it was built from: the size
+     * lives inside Prebid's own ad unit, with no public way to read it back.
+     */
+    internal var adUnitFactory: (String, Int, Int, EnumSet<AudienzzAdUnitFormat>) -> AudienzzBannerAdUnit =
+        { configId, width, height, formats -> AudienzzBannerAdUnit(configId, width, height, formats) }
+
+    /** The sizes GAM was given. Read-only, for tests. */
+    internal val gamAdSizes: List<AdSize>
+        get() = adView?.adSizes?.toList().orEmpty()
+    var requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext()
+
     private var adView: AdManagerAdView? = null
     private var adViewHandler: AudienzzAdViewHandler? = null
     // Kept as a field so pauseAutoRefresh() / resumeAutoRefresh() can reach it
@@ -88,11 +119,13 @@ class BannerAd(
             maxDuration = videoDuration.maxDuration
         }
 
-        val adUnit = when (adFormat) {
-            AdFormat.BANNER -> AudienzzBannerAdUnit(auConfigId, adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.BANNER))
-            AdFormat.VIDEO ->  AudienzzBannerAdUnit(auConfigId, adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.VIDEO))
-            AdFormat.BANNER_AND_VIDEO ->  AudienzzBannerAdUnit(auConfigId,adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO))
+        val formats = when (adFormat) {
+            AdFormat.BANNER -> EnumSet.of(AudienzzAdUnitFormat.BANNER)
+            AdFormat.VIDEO -> EnumSet.of(AudienzzAdUnitFormat.VIDEO)
+            AdFormat.BANNER_AND_VIDEO -> EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO)
         }
+        val prebidPrimary = prebidSizes.first()
+        val adUnit = adUnitFactory(auConfigId, prebidPrimary.width, prebidPrimary.height, formats)
         bannerAdUnit = adUnit
 
         adUnit.apply {
@@ -101,9 +134,9 @@ class BannerAd(
             pbAdSlot = bannerPbAdSlot
             gpid = gpId
             // The primary size is already set via the AudienzzBannerAdUnit
-            // constructor (adSizes.first()). Only the remaining sizes are
+            // constructor (prebidSizes.first()). Only the remaining sizes are
             // "additional" — adding the first again duplicated it in the request.
-            adSizes.drop(1).forEach { size ->
+            prebidSizes.drop(1).forEach { size ->
                 addAdditionalSize(size.width, size.height)
             }
             // refreshTimeInterval arrives in milliseconds from Dart (seconds * 1000).
@@ -113,8 +146,19 @@ class BannerAd(
         }
 
         currentAdView?.let { adView ->
-            val handler = AudienzzAdViewHandler(adView, adUnit)
+            val handler = AudienzzAdViewHandler(adView, adUnit, requestContext)
             adViewHandler = handler
+            handler.headerBiddingEnabled = headerBidding
+            // A Flutter banner lives in the single FlutterActivity, so the native page coordinator
+            // cannot tell one route's ads from another's by host identity. Tag the handler with the
+            // route key reported to pageImpression so it matches by value instead — this is what
+            // makes page-scoped release/recreate work for Flutter at all.
+            handler.setScreen(pageKey)
+            // Before handler.load(): an eager banner requests inside that call, so a pause the
+            // publisher installed before this ad existed has to be in place first.
+            if (publisherPaused) {
+                handler.stopAutoRefresh()
+            }
             handler.load(
                 withLazyLoading = isLazyLoad,
                 prefetchMarginDp = prefetchMarginDp,
@@ -147,22 +191,33 @@ class BannerAd(
         }
     }
 
+    /**
+     * Publisher pause requested before [load] built the handler.
+     *
+     * The handler does not exist until load() runs, so forwarding through a nullable reference
+     * dropped a pause installed beforehand — and the handler that arrived afterwards held nothing.
+     * Dart sends `publisherPaused` with creation precisely so an eager banner cannot issue a
+     * request the publisher has already stopped, and that only works if the state is remembered
+     * here until there is something to apply it to.
+     */
+    private var publisherPaused = false
+
     fun pauseAutoRefresh() {
-        // Delegate to the handler so it can also cancel any pending scheduled
-        // refresh runnable (the plain stopAutoRefresh() on bannerAdUnit would
-        // leave a postDelayed Runnable alive and it would fire despite the pause).
-        adViewHandler?.pauseSmartRefresh()
+        publisherPaused = true
+        adViewHandler?.stopAutoRefresh()
     }
 
     fun resumeAutoRefresh() {
-        // Stale-aware resume: if elapsed time since last fetch >= refresh interval
-        // the handler force-fetches demand immediately instead of restarting the
-        // 30 s timer from zero (which is what bannerAdUnit.resumeAutoRefresh() does).
-        adViewHandler?.resumeSmartRefresh()
+        publisherPaused = false
+        adViewHandler?.resumeAutoRefresh()
+    }
+
+    fun setViewportVisible(visible: Boolean) {
+        if (visible) adViewHandler?.resumeSmartRefresh() else adViewHandler?.pauseSmartRefresh()
     }
 
     /// Force a fresh auction now, ignoring the stale-aware refresh timing — used
-    /// by the onScreenResumed reload broadcast (only for on-screen banners).
+    /// by the pageImpression reload broadcast (only for on-screen banners).
     fun forceReload() {
         adViewHandler?.reloadAd()
     }
@@ -172,7 +227,12 @@ class BannerAd(
         // handler/unit alone left a pending smart-refresh runnable alive, so a
         // disposed banner kept running fetchDemand → loadAd() auction loops
         // (accumulating on every navigation and on hot restart).
-        adViewHandler?.pauseSmartRefresh()
+        // destroy() — not just pauseSmartRefresh() — is what deregisters the handler from the page
+        // coordinator and from AppForegroundMonitor. Pausing alone left the handler globally
+        // reachable through the foreground listener, retaining the GAM view and its Activity, and
+        // left it in the coordinator registry so a later page impression could reload a slot that
+        // no longer exists.
+        adViewHandler?.destroy()
         bannerAdUnit?.stopAutoRefresh()
         bannerAdUnit?.destroy()
         adView?.destroy()

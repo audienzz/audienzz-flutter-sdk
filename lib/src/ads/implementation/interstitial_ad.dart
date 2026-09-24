@@ -1,9 +1,8 @@
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/ads/base/ad_without_view.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
-import 'package:audienzz_sdk_flutter/src/entities/ad_format.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
-import 'package:audienzz_sdk_flutter/src/entities/api_parameter.dart';
+import 'package:audienzz_sdk_flutter/src/entities/interstitial_ad_event.dart';
 import 'package:audienzz_sdk_flutter/src/entities/min_size_percentage.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/placement.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/playback_method.dart';
@@ -11,25 +10,27 @@ import 'package:audienzz_sdk_flutter/src/entities/video_parameters/protocol.dart
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_bitrate.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_duration.dart';
 
-/// Class for work with interstitial ads
+/// Class for work with interstitial ads.
+///
+/// The formats and API frameworks it requests are not arguments: they are
+/// backend-controlled. A hand-built interstitial asks for banner and video
+/// with MRAID 1/2/3 + OMID 1; a [RemoteInterstitialAd] uses its ad config's
+/// `prebidConfig.format` / `prebidConfig.apis`.
 class InterstitialAd extends AdWithoutView {
   const InterstitialAd({
     required super.adUnitId,
     required super.auConfigId,
-    required this.adFormat,
     required this.onAdLoaded,
     required this.onAdFailedToLoad,
     this.minSizePercentage = const MinSizePercentage(width: 80, height: 60),
     this.sizes = const <AdSize>{},
-    this.apiParameters = const {
-      ApiParameter.mraid1,
-      ApiParameter.mraid2,
-      ApiParameter.mraid3,
-      ApiParameter.omid1,
-    },
-    this.protocols = const {},
-    this.placement = Placement.inBanner,
-    this.playbackMethods = const {PlaybackMethod.enterSoundOff},
+    // The native interstitial defaults: VAST 2.0, interstitial placement, muted
+    // autoplay. They were empty protocols and an in-banner placement, which
+    // the plugins forwarded as-is, so every Flutter video interstitial was
+    // described to bidders as a banner slot with no supported protocol.
+    this.protocols = const {Protocol.vast2_0},
+    this.placement = Placement.interstitial,
+    this.playbackMethods = const {PlaybackMethod.autoPlaySoundOff},
     this.videoBitrate = const VideoBitrate(min: 300, max: 1500),
     this.videoDuration = const VideoDuration(min: 1, max: 30),
     this.pbAdSlot,
@@ -39,11 +40,9 @@ class InterstitialAd extends AdWithoutView {
     this.onAdClosed,
     this.onAdClicked,
     this.onAdImpression,
+    this.onAdFailedToShow,
+    this.onLifecycleEvent,
   });
-
-  /// Ad desired format, [AdFormat.banner], [AdFormat.video]
-  /// or [AdFormat.bannerAndVideo] (used by multiformat banner ads)
-  final AdFormat adFormat;
 
   /// Specify width and height of the ad unit in percents, will be used
   /// in a bid request
@@ -51,10 +50,6 @@ class InterstitialAd extends AdWithoutView {
 
   /// Specify width and height of the ad unit, will be used in a bid request
   final Set<AdSize> sizes;
-
-  /// The property is dedicated to adding values for API Frameworks to a bid
-  /// response according to the OpenRTB 2.5 spec.
-  final Set<ApiParameter> apiParameters;
 
   /// Array or enum of OpenRTB 2.5 supported Protocols.
   final Set<Protocol> protocols;
@@ -103,12 +98,28 @@ class InterstitialAd extends AdWithoutView {
   /// A callback triggered when a click is recorded for an ad.
   final void Function(InterstitialAd ad)? onAdClicked;
 
-  /// A callback triggered when the ad has been on
-  /// the screen for a minimum of 1 sec duration
+  /// A callback triggered when Google records the impression.
   final void Function(InterstitialAd ad)? onAdImpression;
 
-  /// Function to load this ad object
-  Future<void> load() => adInstanceManager.loadInterstitialAd(this);
+  /// Whether this object has an ad ready for an explicit show call.
+  bool get isReady => adInstanceManager.isInterstitialReady(this);
+
+  /// A presentation failure; distinct from a load failure or a successful dismissal.
+  final void Function(InterstitialAd ad, AdError error)? onAdFailedToShow;
+
+  final void Function(InterstitialAd ad, InterstitialAdEvent event)?
+      onLifecycleEvent;
+
+  /// Loads once; concurrent calls share the request and retain ready inventory.
+  /// Load failures are reported through [onAdFailedToLoad]. By default the future
+  /// settles without an error, preserving callback-only callers.
+  /// Check [isReady] before showing.
+  /// Set [throwOnFailure] to await readiness with errors for load failure,
+  /// cancellation, busy state, or the 120-second timeout.
+  Future<void> load({bool throwOnFailure = false}) {
+    final ready = adInstanceManager.loadInterstitialAd(this);
+    return throwOnFailure ? ready : ready.catchError((Object _) {});
+  }
 
   /// Function to show this ad, requires ad to be loaded before invoking.
   /// In case of invoking before the ad is loaded error will be thrown
@@ -118,14 +129,14 @@ class InterstitialAd extends AdWithoutView {
   List<Object?> get props => [
         adUnitId,
         auConfigId,
-        adFormat,
         onAdLoaded,
         onAdFailedToLoad,
         onAdOpened,
         onAdClosed,
         onAdClicked,
         onAdImpression,
-        apiParameters,
+        onAdFailedToShow,
+        onLifecycleEvent,
         protocols,
         placement,
         playbackMethods,

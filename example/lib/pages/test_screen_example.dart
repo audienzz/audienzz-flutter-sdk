@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 /// native example's "ad screen" (RemoteConfigAdScreenViewController / RemoteConfigAdActivity).
 ///
 /// It is opened from the "Test Screen" navigation tile in main.dart, which reports the route via
-/// `onScreenResumed('Test Screen')` on entry and `onScreenResumed('home')` on return — so
+/// `pageImpression('Test Screen')` on entry and `pageImpression('home')` on return — so
 /// navigating Home -> Test Screen -> Home produces a fresh `pageImpression` per visit and this
 /// banner's auction events are attributed to `screen_name: Test Screen`. Uses the same 300x250
 /// unit (wuobgeuc) as the native example so logs line up across platforms.

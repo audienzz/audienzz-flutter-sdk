@@ -3,12 +3,23 @@ import GoogleMobileAds
 import AudienzziOSSDK
 
 class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDelegate {
+    var requestContext = AUAdRequestContext()
+
     private let adUnitId: String
     private let auConfigId: String
     private let sizes: [FAdSize]
+    /// Sizes for the Prebid ad unit when they differ from [sizes]; nil or empty means use [sizes].
+    private let prebidSizes: [FAdSize]?
+    /// False serves GAM-only; a remote banner with no Prebid sizes turns it off.
+    private let headerBidding: Bool
     private let isAdaptiveSize: Bool
     private let isLazyLoad: Bool
     private let smartRefresh: Bool
+    /// The viewport gate resolved by Dart. v2 is the directional rule; v1 is
+    /// the legacy 20% threshold. Held here so this poll cannot resume a banner
+    /// Dart's stricter rule has rejected, which is what made the public v2
+    /// switch unobservable on Flutter.
+    private let smartRefreshV2: Bool
     private let prefetchMarginPoints: CGFloat
     private let refreshTimeInterval: Double?
     private let adFormat: FAdFormat
@@ -21,6 +32,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private let pbAdSlot: String?
     private let gpId: String?
     private let customImpOrtbConfig: String?
+    private let pageKey: String?
     private let rootViewController: UIViewController
     var auBannerView: AUBannerView?
 
@@ -38,11 +50,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private var smartRefreshTimer: Timer?
     private var smartRefreshWasVisible = false
 
-    // Set by the Dart layer via pauseAutoRefresh()/resumeAutoRefresh(). While
-    // true, the visibility poll below is suppressed so it can't auto-resume an
-    // ad the publisher explicitly paused — this is how a same-route overlay
-    // (OverlayEntry / modal) that the native geometry poll can't see is honored.
-    private var isManuallyPaused = false
+    // Dart viewport state includes overlays that native geometry cannot see.
+    // Publisher pause is a separate native block and is never cleared by this poll.
+    private var isViewportPaused = false
 
     private func startSmartRefreshPolling() {
         smartRefreshTimer?.invalidate()
@@ -59,7 +69,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     private func checkSmartRefreshVisibility() {
         // A manual pause wins over geometric visibility — never auto-resume an
         // ad the publisher paused explicitly (e.g. behind an overlay).
-        guard !isManuallyPaused else { return }
+        guard !isViewportPaused else { return }
         guard let view = auBannerView, let window = view.window else {
             // View left the window — treat as hidden.
             if smartRefreshWasVisible {
@@ -70,11 +80,24 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         }
 
         let frameInWindow = window.convert(view.frame, from: view.superview)
-        guard frameInWindow.height > 0 else { return }
+        guard frameInWindow.height > 0, frameInWindow.width > 0 else { return }
 
         let intersection = frameInWindow.intersection(window.bounds)
-        let visibleFraction = intersection.height / frameInWindow.height
-        let isVisible = visibleFraction >= 0.2
+        // `intersection` is `.null` when the rects are disjoint, and a null
+        // rect's height is infinite — so a banner moved off the side of the
+        // window used to read as fully visible here.
+        guard !intersection.isNull, intersection.width > 0 else {
+            if smartRefreshWasVisible {
+                smartRefreshWasVisible = false
+                auBannerView?.pauseSmartRefresh()
+            }
+            return
+        }
+        let isVisible = Self.satisfiesViewportRule(
+            adRect: frameInWindow,
+            visible: intersection,
+            directional: smartRefreshV2
+        )
 
         if isVisible && !smartRefreshWasVisible {
             smartRefreshWasVisible = true
@@ -88,6 +111,25 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
             smartRefreshWasVisible = false
             auBannerView?.pauseSmartRefresh()
         }
+    }
+
+    /// The same rule Dart applies, so the two layers cannot disagree.
+    /// v1: at least 20% of the ad's height on screen. v2: the ad's top edge
+    /// fully on screen and no more than half its height below the viewport,
+    /// matching `ViewUtil.isRefreshEligible` on Android and
+    /// `VisibleView.computeRefreshEligible` on iOS.
+    internal static func satisfiesViewportRule(
+        adRect: CGRect,
+        visible: CGRect,
+        directional: Bool
+    ) -> Bool {
+        guard adRect.height > 0 else { return false }
+        if !directional {
+            return visible.height / adRect.height >= 0.2
+        }
+        let topOffscreen = visible.minY - adRect.minY
+        let bottomOffscreen = adRect.maxY - visible.maxY
+        return topOffscreen < 1 && bottomOffscreen <= adRect.height * 0.5
     }
 
     deinit {
@@ -116,17 +158,31 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     // resume() hands control back to the poll (or resumes directly when smart
     // refresh polling isn't running, e.g. a plain auto-refresh banner).
 
+    /// Publisher pause requested before `load()` built the banner.
+    ///
+    /// The banner does not exist until load() runs, so forwarding through an optional dropped a
+    /// pause installed beforehand — and the banner built afterwards held nothing. Dart sends
+    /// `publisherPaused` with creation precisely so an eager banner cannot issue a request the
+    /// publisher has already stopped, and that only works if the state is remembered here until
+    /// there is something to apply it to.
+    private var publisherPaused = false
+
     func pauseAutoRefresh() {
-        isManuallyPaused = true
-        smartRefreshWasVisible = false
-        auBannerView?.pauseSmartRefresh()
+        publisherPaused = true
+        auBannerView?.adUnitConfiguration.stopAutoRefresh()
     }
 
     func resumeAutoRefresh() {
-        isManuallyPaused = false
-        if smartRefresh {
-            // Re-evaluate now instead of waiting up to 0.5s for the next tick;
-            // this also preserves the stale-aware resume timing.
+        publisherPaused = false
+        auBannerView?.adUnitConfiguration.resumeAutoRefresh()
+    }
+
+    func setViewportVisible(_ visible: Bool) {
+        isViewportPaused = !visible
+        if !visible {
+            smartRefreshWasVisible = false
+            auBannerView?.pauseSmartRefresh()
+        } else if smartRefresh {
             checkSmartRefreshVisibility()
         } else {
             auBannerView?.resumeSmartRefresh()
@@ -134,11 +190,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     }
 
     /// Force a fresh auction now, ignoring the stale-aware refresh timing — used
-    /// by the `onScreenResumed` reload broadcast. The Dart layer only calls this
+    /// by the `pageImpression` reload broadcast. The Dart layer only calls this
     /// for on-screen banners, so the visibility poll keeps it active afterwards.
     func forceReload() {
-        isManuallyPaused = false
-        smartRefreshWasVisible = smartRefresh
         auBannerView?.reloadAd()
     }
 
@@ -148,9 +202,12 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         adUnitId: String,
         auConfigId: String,
         sizes: [FAdSize],
+        prebidSizes: [FAdSize]? = nil,
+        headerBidding: Bool = true,
         isAdaptiveSize: Bool,
         isLazyLoad: Bool,
         smartRefresh: Bool,
+        smartRefreshV2: Bool = false,
         prefetchMarginPoints: CGFloat,
         refreshTimeInterval: Double?,
         adFormat: FAdFormat,
@@ -163,16 +220,20 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         pbAdSlot: String?,
         gpId: String?,
         customImpOrtbConfig: String?,
+        pageKey: String?,
         rootViewController: UIViewController,
         adId: NSNumber,
         manager: AdInstanceManager
     ) {
         self.adUnitId = adUnitId
         self.sizes = sizes
+        self.prebidSizes = prebidSizes
+        self.headerBidding = headerBidding
         self.auConfigId = auConfigId
         self.isAdaptiveSize = isAdaptiveSize
         self.isLazyLoad = isLazyLoad
         self.smartRefresh = smartRefresh
+        self.smartRefreshV2 = smartRefreshV2
         self.prefetchMarginPoints = prefetchMarginPoints
         self.refreshTimeInterval = refreshTimeInterval
         self.adFormat = adFormat
@@ -185,6 +246,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         self.pbAdSlot = pbAdSlot
         self.gpId = gpId
         self.customImpOrtbConfig = customImpOrtbConfig
+        self.pageKey = pageKey
         self.rootViewController = rootViewController
         self.manager = manager
         super.init(adId: adId)
@@ -225,12 +287,32 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         case FAdFormat.bannerAndVideo: bannerAdFormat = [AUAdFormat.banner, AUAdFormat.video]
         }
 
+        // GAM is sized from `sizes`, Prebid from `prebidSizes` — the split AURemoteConfigBannerView
+        // makes. A publisher can allow a size in GAM (for direct-sold line items) that they keep out
+        // of header bidding; one list for both asked bidders for it anyway. Falls back to `sizes`,
+        // because an empty list has no primary size to build the ad unit from. The view's frame
+        // below stays on the GAM size: that is what renders, so layout does not move.
+        let prebidList = (prebidSizes?.isEmpty == false) ? prebidSizes! : sizes
+        let prebidMainSize = prebidList.first ?? mainSize
+        let prebidAdditionalSizes: [CGSize] = prebidList.dropFirst().map {
+            CGSize(width: $0.width, height: $0.height)
+        }
+
         auBannerView = AUBannerView(
             configId: auConfigId,
-            adSize: CGSize(width: mainSize.width, height: mainSize.height),
+            adSize: CGSize(width: prebidMainSize.width, height: prebidMainSize.height),
             adFormats: bannerAdFormat,
             isLazyLoad: isLazyLoad
         )
+        // False serves GAM-only: the banner never asks Prebid and reports no bid events. A remote
+        // banner with no Prebid sizes turns it off. Must precede createAd, which starts the first load.
+        auBannerView?.headerBiddingEnabled = headerBidding
+        // A Flutter banner lives in the single FlutterViewController, so the native page
+        // coordinator cannot tell one route's ads from another's by host identity. Tag the view with
+        // the route key reported to pageImpression so it matches by value instead — this is what
+        // makes page-scoped release/recreate work for Flutter at all. Must precede createAd, which
+        // is where the ad joins the current page.
+        if let pageKey { auBannerView?.setScreen(pageKey) }
         auBannerView?.frame = CGRect(origin: .zero, size: CGSize(width: mainSize.width, height: mainSize.height))
         auBannerView?.backgroundColor = .clear
         // Always set smartRefresh = false on AUBannerView in Flutter.
@@ -270,7 +352,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
         videoParameters.maxDuration = videoDuration.max.intValue
         auBannerView?.videoParameters = videoParameters
 
-        auBannerView?.addAdditionalSize(sizes: cgSizes)
+        auBannerView?.addAdditionalSize(sizes: prebidAdditionalSizes)
         auBannerView?.adUnitConfiguration.adSlot = pbAdSlot
         auBannerView?.adUnitConfiguration?.setGPID(gpId)
 
@@ -280,6 +362,13 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
             auBannerView?.adUnitConfiguration.setAutoRefreshMillis(time: refreshTimeInterval)
         }
 
+        // Before createAd: the banner requests inside that call for an eager slot, so a pause the
+        // publisher installed before this ad existed has to be in place first.
+        if publisherPaused {
+            auBannerView?.adUnitConfiguration.stopAutoRefresh()
+        }
+
+        auBannerView?.requestContext = requestContext
         auBannerView?.createAd(
             with: request,
             gamBanner: bannerViewInstance!,

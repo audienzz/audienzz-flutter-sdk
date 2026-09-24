@@ -20,6 +20,8 @@ class BannerAd extends AdWithView {
     required super.auConfigId,
     required this.onAdLoaded,
     required this.onAdFailedToLoad,
+    this.prebidSizes,
+    this.headerBidding = true,
     this.adFormat = AdFormat.banner,
     this.apiParameters = const {
       ApiParameter.mraid1,
@@ -44,6 +46,8 @@ class BannerAd extends AdWithView {
     bool isLazyLoad = false,
     this.smartRefresh = false,
     this.prefetchMargin = 200,
+    this.pageKey,
+    this.startPublisherPaused = false,
   }) : isLazyLoad = _resolveLazyLoad(isLazyLoad, smartRefresh);
 
   // On Flutter, lazy load relies on smartRefresh's Flutter-side visibility
@@ -67,6 +71,22 @@ class BannerAd extends AdWithView {
   /// Specify width and height of the ad unit, will be used in a bid request
   /// at minimum one size is required
   final Set<AdSize> sizes;
+
+  /// The sizes to ask Prebid for, when they differ from [sizes].
+  ///
+  /// `null` (the default) means Prebid gets [sizes] too — what a banner built
+  /// by hand wants, and what every banner got before this existed. A remote
+  /// banner sets it from `prebidConfig.adSizes`: a publisher may allow a size
+  /// in GAM (say, for direct-sold line items) that they deliberately keep out
+  /// of header bidding, and Prebid must not be asked for it.
+  final Set<AdSize>? prebidSizes;
+
+  /// Whether each request asks Prebid for a bid before loading GAM.
+  ///
+  /// `false` serves GAM-only: no Prebid request is sent and no bid event is
+  /// reported, while refresh, pages and targeting work as usual. A remote
+  /// banner turns it off when its `prebidConfig` lists no sizes.
+  final bool headerBidding;
 
   /// Specify if the ad size should be adaptive, by default - false
   final bool isAdaptiveSize;
@@ -92,6 +112,22 @@ class BannerAd extends AdWithView {
   /// create items just before they appear on screen. Use `isLazyLoad = false`
   /// there instead.
   final int prefetchMargin;
+
+  /// The page this banner belongs to, when the caller knows it better than the
+  /// SDK does.
+  ///
+  /// `null` captures whichever page was current when [load] ran. That is wrong
+  /// for a banner created on a retained-but-unfocused screen: the current page
+  /// is the foreground one, so the banner would be created as if it lived
+  /// there. `AudienzzBanner` always supplies this from its own `AudienzzPage`.
+  final String? pageKey;
+
+  /// Install the durable publisher pause BEFORE the first request.
+  ///
+  /// `pauseAutoRefresh()` after `load()` is too late for an eager banner: the
+  /// native side starts the request while still handling the load call, so a
+  /// slot the publisher had already stopped issued one request anyway.
+  final bool startPublisherPaused;
 
   /// Ad desired format, [AdFormat.banner], [AdFormat.video]
   /// or [AdFormat.bannerAndVideo] (used by multiformat banner ads)
@@ -160,26 +196,43 @@ class BannerAd extends AdWithView {
   @override
   Future<void> load() => adInstanceManager.loadBannerAd(this);
 
-  /// Pause Prebid auto-refresh — called by the Flutter visibility layer when
-  /// less than 20% of the ad height is visible in the viewport.
+  /// Publisher pause. Scrolling, foregrounding and page impressions do not undo it.
   Future<void> pauseAutoRefresh() =>
       adInstanceManager.pauseBannerAutoRefresh(this);
 
-  /// Resume Prebid auto-refresh — called by the Flutter visibility layer when
-  /// at least 20% of the ad height becomes visible again.
+  /// Clear the publisher pause. Visibility, page and foreground gates still apply.
   Future<void> resumeAutoRefresh() =>
       adInstanceManager.resumeBannerAutoRefresh(this);
 
   /// Force a fresh auction now, regardless of the refresh timer. Triggered by
   /// the SDK when this banner's screen becomes active again (see
-  /// `AudienzzSdkFlutter.onScreenResumed`); also usable for a manual reload.
+  /// `AudienzzSdkFlutter.pageImpression`); also usable for a manual reload.
   Future<void> reload() => adInstanceManager.reloadBanner(this);
+
+  /// Declare that something is painted over this banner that the SDK cannot detect.
+  ///
+  /// The widget already pauses refresh for covers that take pointers — dialogs, modal barriers,
+  /// any overlay with a gesture handler, and opaque boxes such as `ColoredBox`. It cannot see a
+  /// cover that deliberately passes pointers through: an `IgnorePointer` veil, a `CustomPaint`
+  /// overlay or a plain decoration paints over the ad and never enters the hit path, so the ad
+  /// underneath still reads as visible. Nor can it see past an `AbsorbPointer` that wraps both the
+  /// ad and the cover — the absorber takes the hit at its own level and never descends, so nothing
+  /// below it can be distinguished. No hit-test-based check can resolve either case, so this is
+  /// the signal for them.
+  ///
+  /// Call with `true` when such a cover appears and `false` when it goes away. It is one input
+  /// among several: the ad still has to be on screen, on the current route and in the foreground,
+  /// and clearing this does not by itself resume refresh.
+  void reportObscured(bool obscured) =>
+      adInstanceManager.setBannerObscured(this, obscured);
 
   @override
   List<Object?> get props => [
         adUnitId,
         auConfigId,
         sizes,
+        prebidSizes,
+        headerBidding,
         onAdLoaded,
         onAdFailedToLoad,
         onAdImpression,

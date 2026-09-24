@@ -1,0 +1,307 @@
+import 'dart:async';
+
+import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
+import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  final channel = adInstanceManager.methodChannel;
+  late InterstitialAd ad;
+  late List<MethodCall> calls;
+  late List<InterstitialAdEvent> events;
+  late int closed;
+  late int loaded;
+  late int loadFailures;
+  late List<AdError> showFailures;
+  late DateTime now;
+  Object? channelError;
+
+  Future<void> event(String name, {int? id, AdError? error}) async {
+    await messenger.handlePlatformMessage(
+        channel.name,
+        channel.codec.encodeMethodCall(MethodCall('onAdEvent', {
+          'adId': id ?? adInstanceManager.adIdFor(ad),
+          'eventName': name,
+          'adError': error,
+          'errorDomain': 'google.test',
+          'responseId': 'response-123'
+        })),
+        (_) {});
+  }
+
+  Future<void> makeReady() async {
+    final ready = ad.load();
+    await event('onAdLoaded');
+    await ready;
+  }
+
+  setUp(() {
+    calls = [];
+    events = [];
+    closed = 0;
+    loaded = 0;
+    loadFailures = 0;
+    showFailures = [];
+    channelError = null;
+    now = DateTime.utc(2026);
+    adInstanceManager.interstitialClock = () => now;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (channelError != null && call.method != 'disposeAd')
+        throw channelError!;
+      return null;
+    });
+    ad = InterstitialAd(
+        adUnitId: '/probe',
+        auConfigId: 'probe',
+        onAdLoaded: (_) => loaded++,
+        onAdClosed: (_) => closed++,
+        onAdFailedToLoad: (_, __) => loadFailures++,
+        onAdFailedToShow: (_, error) => showFailures.add(error),
+        onLifecycleEvent: (_, value) => events.add(value));
+  });
+  tearDown(() async {
+    // Complete presentations before cleanup, matching the real terminal event.
+    await event('onAdClosed');
+    await ad.dispose();
+    adInstanceManager.interstitialClock = DateTime.now;
+    messenger.setMockMethodCallHandler(channel, null);
+  });
+
+  test('repeated inventory for one placement keeps its request slot identity', () async {
+    await makeReady();
+    await ad.show();
+    await event('onAdClosed');
+    await makeReady();
+    final loads = calls.where((c) => c.method == 'loadInterstitialAd').toList();
+    expect(loads, hasLength(2));
+    final first = loads.first.arguments as Map;
+    final second = loads.last.arguments as Map;
+    expect(first['requestSlot'], isA<String>());
+    expect(second['requestSlot'], first['requestSlot']);
+    expect(second['adId'], isNot(first['adId']),
+        reason: 'native load identity changes while the logical placement survives');
+  });
+
+  test('load waits for Google readiness and concurrent calls share one request',
+      () async {
+    var complete = false;
+    final first = ad.load().then((_) => complete = true);
+    final second = ad.load();
+    await Future<void>.delayed(Duration.zero);
+    expect(complete, false);
+    expect(ad.isReady, false);
+    await expectLater(ad.show(), throwsStateError);
+    expect(calls.where((c) => c.method == 'showAdWithoutView'), isEmpty);
+    await event('onAdLoaded');
+    await Future.wait([first, second]);
+    expect(ad.isReady, true);
+    await ad.load();
+    expect(calls.where((c) => c.method == 'loadInterstitialAd').length, 1);
+    expect(loaded, 1);
+  });
+
+  test('README await load then show cannot show before loaded', () async {
+    final flow = () async {
+      await ad.load();
+      await ad.show();
+    }();
+    await Future<void>.delayed(Duration.zero);
+    expect(calls.where((c) => c.method == 'showAdWithoutView'), isEmpty);
+    await event('onAdLoaded');
+    await flow;
+    expect(calls.where((c) => c.method == 'showAdWithoutView').length, 1);
+  });
+
+  test('dispose during presentation preserves terminal callbacks and telemetry',
+      () async {
+    await makeReady();
+    final id = adInstanceManager.adIdFor(ad);
+    await ad.show();
+    await ad.dispose();
+    expect(adInstanceManager.adIdFor(ad), id);
+    expect(calls.where((c) => c.method == 'disposeAd'), isEmpty);
+    await event('onAdOpened');
+    await event('onAdImpression');
+    await event('onAdClosed');
+    await event('onAdClosed', id: id);
+    expect(closed, 1);
+    expect(adInstanceManager.adIdFor(ad), isNull);
+    expect(events.map((e) => e.name), [
+      'loadRequested',
+      'loaded',
+      'showAttempted',
+      'disposeDeferred',
+      'presented',
+      'impression',
+      'dismissed',
+      'disposed'
+    ]);
+    expect(events.map((e) => e.loadId).toSet(), {id});
+    expect(events.last.responseId, 'response-123');
+  });
+
+  test(
+      'asynchronous load failure permits same-object retry and ignores old events',
+      () async {
+    final pending =
+        expectLater(ad.load(throwOnFailure: true), throwsA(isA<AdError>()));
+    final old = adInstanceManager.adIdFor(ad);
+    await event('onAdFailedToLoad',
+        error: const AdError(code: 2, message: 'network'));
+    await pending;
+    expect(loadFailures, 1);
+    final retry = ad.load();
+    await event('onAdLoaded', id: old);
+    expect(loaded, 0);
+    await event('onAdLoaded');
+    await retry;
+    expect(calls.where((c) => c.method == 'loadInterstitialAd').length, 2);
+  });
+
+  test(
+      'show failure carries domain and is never reported as load failure or close',
+      () async {
+    await makeReady();
+    final id = adInstanceManager.adIdFor(ad);
+    await ad.show();
+    await event('onAdFailedToShow',
+        error: const AdError(code: 7, message: 'presenter'));
+    await event('onAdFailedToShow', id: id);
+    expect(showFailures.single.code, 7);
+    expect(showFailures.single.domain, 'google.test');
+    expect(loadFailures, 0);
+    expect(closed, 0);
+    expect(adInstanceManager.adIdFor(ad), isNull);
+  });
+
+  test(
+      'synchronous native show rejection invokes the presentation callback once',
+      () async {
+    await makeReady();
+    channelError =
+        PlatformException(code: '-2', message: 'expired', details: 'audienzz');
+    await expectLater(ad.show(), throwsA(isA<PlatformException>()));
+    expect(showFailures.single.message, 'expired');
+    expect(closed, 0);
+  });
+
+  test('duplicate shows and loads during presentation never replace the ad',
+      () async {
+    await makeReady();
+    await ad.show();
+    await expectLater(ad.show(), throwsStateError);
+    await expectLater(ad.load(throwOnFailure: true), throwsStateError);
+    expect(calls.where((c) => c.method == 'showAdWithoutView').length, 1);
+    expect(calls.where((c) => c.method == 'loadInterstitialAd').length, 1);
+  });
+
+  test('disposal during load settles the future and drops a late load',
+      () async {
+    final pending =
+        expectLater(ad.load(throwOnFailure: true), throwsStateError);
+    final id = adInstanceManager.adIdFor(ad);
+    await ad.dispose();
+    await pending;
+    await event('onAdLoaded', id: id);
+    expect(loaded, 0);
+  });
+
+  test('expired inventory is replaced only on an explicit load', () async {
+    await makeReady();
+    now = now.add(const Duration(hours: 1));
+    expect(ad.isReady, false);
+    expect(calls.where((c) => c.method == 'loadInterstitialAd').length, 1);
+    final ready = ad.load();
+    await event('onAdLoaded');
+    await ready;
+    expect(ad.isReady, true);
+    expect(calls.where((c) => c.method == 'loadInterstitialAd').length, 2);
+    // Counting by reason alone is ambiguous now that a release reports both
+    // the disposal and the unused-inventory discard, so assert each by name.
+    expect(
+        events
+            .where((e) => e.name == 'disposed' && e.reason == 'expired')
+            .length,
+        1);
+    expect(
+        events
+            .where((e) =>
+                e.name == 'discardedWithoutImpression' &&
+                e.reason == 'expired')
+            .length,
+        1,
+        reason: 'the expired fill was never seen and must be reported once');
+  });
+
+  test('channel load failure settles the readiness future', () async {
+    channelError = PlatformException(code: 'invalid', message: 'bad config');
+    await expectLater(ad.load(throwOnFailure: true), throwsA(isA<AdError>()));
+    expect(loadFailures, 1);
+    expect(adInstanceManager.adIdFor(ad), isNull);
+  });
+
+  testWidgets('a missing native completion times out instead of hanging',
+      (tester) async {
+    final pending =
+        expectLater(ad.load(throwOnFailure: true), throwsA(isA<AdError>()));
+    await tester.pump(const Duration(seconds: 120));
+    await pending;
+    expect(loadFailures, 1);
+    expect(adInstanceManager.adIdFor(ad), isNull);
+  });
+  test('unawaited legacy load reports Google failure only through callback',
+      () async {
+    unawaited(ad.load());
+    await event('onAdFailedToLoad',
+        error: const AdError(code: 2, message: 'network'));
+    await Future<void>.delayed(Duration.zero);
+    expect(loadFailures, 1);
+    expect(ad.isReady, false);
+    await makeReady();
+    expect(loaded, 1);
+  });
+
+  test('unawaited legacy load handles a channel exception', () async {
+    channelError = PlatformException(code: 'invalid', message: 'bad config');
+    unawaited(ad.load());
+    await Future<void>.delayed(Duration.zero);
+    expect(loadFailures, 1);
+    expect(ad.isReady, false);
+  });
+
+  testWidgets('unawaited legacy load handles timeout', (tester) async {
+    unawaited(ad.load());
+    await tester.pump(const Duration(seconds: 120));
+    expect(loadFailures, 1);
+    expect(ad.isReady, false);
+  });
+
+  test('unawaited legacy load handles cancellation', () async {
+    unawaited(ad.load());
+    await ad.dispose();
+    await Future<void>.delayed(Duration.zero);
+    expect(loaded, 0);
+    expect(ad.isReady, false);
+  });
+
+  test('missing remote config preserves callback mode and strict opt-in',
+      () async {
+    final remote = RemoteInterstitialAd(
+        configId: 'missing-review-config',
+        onAdLoaded: (_) => loaded++,
+        onAdFailedToLoad: (_, __) => loadFailures++);
+    unawaited(remote.load());
+    await Future<void>.delayed(Duration.zero);
+    expect(loadFailures, 1);
+    await expectLater(
+        remote.load(throwOnFailure: true), throwsA(isA<AdError>()));
+    expect(loadFailures, 2);
+    expect(loaded, 0);
+    expect(calls.where((c) => c.method == 'loadInterstitialAd'), isEmpty);
+  });
+}

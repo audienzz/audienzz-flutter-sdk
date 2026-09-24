@@ -1,6 +1,109 @@
 Audienzz SDK Flutter
 ========
 
+> ### Release sequence (read before shipping this branch)
+>
+> This bridge calls native APIs that are **not in any published release yet** —
+> `pageImpression`, per-view `setScreen`, and the interstitial
+> `prefetch` / `show` / `prefetchAndShow` contract. The pins in `android/build.gradle`
+> (`com.audienzz:sdk:0.2.2`) and `example/ios/Podfile` (`AudienzziOSSDK 0.3.2`) name the
+> **currently published** versions, which do not provide them. Ship in this order:
+>
+> 1. Release the native SDKs (iOS and Android) carrying these APIs — their version constants are
+>    already bumped to **iOS 0.3.3 / Android 0.2.3**, so those are the versions to re-pin to.
+> 2. Re-pin this package's `android/build.gradle` and `example/ios/Podfile` to those
+>    versions, and bump `pubspec.yaml`.
+> 3. Build and run **those exact combinations** — a local `:path` / `mavenLocal` build
+>    proves the source compiles together, not that a published artefact contains the API.
+> 4. Publish this package.
+>
+> To verify locally in the meantime, point `example/ios/Podfile` at the iOS checkout with
+> `:path` and publish the Android SDK to `mavenLocal`, then **restore both pins** before
+> committing.
+
+## Quick integration (remote config + `pageImpression`)
+
+The recommended path: your ad units come from the Audienzz publisher config, and you tell the SDK
+which screen is current. Four steps.
+
+### 1. Install
+
+```yaml
+dependencies:
+  audienzz_sdk_flutter: ^<latest>
+```
+
+Add your GAM/AdMob app ID to `Info.plist` (`GADApplicationIdentifier`) and
+`AndroidManifest.xml` (`com.google.android.gms.ads.APPLICATION_ID`).
+
+### 2. Initialize once, before `runApp` completes
+
+```dart
+final status = await AudienzzSdkFlutter.instance.initializeRemote(
+  publisherId: 'YOUR_PUBLISHER_ID',   // provided by Audienzz
+  remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1',
+);
+```
+
+Run your CMP **before** this and forward the result through `AudienzzTargeting` — see
+[Consent](#consent). Initializing first requests ads without the consent signals.
+
+### 3. Report every screen
+
+Add the navigator observer once, and the SDK follows your routes:
+
+```dart
+MaterialApp(
+  navigatorObservers: [AudienzzNavigatorObserver()],
+  ...
+)
+```
+
+For a screen the observer cannot see (a tab, a nested navigator, a dialog), report it yourself:
+
+```dart
+await AudienzzSdkFlutter.instance.pageImpression(context: context);
+// or, with no context: pageImpression(name: 'article')
+```
+
+This is the one thing the SDK cannot do for you: it groups a visit's ad events, and it is what
+releases the *previous* screen's banners. **Report ad-free screens too** — skipping them leaves the
+previous screen's banners auctioning for a screen nobody is looking at.
+
+### 4. Place ads
+
+Banner — keep `AdWidget` in the tree from the first build so the platform view attaches (that is
+what lets lazy loading fire):
+
+```dart
+final ad = RemoteBannerAd(
+  configId: 'YOUR_CONFIG_ID',
+  onAdLoaded: (_) => setState(() {}),
+  onAdFailedToLoad: (_, error) => debugPrint('banner failed: $error'),
+)..load();
+
+// in build():
+SizedBox(width: w, height: h, child: AdWidget(ad: ad))
+```
+
+Interstitial — three verbs, and the distinction between them is deliberate:
+
+```dart
+final controller = InterstitialPresentationController(ad: ad);
+
+await controller.prefetch();         // obtain and retain one ad; never presents
+await controller.show(eligible: true); // present what is in hand, or skip — never later
+await controller.prefetchAndShow();  // the one call that presents something you did not time
+```
+
+### That's it
+
+You do not have to wait for initialization before building ad widgets. An auction that would start
+before the native SDK is ready is deferred and taken as soon as it is — so a banner built during
+launch fills normally rather than losing its one request.
+
+---
+
 ## Overview
 
 A mobile advertising SDK that combines header bidding capabilities from Prebid Mobile with Google's advertising ecosystem through a unified interface.
@@ -102,7 +205,7 @@ First of all, SDK needs to be initialized. It's done asynchronously, so after ca
 is triggered with `InitializationStatus.success`, SDK is ready to be used.
 
 ```dart
- final status = await AudienzzSdkFlutter.instance.initialize(companyId: 'CompanyID', isAutomaticPpidEnabled: false);
+ final status = await AudienzzSdkFlutter.instance.initialize(companyId: 'CompanyID');
 
  if (status == InitializationStatus.success) {
    // SDK is ready to be used
@@ -269,16 +372,42 @@ Interstitial minimal usage
 final interstitial = InterstitialAd(
   adUnitId: 'YOUR_AD_UNIT_ID',
   auConfigId: 'YOUR_AU_CONFIG_ID',
-  adFormat: AdFormat.bannerAndVideo,
   onAdLoaded: (_) => debugPrint('Interstitial loaded'),
   onAdFailedToLoad: (_, error) => debugPrint('Interstitial fail: ${error?.message}'),
-  onAdClosed: (ad) async {
-    await ad.dispose();
-  },
+  onAdClosed: (_) => debugPrint('Interstitial dismissed'),
+  onAdFailedToShow: (_, error) => debugPrint('Presentation failed: $error'),
+  onLifecycleEvent: (_, event) => debugPrint('${event.loadId}: ${event.name}'),
 );
-await interstitial.load();
-await interstitial.show();
+// Retain this controller outside transient route widgets; one per logical placement.
+final controller = InterstitialPresentationController(ad: interstitial);
+
+Future<void> prepareNextOpportunity() async {
+  try { await controller.prefetch(); }
+  catch (error) { debugPrint('Prefetch failed: $error'); }
+}
+
+Future<void> onEligibleTransition(bool publisherAllowsAd) async {
+  try {
+    final submitted = await controller.show(eligible: publisherAllowsAd);
+    // false means skipped. No late load completion will show this opportunity.
+  } catch (error) { debugPrint('Presentation failed: $error'); }
+}
+
+// Or, when you want the ad shown as soon as it arrives — asked for by name:
+Future<void> showWhenReady() => controller.prefetchAndShow();
 ```
+
+### Migrating from `preload` / `showAtOpportunity`
+
+| Before | Now |
+| --- | --- |
+| `controller.preload()` | `controller.prefetch()` |
+| `controller.showAtOpportunity(eligible: x)` | `controller.show(eligible: x)` |
+| load, then show from the load callback | `controller.prefetchAndShow()` |
+
+The verb now decides whether anything is presented: `prefetch` never presents, `show` presents only
+what is already in hand and reports a skip otherwise, and `prefetchAndShow` is the one call that
+presents something you did not explicitly time. `eligible` defaults to `true` on `show`.
 
 Rewarded minimal usage
 ----------------------
@@ -312,7 +441,6 @@ Before using remote configuration ads, ensure the SDK is properly initialized:
 final status = await AudienzzSdkFlutter.instance.initializeRemote(
   publisherId: 'YOUR_PUBLISHER_ID', // Will be provided for you
   remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1/', // Audienzz remote config URL
-  isAutomaticPpidEnabled: false
 );
 
 if (status == InitializationStatus.success) {
@@ -344,6 +472,17 @@ final remoteBanner = RemoteBannerAd(
 
 // 2. Load the ad
 await remoteBanner.load();
+```
+
+#### When the auction starts
+
+Both delivery settings of a `RemoteBannerAd` come from the ad config only — `lazyLoad` and `prefetchDistanceDp` (default `200` dp/pt) — so a placement is tuned in the backend, behaves the same on every platform, and changes without an app release. There are no arguments for them. When the ad config says nothing, both `RemoteBannerAd` and `AudienzzBanner` wait for the viewport (`lazyLoad` defaults to `true`), as on every other platform.
+
+> **Flutter defaults to eager, and > **Mount the `AdWidget` before the ad loads.** Flutter's lazy path needs the platform view to exist and to have a non-zero size before the viewport can be evaluated. An integration that mounts its `AdWidget` only after `onAdLoaded` — a common pattern, because the ad size is not known until then — never loads: no widget means no viewport, no viewport means no load, no load means no `onAdLoaded`.
+>
+> Mount a sized placeholder `AdWidget` (or a `SizedBox` of the expected height around it) *before* `load()` completes, as the example app does. `AudienzzBanner` does this for you. A placement that must load at once, wherever it sits, can be set to `lazyLoad: false` in the ad config.
+>
+tive** request until the platform view reports itself in the viewport. It is not the Dart-driven deferred-request design described in `docs/banner-delivery-policy.md`.
 
 #### Fixed Size Banner
 The SDK will use the sizes defined in the remote configuration. To ensure the banner is displayed correctly, you should place the `AdWidget` inside a container (like a `SizedBox`) that matches the intended ad size:
@@ -367,6 +506,7 @@ Center(
 )
 ```
 
+```dart
 // 3. Display the ad using AdWidget
 @override
 Widget build(BuildContext context) {
@@ -403,11 +543,16 @@ final remoteInterstitial = RemoteInterstitialAd(
   },
 );
 
-// 2. Load the ad
-await remoteInterstitial.load();
-
-// 3. Show the ad when ready
-await remoteInterstitial.show();
+final controller = InterstitialPresentationController(ad: remoteInterstitial);
+// Prefetch ahead of a likely opportunity; catch load failures.
+Future<void> prepare() async {
+  try { await controller.prefetch(); }
+  catch (error) { debugPrint('Prefetch failed: $error'); }
+}
+// Called separately at the actual transition, after checking publisher frequency caps.
+Future<bool> showAtTransition(bool publisherAllowsAd) =>
+    controller.show(eligible: publisherAllowsAd);
+// Handle errors from showAtTransition and dispose the controller when no longer needed.
 ```
 
 Targeting basics
@@ -506,9 +651,17 @@ PpidManager
 ------------------------------------
 | Method                    | Parameters                        | Description                                                                                                                              |
 |---------------------------|-----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `isAutomaticPpidEnabled`  |                                   | Used to get current status of automatic PPID usage (if true - PPID is generated and used with all requests, if false - PPID is not used) |
-| `setAutomaticPpidEnabled` | `isAutomaticPpidEnabled: Boolean` | Used to enable or disable automatic PPID usage                                                                                           |
-| `getPpid`                 |                                   | Used to obtain current PPID if automaticPpid is enabled                                                                                  |
+| `setPublisherPpid`        | `String? ppid`                    | Supply your own PPID (e.g. a hashed e-mail). Takes precedence over the SDK-generated one; pass `null` to clear and fall back to it.       |
+| `getPpid`                 |                                   | The PPID currently being sent: yours if set, otherwise the SDK-generated UUID. `null` when consent is missing or the backend disabled it. |
+
+A PPID is **always** sent with ad requests — the SDK generates one (persisted
+locally, rotated every 12 months) whenever you haven't supplied your own. There
+is no enable/disable switch in the SDK: a missing PPID costs frequency capping
+and cross-session targeting. One backend switch suppresses it:
+
+| Publisher config field | Effect when `false` | Absent |
+|---|---|---|
+| `ppidEnabled` | No PPID is sent at all, including one you supplied | Enabled |
 
 API Reference
 =============
@@ -517,87 +670,112 @@ API Reference
 
 | Method                                   | Parameters                                                         | Description                                                                                                                                    |
 |------------------------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| `AudienzzSdkFlutter.instance.initialize` | `{required String companyId, bool isAutomaticPpidEnabled = false}` | Initializes the SDK. Automatic Ppid could be enabled or disabled. Returns `InitializationStatus`. Must be called before using any ad features. |
-| `AudienzzSdkFlutter.instance.setAutoScreenTracking` | `bool enabled` | Enable/disable native automatic screen tracking. Call **before** `initialize`. See [Screen tracking](#screen-tracking-analytics). |
-| `AudienzzSdkFlutter.instance.onScreenResumed` | `String routeKey` | Report the active screen by route key — fires a `pageImpression`. See [Reload on screen resume](#reload-on-screen-resume). |
+| `AudienzzSdkFlutter.instance.initialize` | `{required String companyId}` | Initializes the SDK. A PPID is generated, persisted and attached to every ad request automatically. Returns `InitializationStatus`. Must be called before using any ad features. |
+| `AudienzzSdkFlutter.instance.pageImpression` | `{BuildContext? context, String? name}` | Report an ad-bearing screen/dialog — fires a `pageImpression`. Call on each such screen. See [Reload on screen resume](#reload-on-screen-resume). |
 | `AudienzzSdkFlutter.instance.setSmartRefreshV2Enabled` | `bool enabled` | Force smart-refresh v2 (directional viewport gate) on/off, overriding backend config. Call **before** creating banners. |
 | `AudienzzSdkFlutter.instance.setBlankOnScreenReload` | `bool enabled` | Blank a native banner's slot during a screen-resume reload (default `false`). Call **before** creating banners. |
 | `AudienzzSdkFlutter.instance.setAppVolume` | `double volume` | Set the global ad audio volume for all ad types (`0.0`–`1.0`, `0.0` = muted). The SDK defaults to muted. |
 
 ## Screen tracking (analytics)
 
-The SDK ties ad events to the screen the user is on: entering an ad-bearing screen fires a
+The SDK ties ad events to the screen the user is on: reporting an ad-bearing screen fires a
 `pageImpression` and starts a fresh page-impression id that groups every ad event on that visit.
 
-The native SDK tracks screens **automatically**, but that model watches native
-Activities/ViewControllers — and a Flutter app runs inside **one** `FlutterActivity` /
-`FlutterViewController`, so auto-tracking would collapse *every* Dart route into a single coarse
-impression. So in Flutter you drive it explicitly by your navigation route:
+### GAM prerequisite
 
-1. Turn native auto-tracking **off** once, before init.
-2. Report each ad-bearing route on navigation.
+When the SDK owns refresh, the **GAM ad unit's own refresh rate must be unset**. Two refresh owners
+cannot be reconciled from the app: Google's server-configured refresh runs independently of the
+SDK's scheduler, and no publisher lifecycle code can compensate for it. Check this per ad unit
+before enabling smart refresh.
 
-```dart
-// 1. Disable native auto-tracking BEFORE initialize (single-host app).
-await AudienzzSdkFlutter.instance.setAutoScreenTracking(false);
-await AudienzzSdkFlutter.instance.initialize(companyId: 'YOUR_COMPANY_ID');
+### The managed integration (recommended)
 
-// 2. Report the active screen on each navigation to an ad-bearing route.
-await AudienzzSdkFlutter.instance.onScreenResumed('home');
-```
-
-Report from a single place with a `RouteObserver` instead of inside each screen:
+Wire navigation once, place a banner, and write nothing else. No `load()`, no `Timer`, no reload
+after a page impression or an app resume, no `dispose()`.
 
 ```dart
-final RouteObserver<PageRoute<dynamic>> audienzzRouteObserver =
-    RouteObserver<PageRoute<dynamic>>();
+MaterialApp(
+  // One adapter. Covers push, pop, replace and remove, and reports ad-free
+  // destinations too — that is what releases the previous page's banners.
+  navigatorObservers: [AudienzzNavigatorObserver()],
+  home: const ArticlePage(),
+);
 
-// Register it on your MaterialApp: navigatorObservers: [audienzzRouteObserver]
-
-class _AdScreenState extends State<AdScreen> with RouteAware {
+class ArticlePage extends StatelessWidget {
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final route = ModalRoute.of(context);
-    if (route is PageRoute) audienzzRouteObserver.subscribe(this, route);
-  }
-
-  @override
-  void didPush() => AudienzzSdkFlutter.instance.onScreenResumed('home');     // navigated to
-  @override
-  void didPopNext() => AudienzzSdkFlutter.instance.onScreenResumed('home');  // returned to
-
-  @override
-  void dispose() {
-    audienzzRouteObserver.unsubscribe(this);
-    super.dispose();
-  }
+  Widget build(BuildContext context) => AudienzzPage(
+        name: 'article',
+        child: ListView(children: const [
+          ArticleBody(),
+          // Reserves its height immediately and loads as it nears the viewport.
+          AudienzzBanner(adConfigId: '46', slotKey: 'in-content-1'),
+        ]),
+      );
 }
 ```
+
+`AudienzzPage` and `AudienzzNavigatorObserver` give **each route instance its own page identity**,
+so two article routes both named `article` own their banners separately with nothing to configure.
+They resolve the *same* handle for the same route, and only one activation is reported per
+navigation.
+
+The legacy `pageImpression(name:)` keeps **name identity**, so reporting a screen again still
+matches the banners already on it and refreshes them. Compatibility lives at that boundary; it does
+not weaken the managed contract.
+
+`AudienzzBanner` identifies a slot by `(page, slotKey)` — an `adConfigId` is not unique, the same
+placement can appear twice on one page — and binds explicitly to the page it is built inside, not to
+whichever page was activated most recently.
+
+`AudienzzPage(id: …)` is available when a host wants to choose the identity itself — a custom
+router that already has a stable per-instance key. It is not needed for the default setup.
+
+For a tab or an `IndexedStack`, pass whether this tab is selected, so a pre-built tab does not claim
+the active page and does not buy an ad the reader may never see:
+
+```dart
+AudienzzPage(name: 'feed', active: _selectedIndex == 0, child: …)
+```
+
+**Custom router?** There is one contract: mint a handle per route instance and activate it when that
+route becomes visible.
+
+```dart
+final page = createAudienzzPage('article');            // id == 'article'
+await AudienzzSdkFlutter.instance.activatePage(page);  // when it becomes visible
+
+// Or, when two routes share a name and must own their banners separately:
+await AudienzzSdkFlutter.instance
+    .activatePage(const AudienzzPageHandle(id: 'article-42', name: 'article'));
+```
+
+Activate the destination on every transition, including to screens with no ads. Activating a page is
+what deactivates the previous one; nothing else needs to be called.
+
+### Reporting screens without the managed widgets
+
+If you place `RemoteBannerAd` yourself, you own the ordering: **report the page, then create its
+ads.** An ad created before its page is reported carries no page, and the next page impression
+sweeps it as belonging elsewhere.
+
+```dart
+await AudienzzSdkFlutter.instance.pageImpression(name: 'home');
+// …create this screen's ads now, not before.
+```
+
+Report from the navigation action — the router callback, the tab listener, the route observer.
+Do **not** report from `build`, `didChangeDependencies`, a layout callback or a parent `initState`
+that runs after its children: rendering, layout, theme changes and rebuilds are not navigation
+events, and a report that lands after a child has been constructed binds that child to the previous
+page permanently.
 
 Notes:
-- The `routeKey` is any stable per-screen string (your route name works well). It's the screen
-  identity in analytics.
-- `setAutoScreenTracking(false)` must be called **before** `initialize` to take effect. Leaving
-  auto-tracking on emits one page impression for the single host screen.
-
-### Reload on screen resume
-
-`onScreenResumed(routeKey)` fires the page impression. To also show a fresh creative when a
-route/tab becomes active again, **recreate** the banner on that screen — a Flutter banner is a
-platform view whose texture does not refresh on an in-place re-auction, so recreating (dispose then
-load a new ad) is what produces a new creative. Recreating also blanks the slot for a frame while
-the new ad loads, matching the native `blankOnScreenReload`.
-
-```dart
-// e.g. from a TabController listener, when tab 0 becomes active again:
-void _onTabChanged(int index) {
-  AudienzzSdkFlutter.instance.onScreenResumed(_tabKeys[index]); // analytics
-  if (index == 0) _bannerLoader.reload();                       // dispose -> fresh load
-}
-```
-
-See the example's tab handler and `RemoteBannerAdLoader.reload()` for a complete pattern.
+- `pageImpression(name:)` uses the name as the page identity. Two routes that share a name are the
+  same page to the coordinator; use `activatePage` with a handle when that matters.
+- A page impression is the whole transition. Native releases every banner that is not on the
+  incoming page and re-auctions the ones that are, and the Flutter widget remounts its platform view
+  when the native epoch changes. **Do not also reload manually** — that gives one transition two
+  owners and two auctions, the second discarding the creative the first just fetched.
 
 Two optional session-wide toggles tune smart-refresh (call **before** creating banners):
 
@@ -660,15 +838,16 @@ await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
 | `resumeAutoRefresh()` | `Future<void>`                               | Resumes auto-refresh for this banner, with stale-aware timing.          |
 
 ## InterstitialAd (extends AdWithoutView)
+
+An interstitial's formats and API frameworks are not arguments: they are backend-controlled (`prebidConfig.format` / `prebidConfig.apis`). A `RemoteInterstitialAd` uses its ad config's values; a hand-built `InterstitialAd` requests banner + video with MRAID 1/2/3 + OMID 1. See [docs/interstitial-capabilities.md](docs/interstitial-capabilities.md).
+
 | Property/Method     | Type                                               | Description                                                   |
 |---------------------|----------------------------------------------------|---------------------------------------------------------------|
-| `adFormat`          | `AdFormat`                                         | Required. Desired ad format.                                  |
 | `minSizePercentage` | `MinSizePercentage`                                | Minimum ad size in percent. Default: `width: 80, height: 60`. |
 | `sizes`             | `Set<AdSize>`                                      | Ad sizes for the bid request. Optional.                       |
-| `apiParameters`     | `Set<ApiParameter>`                                | API frameworks for bid response. Default: `{mraid3, omid1}`.  |
-| `protocols`         | `Set<Protocol>`                                    | Supported video protocols. Optional.                          |
-| `placement`         | `Placement`                                        | Placement type. Default: `Placement.inBanner`.                |
-| `playbackMethods`   | `Set<PlaybackMethod>`                              | Video playback methods. Default: `{enterSoundOff}`.           |
+| `protocols`         | `Set<Protocol>`                                    | Supported video protocols. Default: `{vast2_0}`.              |
+| `placement`         | `Placement`                                        | Placement type. Default: `Placement.interstitial`.            |
+| `playbackMethods`   | `Set<PlaybackMethod>`                              | Video playback methods. Default: `{autoPlaySoundOff}`.        |
 | `videoBitrate`      | `VideoBitrate`                                     | Video bitrate range. Default: `min: 300, max: 1500`.          |
 | `videoDuration`     | `VideoDuration`                                    | Video duration range. Default: `min: 1, max: 30`.             |
 | `pbAdSlot`          | `String?`                                          | PB Ad Slot identifier. Optional.                              |
@@ -849,7 +1028,6 @@ ListView(
 | `AdMessageCodecReadingException`    | Thrown if there is an error reading ad message codec.  |
 | `AdSizeRequiredException`           | Thrown if ad size is required but missing.             |
 | `RewardItemMissingException`        | Thrown if a reward item is missing in a rewarded ad.   |
-| `FailedToGetAutomaticPpidException` | Thrown if automatic PPID status could not be obtained. |
 
 License
 ========
@@ -867,3 +1045,75 @@ License
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+
+
+## Publisher pause and smart-refresh visibility
+
+`BannerAd.pauseAutoRefresh()` is a durable publisher pause. Only `BannerAd.resumeAutoRefresh()` clears it. Scrolling, returning to the app and `pageImpression` do not implicitly resume a publisher-paused banner.
+
+`AdWidget` sends its visibility/overlay/unmount state through a separate internal channel operation (`setBannerViewportVisible`). Publishers should let `AdWidget` manage visibility and use the public pause API only for their own pause policy. Both native plugin implementations preserve these independent reasons.
+
+Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The updated native SDKs must be released and the bridge dependency pins updated before publishing this bridge; verification against local native checkouts does not make the currently published native versions compatible.
+
+
+## Interstitial lifecycle and migration
+
+Flutter retains an explicit `load()` / `show()` contract on both platforms. Native iOS remote
+interstitials auto-show by default; Flutter's `RemoteInterstitialAd` uses its own explicit bridge
+flow, so loading a Flutter interstitial does not unexpectedly present it.
+
+- `load()` preserves callback-based failure handling: load failures go to `onAdFailedToLoad`,
+  and the returned future settles without an error. Check `isReady` before calling `show()`.
+  For an awaited flow, use `await ad.load(throwOnFailure: true)` inside `try`/`catch`; this
+  throws on failure, cancellation during loading, busy state, or a 120-second timeout.
+  `InterstitialPresentationController.prefetch()` always uses this strict mode.
+- Concurrent loads share one request; loading an already-ready ad does not replace it. After a
+  terminal failure or dismissal the same Dart object may load again with a new ID.
+- `isReady` excludes expired and presenting inventory. Ads expire after one hour; call `load()`
+  explicitly to replace expired inventory. There is no periodic interstitial refresh.
+- `show()` completes when native accepts the call, not when the ad closes. Use `onAdClosed` for
+  completed dismissal and `onAdFailedToShow` for presentation failure (code/message/domain).
+  Presentation failures no longer masquerade as load failures or successful closures.
+- Cleanup occurs automatically on dismissal/failure. `dispose()` during presentation defers
+  cleanup so callbacks survive; disposal during loading cancels the readiness future.
+- Do not reload interstitials on rebuild, rotation, `pageImpression`, or banner smart refresh.
+  Preload at most the intended next opportunity and apply publisher frequency rules before
+  requesting when possible. An old show request is never replayed later on foreground/navigation.
+- `onLifecycleEvent` supplies a per-load ID, event name, Google response ID when available,
+  loaded-ad age, and errors/disposal reasons. Forward it with app/SDK version, route, foreground
+  state, and publisher eligibility decisions to your analytics. Track loadRequested, loaded,
+  showAttempted, presented, impression, dismissed/showFailed, and disposed separately.
+
+These changes improve correctness; a higher render rate alone does not demonstrate more revenue.
+Compare impressions and revenue per session alongside unused prefetches and presentation failures.
+
+
+### Recommended interstitial presentation controller
+
+`InterstitialPresentationController` works with original and remote interstitials. Retain one
+controller per logical placement outside transient page widgets, and use it exclusively to prefetch,
+show and dispose its ad. `prefetch()` shares an outstanding load and keeps ready inventory; it never
+presents. `show(eligible: ...)` immediately skips if the publisher disallows the opportunity,
+the ad is unavailable/expired, Flutter is inactive, or another interstitial in this engine is
+presenting. A skipped opportunity is never queued, including across foreground or page changes —
+that is what `prefetchAndShow()` is for, and it has to be asked for by name. The ready ad remains
+available for a later explicit opportunity; no extra request is issued.
+
+A true result means the native show command was accepted. Use `onAdOpened`, `onAdImpression`,
+`onAdFailedToShow` and `onAdClosed` for the actual outcome. Presentation errors still throw.
+The controller does not infer your frequency cap or own other SDKs' fullscreen ads: compute
+`eligible` at the transition, including your own modal/ad policy. Prefetching has no implicit
+publisher eligibility decision. Check that policy before requesting too, when possible.
+
+There is no scheduled show, arbitrary wait period, or dependency on banner smart refresh.
+`dispose()` during presentation preserves callbacks until dismissal/failure. Repeated prefetch
+calls after dismissal may prepare the next opportunity; never request it just to raise render rate.
+`opportunitySkipped` lifecycle events include a reason when a load is registered. Google iOS
+interstitial load failures now preserve their original error code and domain; Android load events
+also carry their error domain.
+
+### Automatic request counters
+
+Original and remote banners/interstitials automatically include `au_page_seq`, `au_slot` and
+`hb_refresh_count` in GAM custom targeting. See [the request targeting contract](docs/ad-request-targeting.md)
+for page resets, automatic slot ordering and request-count semantics. No new publisher parameter is required.

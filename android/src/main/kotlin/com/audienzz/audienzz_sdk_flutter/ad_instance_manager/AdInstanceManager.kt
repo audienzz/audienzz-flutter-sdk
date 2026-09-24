@@ -64,9 +64,10 @@ class AdInstanceManager(private val channel: MethodChannel) {
         ads.clear()
     }
 
-    fun onAdLoaded(adId: Int) {
-        val args = mapOf<String, Any>(
+    fun onAdLoaded(adId: Int, responseId: String? = null) {
+        val args = mapOf<String, Any?>(
             AD_ID_KEY to adId,
+            "responseId" to responseId,
             EVENT_NAME_KEY to ON_AD_LOADED_EVENT
         )
 
@@ -78,6 +79,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
             AD_ID_KEY to adId,
             EVENT_NAME_KEY to ON_AD_FAILED_TO_LOAD_EVENT,
             AD_ERROR_KEY to adError,
+            "errorDomain" to adError.domain,
         )
 
         invokeOnAdEvent(args)
@@ -204,7 +206,10 @@ class AdInstanceManager(private val channel: MethodChannel) {
 
             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                 super.onAdFailedToShowFullScreenContent(adError)
-                onAdFailedToLoad(adId, adError)
+                if (adFor(adId) is InterstitialAd) {
+                    invokeOnAdEvent(mapOf(AD_ID_KEY to adId, EVENT_NAME_KEY to "onAdFailedToShow",
+                        AD_ERROR_KEY to adError, "errorDomain" to adError.domain))
+                } else { onAdFailedToLoad(adId, adError) }
             }
 
             override fun onAdImpression() {
@@ -231,9 +236,9 @@ class AdInstanceManager(private val channel: MethodChannel) {
     fun createInterstitialAdLoadedListener(adId: Int): AudienzzInterstitialAdLoadCallback {
         return object : AudienzzInterstitialAdLoadCallback() {
             override fun onAdLoaded(ad: AdManagerInterstitialAd) {
-                onAdLoaded(adId)
-                val interstitialAd = adFor(adId) as? InterstitialAd
-                interstitialAd?.setAd(ad)
+                val interstitialAd = adFor(adId) as? InterstitialAd ?: return
+                interstitialAd.setAd(ad)
+                onAdLoaded(adId, ad.responseInfo?.responseId)
             }
 
             override fun onAdFailedToLoad(adError: LoadAdError) {

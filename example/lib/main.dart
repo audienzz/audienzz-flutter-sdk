@@ -7,6 +7,8 @@ import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter_example/pages/banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/interstitial_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/list_with_ads_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/managed_banner_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/managed_flows_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/ppid_usage_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/remote_banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/remote_interstitial_ad_example.dart';
@@ -22,6 +24,7 @@ import 'package:flutter/material.dart';
 
 void main() => runApp(const MyApp());
 
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -33,8 +36,12 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   late final Future<void> init;
   bool useRemoteConfiguration = true;
 
-  RemoteBannerAdLoader? _loader46;
-  RemoteBannerAdLoader? _loader48;
+
+  // Reports pushed/returned routes automatically (see AudienzzNavigatorObserver).
+  // The SDK's observer. It covers push, pop, replace and remove, reports
+  // ad-free destinations (that is what releases the previous page's banners)
+  // and agrees with AudienzzPage about page identity.
+  final _navObserver = AudienzzNavigatorObserver();
 
   // Tab = screen. Each tab is reported as its own screen so switching tabs fires
   // a fresh page impression, and the incoming tab's ads reload immediately —
@@ -59,21 +66,29 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     init = initializeSdk();
   }
 
-  /// Fires once per tab change: report the now-active tab as a screen (fresh page
-  /// impression) and reload that tab's banner ads. A Flutter banner is a platform
-  /// view that can't be re-auctioned in place, so we RECREATE the ad here — which
-  /// blanks the slot (placeholder) during the reload and shows a fresh creative,
-  /// matching the native screen-change reload. This is the recommended pattern for
-  /// screens whose ads stay mounted (tabs); stack routes that unmount reload for
-  /// free on remount.
+  /// Rebuild so each tab's [AudienzzPage] sees its new `active` value.
+  ///
+  /// Reporting the tab from here as well would be a second reporter for one
+  /// transition. Tabs live inside ONE Navigator route, so the observer cannot
+  /// tell them apart — that is exactly what the per-tab [AudienzzPage] wrappers
+  /// below are for. Mixing the two (observer route instances for pushed pages,
+  /// a name-only `pageImpression` for tabs) meant a banner created for the
+  /// initial route was never reassigned to the tab key reported on return.
   void _onTabChanged() {
     final i = _tabController.index;
     if (i == _lastTab) return;
-    _lastTab = i;
-    AudienzzSdkFlutter.instance.onScreenResumed(_tabKeys[i]);
-    if (i == 0) {
-      _loader46?.reload();
-      _loader48?.reload();
+    AudienzzDiagnostics.logAppAction('selectTab', {'tab': _tabKeys[i]});
+    setState(() => _lastTab = i);
+  }
+
+  Widget _tabBody(int index) {
+    switch (index) {
+      case 0:
+        return AdsPages(useRemoteConfiguration: useRemoteConfiguration);
+      case 1:
+        return const ListWithAdsExample();
+      default:
+        return const LegacyBannerAdExample();
     }
   }
 
@@ -81,8 +96,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
-    _loader46?.dispose();
-    _loader48?.dispose();
     super.dispose();
   }
 
@@ -102,13 +115,15 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   Future<void> initializeSdk() async {
     await _requestTrackingAuthorization();
 
-    // Single-host Flutter app: turn off native auto screen tracking (it would collapse every route
-    // into one) and report routes explicitly (see the ListTile onTap + the 'home' report below).
-    // Must run before initialize.
-    await AudienzzSdkFlutter.instance.setAutoScreenTracking(false);
+    // Report each ad-bearing route explicitly via pageImpression (see the ListTile onTap + the
+    // 'home' report below).
     // Opt into smart-refresh v2 (directional viewport gate) instead of the legacy 20% gate,
     // and blank the slot during a screen-resume reload — parity with the native iOS/Android SDKs.
     // Both override backend config for the session; call before creating banners.
+    // One greppable AUDZ line per slot decision, on the Dart side and in both native SDKs.
+    // Capture with `flutter logs` and grep AUDZ. On by default HERE because this app exists to
+    // be tested and have its log read back; in a real app it is off unless you ask for it.
+    await AudienzzSdkFlutter.instance.setDiagnosticsEnabled(true);
     await AudienzzSdkFlutter.instance.setSmartRefreshV2Enabled(true);
     await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
 
@@ -116,20 +131,18 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     if (useRemoteConfiguration) {
       status = await AudienzzSdkFlutter.instance.initializeRemote(
         publisherId: '35',
-        isAutomaticPpidEnabled: true,
         remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1',
       );
     } else {
       status = await AudienzzSdkFlutter.instance.initialize(
         companyId: 'Company Id',
-        isAutomaticPpidEnabled: true,
       );
     }
 
     log(status.toString());
 
-    // Report the initial screen for per-route page-impression analytics.
-    await AudienzzSdkFlutter.instance.onScreenResumed('home');
+    // The initial route is reported automatically by AudienzzNavigatorObserver
+    // once the MaterialApp builds — no explicit pageImpression here.
 
     await AudienzzSdkFlutter.instance.setSchainObject("""
                         { "source": 
@@ -150,14 +163,17 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
 
     await AudienzzTargeting.addSingleGlobalTargeting("TEST", "1");
 
-    // Start loading AFTER all global SDK config is set (schain + targeting must
-    // be in place before fetchDemand constructs the OpenRTB request).
-    // Starting here — before FutureBuilder resolves — saves the FutureBuilder
-    // rebuild → widget mount → initState → loadAd() round-trip (~100–400 ms).
-    if (useRemoteConfiguration) {
-      _loader46 = RemoteBannerAdLoader(configId: '46');
-      _loader48 = RemoteBannerAdLoader(configId: '48');
-    }
+    // Deliberately NOT creating the banner loaders here.
+    //
+    // RemoteBannerAdLoader loads in its constructor, and this runs before the
+    // MaterialApp exists — so before AudienzzNavigatorObserver has reported the
+    // initial route. An ad created before its page is reported carries no page,
+    // and the next page impression sweeps it as belonging to somewhere else.
+    // The ~100–400 ms this used to save is not worth a slot that can be
+    // released the moment the reader navigates.
+    //
+    // They are created in _AdsHomeState.initState instead, which runs after the
+    // Navigator has reported the route this page lives on.
   }
 
   @override
@@ -167,6 +183,8 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
       builder: (_, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
           return MaterialApp(
+            // The observer auto-reports every named route pushed/returned below.
+            navigatorObservers: [_navObserver],
             home: Scaffold(
               appBar: AppBar(
                 title: TabBar(
@@ -180,13 +198,16 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
               body: TabBarView(
                 controller: _tabController,
                 children: [
-                  AdsPages(
-                    useRemoteConfiguration: useRemoteConfiguration,
-                    loader46: _loader46,
-                    loader48: _loader48,
-                  ),
-                  ListWithAdsExample(),
-                  LegacyBannerAdExample(),
+                  // One page per tab, and only the selected one is active. Two
+                  // retained tabs are two screens: without this they would share
+                  // the enclosing route's identity, so switching tabs left every
+                  // banner belonging to a screen nobody was looking at.
+                  for (var i = 0; i < _tabKeys.length; i++)
+                    AudienzzPage(
+                      name: _tabKeys[i],
+                      active: _tabController.index == i,
+                      child: _tabBody(i),
+                    ),
                 ],
               ),
             ),
@@ -212,11 +233,15 @@ class _NavigationTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.pageBuilder,
+    this.bare = false,
   });
 
   final String title;
   final String subtitle;
   final WidgetBuilder pageBuilder;
+
+  /// The destination brings its own Scaffold; do not wrap it in another one.
+  final bool bare;
 
   @override
   Widget build(BuildContext context) {
@@ -225,18 +250,21 @@ class _NavigationTile extends StatelessWidget {
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.chevron_right, size: 18),
       onTap: () {
-        // Report the destination screen (its title is the route key here); on return we re-report
-        // 'home' so its ads are grouped under a fresh page impression.
-        AudienzzSdkFlutter.instance.onScreenResumed(title);
+        AudienzzDiagnostics.logAppAction('navigate', {'to': title});
+        // Name the route; AudienzzNavigatorObserver reports the screen on push and
+        // reports the revealed screen again on return — no pageImpression call here.
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (ctx) => Scaffold(
-              appBar: AppBar(title: Text(title)),
-              body: pageBuilder(ctx),
-            ),
+            settings: RouteSettings(name: title),
+            builder: (ctx) => bare
+                ? pageBuilder(ctx)
+                : Scaffold(
+                    appBar: AppBar(title: Text(title)),
+                    body: pageBuilder(ctx),
+                  ),
           ),
-        ).then((_) => AudienzzSdkFlutter.instance.onScreenResumed('home'));
+        );
       },
     );
   }
@@ -247,14 +275,10 @@ class _NavigationTile extends StatelessWidget {
 final class AdsPages extends StatelessWidget {
   const AdsPages({
     required this.useRemoteConfiguration,
-    this.loader46,
-    this.loader48,
     super.key,
   });
 
   final bool useRemoteConfiguration;
-  final RemoteBannerAdLoader? loader46;
-  final RemoteBannerAdLoader? loader48;
 
   @override
   Widget build(BuildContext context) {
@@ -290,6 +314,22 @@ final class AdsPages extends StatelessWidget {
       ),
     );
 
+    // One under every ad slot, matching the native examples: the screen-navigation test is about
+    // what happens to THAT banner when you leave and come back, so the button has to be reachable
+    // while the slot it concerns is on screen. Which one you tapped is printed, because four
+    // identical buttons would otherwise make a captured log ambiguous.
+    Widget openTestScreen(BuildContext context, String from) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ElevatedButton(
+            onPressed: () {
+              debugPrint('[Example] opening test screen ($from)');
+              Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const TestScreenExample()));
+            },
+            child: Text('Open test screen ($from)'),
+          ),
+        );
+
     return Padding(
       padding: viewPadding,
       child: Scaffold(
@@ -301,7 +341,8 @@ final class AdsPages extends StatelessWidget {
                 padding: EdgeInsets.all(8.0),
                 child: Text('Remote Banner Ad (46)'),
               ),
-              RemoteBannerAdExample(configId: '46', loader: loader46),
+              RemoteBannerAdExample(configId: '46'),
+              openTestScreen(context, 'from banner 46'),
 
               loremIpsum(),
 
@@ -310,7 +351,8 @@ final class AdsPages extends StatelessWidget {
                 padding: EdgeInsets.all(8.0),
                 child: Text('Remote Banner Ad (48)'),
               ),
-              RemoteBannerAdExample(configId: '48', loader: loader48),
+              RemoteBannerAdExample(configId: '48'),
+              openTestScreen(context, 'from banner 48'),
 
               loremIpsum(),
 
@@ -333,6 +375,24 @@ final class AdsPages extends StatelessWidget {
                     letterSpacing: 1.1,
                   ),
                 ),
+              ),
+              _NavigationTile(
+                title: 'Managed Banner (recommended)',
+                subtitle: 'AudienzzPage + AudienzzBanner — no loader, no reload, no disposal',
+                pageBuilder: (_) => const ManagedBannerExample(configId: '46'),
+                bare: true,
+              ),
+              _NavigationTile(
+                title: 'Managed test flows',
+                subtitle: 'A→B→A, repeated articles, delayed content, retained tabs, cover',
+                pageBuilder: (_) => const ManagedFlowsExample(configId: '46'),
+                bare: true,
+              ),
+              _NavigationTile(
+                title: 'Ad-free destination',
+                subtitle: 'Page A → ad-free B → A: leaving releases, returning recreates',
+                pageBuilder: (_) => const AdFreeExample(),
+                bare: true,
               ),
               _NavigationTile(
                 title: 'Test Screen',

@@ -1,34 +1,21 @@
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
-import 'package:audienzz_sdk_flutter/src/entities/exceptions/failed_to_get_automatic_ppid_exception.dart';
 
 final class PpidManager {
   const PpidManager._();
 
-  /// Check if automatic PPID is enabled
-  static Future<bool> isAutomaticPpidEnabled() async {
-    final isAutomaticPpidEnabled =
-        await adInstanceManager.methodChannel.invokeMethod<bool>(
-      'isAutomaticPpidEnabled',
-    );
-
-    if (isAutomaticPpidEnabled != null) {
-      return isAutomaticPpidEnabled;
-    } else {
-      throw const FailedToGetAutomaticPpidException();
-    }
-  }
-
-  /// Used to enable or disable automatic PPID usage
-  static Future<void> setAutomaticPpidEnabled({
-    required bool isAutomaticPpidEnabled,
-  }) async {
+  /// Supply your own PPID (e.g. a hashed e-mail address). It takes precedence
+  /// over the SDK-generated one; pass `null` to clear and fall back to it.
+  static Future<void> setPublisherPpid(String? ppid) async {
     return adInstanceManager.methodChannel
-        .invokeMethod<void>('setAutomaticPpidEnabled', {
-      'isAutomaticPpidEnabled': isAutomaticPpidEnabled,
-    });
+        .invokeMethod<void>('setPublisherPpid', {'ppid': ppid});
   }
 
-  /// Used to obtain PPID if automaticPpid is enabled
+  /// The PPID currently being sent: yours if set via [setPublisherPpid],
+  /// otherwise the SDK-generated UUID. `null` only when consent is missing.
+  ///
+  /// A PPID is always sent with ad requests — the SDK generates one (persisted
+  /// locally, rotated every 12 months) whenever you haven't supplied your own.
+  /// There is no enable/disable switch.
   static Future<String?> getPpid() async {
     return adInstanceManager.methodChannel.invokeMethod<String>(
       'getPpid',
