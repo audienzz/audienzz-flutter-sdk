@@ -47,7 +47,13 @@ Await this once after consent. Check the returned status: `success` means ready,
 means configuration recovery is still pending, and `fail` means initialization failed. Keep app
 content available on failure; create remote interstitials only after configuration is available.
 
-### 3. Report every screen
+### 3. Report every screen — including screens without ads
+
+> **Required:** every screen that becomes active must produce a `pageImpression` (PI), even if it
+> contains no ads. This includes the initial screen, navigation to an ad-free settings/profile
+> screen, tab changes, and returning to a previous screen. Report the screen independently of
+> whether an ad loads. Reporting the destination releases the previous screen's banners so they
+> cannot keep refreshing behind it.
 
 Keep one observer for your `Navigator` and wrap each ad-bearing route in `AudienzzPage` (step 4):
 
@@ -63,8 +69,8 @@ MaterialApp(
 
 The observer reports push, pop, replace and remove, including **ad-free destinations**. Reporting
 the destination releases the previous page's banners. The page wrapper binds banners to the correct
-route instance, even when two routes have the same name. Do not also call `pageImpression` for the
-same transition.
+route instance, even when two routes have the same name. **The observer and managed page already
+report PI: do not add a second manual `pageImpression` call for the same transition.**
 
 For tabs inside one route, wrap each tab in its own `AudienzzPage` and set `active` to whether it is
 selected. For nested or custom navigation, follow the [managed integration](#the-managed-integration-recommended).
