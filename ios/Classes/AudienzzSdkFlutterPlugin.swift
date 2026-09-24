@@ -26,6 +26,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
     /// forwarding. The manager's channel is a stored property of the manager, which the plugin owns.
     private func observeNativePageImpressions() {
         Audienzz.shared.pageImpressionObserver = { [weak self] name in
+            self?.manager.didReportPageImpression(name)
             DispatchQueue.main.async {
                 self?.manager.channel.invokeMethod("onPageImpression", arguments: ["name": name])
             }
@@ -935,11 +936,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 // Identity and analytics name are separate. Every Flutter ad lives in the one host
                 // view controller, so host identity can never separate two routes — the id is the
                 // only thing that can, and a screen name repeats.
-                if let pageId = args["pageId"] as? String {
-                    Audienzz.shared.pageImpression(pageId: pageId, name: name)
-                } else {
-                    Audienzz.shared.pageImpression(name)
-                }
+                manager.pageImpression(pageId: args["pageId"] as? String ?? name, name: name)
             }
             result(nil)
 

@@ -132,6 +132,11 @@ await interstitial.prefetchAndShow(eligible: canShowAd);
 load and retain ready inventory. Keep the controller alive through dismissal and call `dispose()`
 when its owning scope ends. See [interstitial lifecycle](#interstitial-lifecycle-and-migration).
 
+On iOS, the bridge holds banner refresh while an SDK interstitial is presented. Dismissal
+reports the current page again and replaces its banners, unless navigation or foreground recovery
+already reported that page visit. Do not add a manual PI in `onAdClosed`. Failed presentation does
+not create a page impression, and dismissal never clears a publisher's manual refresh pause.
+
 ### What the SDK handles
 
 Managed banners own loading, page transitions, viewport refresh gating and disposal. Native code

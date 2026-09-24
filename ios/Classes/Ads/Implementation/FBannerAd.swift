@@ -2,7 +2,7 @@ import Flutter
 import GoogleMobileAds
 import AudienzziOSSDK
 
-class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDelegate {
+class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPlatformView, BannerViewDelegate {
     var requestContext = AUAdRequestContext()
 
     private let adUnitId: String
@@ -166,15 +166,31 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
     /// publisher has already stopped, and that only works if the state is remembered here until
     /// there is something to apply it to.
     private var publisherPaused = false
+    private var fullScreenCovered = false
 
     func pauseAutoRefresh() {
         publisherPaused = true
-        auBannerView?.adUnitConfiguration.stopAutoRefresh()
+        syncRefreshPause()
     }
 
     func resumeAutoRefresh() {
         publisherPaused = false
-        auBannerView?.adUnitConfiguration.resumeAutoRefresh()
+        syncRefreshPause()
+    }
+
+    func setFullScreenCovered(_ covered: Bool) {
+        fullScreenCovered = covered
+        syncRefreshPause()
+    }
+
+    private func syncRefreshPause() {
+        // Two owners of one native block. A visibility poll, publisher resume, or interstitial
+        // dismissal must never release a pause still owned by the other source.
+        if publisherPaused || fullScreenCovered {
+            auBannerView?.adUnitConfiguration.stopAutoRefresh()
+        } else {
+            auBannerView?.adUnitConfiguration.resumeAutoRefresh()
+        }
     }
 
     func setViewportVisible(_ visible: Bool) {
@@ -364,7 +380,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FlutterPlatformView, BannerViewDel
 
         // Before createAd: the banner requests inside that call for an eager slot, so a pause the
         // publisher installed before this ad existed has to be in place first.
-        if publisherPaused {
+        if publisherPaused || fullScreenCovered {
             auBannerView?.adUnitConfiguration.stopAutoRefresh()
         }
 

@@ -323,8 +323,7 @@ final class AdsPages extends StatelessWidget {
           child: ElevatedButton(
             onPressed: () {
               debugPrint('[Example] opening test screen ($from)');
-              Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => const TestScreenExample()));
+              Navigator.of(context).push(TestScreenExample.route());
             },
             child: Text('Open test screen ($from)'),
           ),
@@ -398,6 +397,7 @@ final class AdsPages extends StatelessWidget {
                 title: 'Test Screen',
                 subtitle: 'One banner on its own screen — for screen-tracking logs',
                 pageBuilder: (_) => const TestScreenExample(),
+                bare: true,
               ),
               _NavigationTile(
                 title: 'Always-in-tree Banner Pattern',

@@ -84,6 +84,24 @@ Everything the reviews asked about is reachable in at most two taps from the hom
 | Interstitial prefetchAndShow | same screen → **Show when it arrives** |
 | Repeated taps / ineligible opportunity | same screen — every button stays enabled on purpose |
 | Disposal during loading | tap **Prefetch** then immediately leave the screen |
+| Test screen from an inline button | **Open test screen** below a home banner — normal text, app bar and back button; one PI before its banner request |
+| iOS interstitial return | Show an interstitial over a loaded banner, wait past the refresh interval, dismiss — no refresh under the ad, one return PI, then blank/reload on the active page |
+
+For the iOS interstitial flow, also repeat with a publisher-paused banner, a failed presentation,
+and a background/foreground round trip while the ad is open. A manual pause must survive dismissal;
+a failed show must not report a page return; native foreground recovery must not be followed by a
+duplicate return PI. Off-screen banners remain deferred until eligible. These checks require a
+device/live test ad to validate actual Google presentation and painting.
+
+Native bridge regressions run in the example's `RunnerTests` target, against the normal published
+SDK pin (no local native override):
+
+```bash
+cd example/ios
+xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Debug \
+  -destination 'platform=iOS Simulator,id=YOUR_SIMULATOR_ID' \
+  -parallel-testing-enabled NO -only-testing:RunnerTests CODE_SIGNING_ALLOWED=NO test
+```
 
 ### What a good run looks like
 

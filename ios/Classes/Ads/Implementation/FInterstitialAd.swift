@@ -221,6 +221,8 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
     }
 
     func adWillPresentFullScreenContent(_ ad: any FullScreenPresentingAd){
+        guard !disposed else { return }
+        isPresenting = true
         self.manager?.onAdOpened(ad: self)
     }
 
