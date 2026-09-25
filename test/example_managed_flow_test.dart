@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../example/lib/pages/managed_banner_example.dart';
+import '../example/lib/pages/remote_banner_ad_example.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -67,6 +68,40 @@ void main() {
     AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting(null);
     messenger.setMockMethodCallHandler(channel, null);
     messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
+  });
+
+  testWidgets('remote adaptive example keeps the available width before and after a creative', (tester) async {
+    AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([
+      RemoteAdConfiguration.fromJson({
+        'id': '46', 'config': {'adType': 'banner'},
+        'gamConfig': {'adUnitPath': '/test', 'adSizes': ['300x250'],
+          'adaptiveBannerConfig': {'enabled': true, 'widthStrategy': 'FULL_WIDTH'}},
+        'prebidConfig': {'placementId': 'test', 'adSizes': ['300x250']},
+      }),
+    ]);
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'getPlatformAdSize') return AdSize(width: 320, height: 140);
+      return null;
+    });
+    await tester.pumpWidget(MaterialApp(
+      navigatorObservers: [AudienzzNavigatorObserver()],
+      home: const Scaffold(body: Center(child: SizedBox(width: 400,
+        child: RemoteBannerAdExample(configId: '46')))),
+    ));
+    // The spinner is intentionally present until a creative arrives.
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(AdWidget), findsOneWidget);
+    expect(tester.getSize(find.byType(AdWidget)).width, 400);
+    final id = (calls.singleWhere((call) => call.method == 'loadBannerAd').arguments as Map)['adId'];
+    await messenger.handlePlatformMessage(channel.name,
+      channel.codec.encodeMethodCall(MethodCall('onAdEvent', {
+        'adId': id, 'eventName': 'onAdLoaded',
+      })), (_) {});
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(AdWidget)), const Size(400, 140));
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('the recommended example reports its page before either slot loads',

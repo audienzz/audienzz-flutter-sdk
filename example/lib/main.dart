@@ -104,7 +104,18 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   Future<void> _requestTrackingAuthorization() async {
     if (!Platform.isIOS) return;
     // ATT can only be presented once the app is active.
-    await Future<void>.delayed(const Duration(milliseconds: 200));
+    if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      final active = Completer<void>();
+      final listener = AppLifecycleListener(onResume: () {
+        if (!active.isCompleted) active.complete();
+      });
+      try {
+        await active.future;
+      } finally {
+        listener.dispose();
+      }
+    }
+    if (!mounted) return;
     final status = await AppTrackingTransparency.trackingAuthorizationStatus;
     if (status == TrackingStatus.notDetermined) {
       await AppTrackingTransparency.requestTrackingAuthorization();
@@ -114,6 +125,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
 
   Future<void> initializeSdk() async {
     await _requestTrackingAuthorization();
+    if (!mounted) return;
 
     // Report each ad-bearing route explicitly via pageImpression (see the ListTile onTap + the
     // 'home' report below).

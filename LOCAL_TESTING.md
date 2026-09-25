@@ -170,3 +170,22 @@ unset the variable and run `pod update AudienzziOSSDK` from `example/ios`.
 2. `unset AUDIENZZ_IOS_SDK_PATH` and `pod install`.
 3. Build both platforms against the published dependencies. The current required releases are
    Android 0.3.0 and iOS 0.4.0; no local override should be active.
+
+## Pending native fixes in this branch
+
+Adaptive iOS bootstrap and banner-only slot numbering require the matching native
+`feature/page-impression-api` checkouts. Flutter also calls the new `forInterstitial` context
+factory, so these changes cannot compile against the old published native pins.
+Use the local overrides below while testing. Release native Android and iOS first, then update
+both bridge dependency pins and lockfiles before publishing the bridges. Do not ship local pins.
+
+## ATT in the iOS example
+
+The example requests ATT only when the app is active and status is `notDetermined`, before
+initializing ads. RN does this in `example/ios/AppDeletage.swift`; Flutter does it in
+`example/lib/main.dart`. Denied/restricted status still allows initialization and leaves IDFA
+unavailable. Existing decisions are not prompted again. The SDK itself never prompts a
+publisher's users; the host app owns its ATT/CMP flow and usage-description text.
+
+Test a fresh install with Allow and Deny separately, plus relaunch and background/foreground.
+A zero IDFA after Deny is expected; do not use it as proof that ad loading failed.

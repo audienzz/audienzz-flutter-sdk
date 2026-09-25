@@ -39,7 +39,9 @@ class RemoteBannerAdLoader extends ChangeNotifier {
     _ad = RemoteBannerAd(
       configId: configId,
       onAdLoaded: (ad) async {
-        adSize = await ad.getPlatformAdSize();
+        final size = await ad.getPlatformAdSize();
+        if (_disposed || !identical(_ad, ad)) return;
+        adSize = size;
         isLoaded = true;
         notifyListeners();
         print('RemoteBannerAdLoader [$configId] loaded');
@@ -204,7 +206,11 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
 
     final isLoaded = loader.isLoaded;
     final adSize = loader.adSize;
-    final width = adSize?.width.toDouble() ?? ad.sizes.first.width.toDouble();
+    // Keep the available width for adaptive requests, including later refreshes.
+    // A fixed creative returned by GAM must not shrink the next adaptive request.
+    final width = ad.isAdaptiveSize
+        ? double.infinity
+        : adSize?.width.toDouble() ?? ad.sizes.first.width.toDouble();
     final height = adSize?.height.toDouble() ?? ad.sizes.first.height.toDouble();
 
     // NOTE: SmartRefresh is fully managed by the SDK. As long as the ad was

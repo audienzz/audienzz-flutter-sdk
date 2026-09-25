@@ -87,6 +87,8 @@ class AudienzzBanner extends StatefulWidget {
 
 class _AudienzzBannerState extends State<AudienzzBanner> {
   RemoteBannerAd? _ad;
+  double? _renderedHeight;
+
   /// The slot this state currently owns: page instance plus slot key.
   String? _ownedSlot;
 
@@ -254,6 +256,7 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
       return;
     }
     _ad = null;
+    _renderedHeight = null;
     _ownedSlot = null;
     AudienzzDiagnostics.log('slot', 'retire', {
       'slot': widget.slotKey,
@@ -300,13 +303,33 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
       // so a stop replayed after `load()` arrived too late for a slot the
       // publisher had already stopped.
       startPublisherPaused: _publisherStopped,
-      onAdLoaded: (_) {
+      onAdLoaded: (loadedAd) async {
         // A response can arrive after this state was disposed, or after the
         // slot was replaced. Neither may touch the replacement.
         if (_disposed || _ownerGeneration != owner) {
           return;
         }
-        setState(() {});
+        // The inline adaptive descriptor has no height until Google returns a creative.
+        // Read the rendered size after the native callback; reject a retired owner's reply.
+        double? height;
+        if (loadedAd.isAdaptiveSize) {
+          try {
+            final size = await loadedAd.getPlatformAdSize();
+            if (size != null && size.height > 0) {
+              height = size.height.toDouble();
+            }
+          } on Object catch (_) {
+            // Keep the reservation if size lookup fails; the ad still loaded.
+          }
+        }
+        if (_disposed || _ownerGeneration != owner || !identical(_ad, loadedAd)) {
+          return;
+        }
+        setState(() {
+          if (height != null) {
+            _renderedHeight = height;
+          }
+        });
         widget.onAdLoaded?.call(widget);
       },
       onAdFailedToLoad: (failed, error) {
@@ -376,17 +399,16 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
   @override
   Widget build(BuildContext context) {
     final ad = _ad;
-    // The reservation is always laid out, loaded or not, so the surrounding
-    // content does not jump and the slot has a real size the moment its page
-    // activates — which is what lets the lazy viewport check run at all.
+    // Reserve space before the first request so the lazy viewport check can run.
+    // Fixed slots keep that reservation; adaptive slots adopt Google's returned height.
     // `adIdFor` is null until native has registered the ad. AdWidget asserts on
     // that and throws into the widget tree, so the reservation is shown alone
     // until registration succeeds.
     final registered = ad != null && adInstanceManager.adIdFor(ad) != null;
     return SizedBox(
       width: double.infinity,
-      height: widget.placeholderHeight,
-      child: registered ? AdWidget(ad: ad!) : null,
+      height: _renderedHeight ?? widget.placeholderHeight,
+      child: registered ? AdWidget(ad: ad) : null,
     );
   }
 }

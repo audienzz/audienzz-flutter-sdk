@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_ad_configuration.dart';
@@ -73,6 +75,73 @@ void main() {
   });
 
   Widget app(Widget child) => MaterialApp(home: Scaffold(body: child));
+
+  testWidgets('adaptive managed banner adopts the returned creative height', (tester) async {
+    AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([
+      RemoteAdConfiguration.fromJson({
+        'id': 'managed', 'config': {'adType': 'banner'},
+        'gamConfig': {'adUnitPath': '/test', 'adSizes': ['300x250'],
+          'adaptiveBannerConfig': {'enabled': true, 'widthStrategy': 'FULL_WIDTH'}},
+        'prebidConfig': {'placementId': 'test', 'adSizes': ['300x250']},
+      }),
+    ]);
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'getPlatformAdSize') return AdSize(width: 320, height: 140);
+      return null;
+    });
+    await tester.pumpWidget(app(const AudienzzPage(name: 'adaptive',
+      child: AudienzzBanner(adConfigId: 'managed', slotKey: 'one'))));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(AudienzzBanner)).height, 250);
+    final id = (calls.singleWhere((call) => call.method == 'loadBannerAd').arguments as Map)['adId'];
+    await messenger.handlePlatformMessage(channel.name,
+      channel.codec.encodeMethodCall(MethodCall('onAdEvent', {
+        'adId': id, 'eventName': 'onAdLoaded',
+      })), (_) {});
+    await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'getPlatformAdSize'), hasLength(1));
+    expect(tester.getSize(find.byType(AudienzzBanner)).height, 140);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('an adaptive size reply after page release cannot resize or notify the retired slot', (tester) async {
+    AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([
+      RemoteAdConfiguration.fromJson({
+        'id': 'managed', 'config': {'adType': 'banner'},
+        'gamConfig': {'adUnitPath': '/test', 'adSizes': ['300x250'],
+          'adaptiveBannerConfig': {'enabled': true}},
+        'prebidConfig': {'placementId': 'test', 'adSizes': ['300x250']},
+      }),
+    ]);
+    final pendingSize = Completer<AdSize>();
+    var loaded = 0;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'getPlatformAdSize') return pendingSize.future;
+      return null;
+    });
+    Widget page(bool active) => app(AudienzzPage(name: 'adaptive', active: active,
+      child: AudienzzBanner(adConfigId: 'managed', slotKey: 'one', onAdLoaded: (_) => loaded++)));
+    await tester.pumpWidget(page(true));
+    await tester.pumpAndSettle();
+    final id = (calls.singleWhere((call) => call.method == 'loadBannerAd').arguments as Map)['adId'];
+    await messenger.handlePlatformMessage(channel.name,
+      channel.codec.encodeMethodCall(MethodCall('onAdEvent', {
+        'adId': id, 'eventName': 'onAdLoaded',
+      })), (_) {});
+    await tester.pump();
+    expect(calls.where((call) => call.method == 'getPlatformAdSize'), hasLength(1));
+    await tester.pumpWidget(page(false));
+    await tester.pumpAndSettle();
+    expect(calls.where((call) => call.method == 'disposeAd'), hasLength(1));
+    pendingSize.complete(AdSize(width: 320, height: 140));
+    await tester.pumpAndSettle();
+    expect(loaded, 0);
+    expect(tester.getSize(find.byType(AudienzzBanner)).height, 250);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   group('page ownership', () {
     testWidgets('the page is reported before the banner is created',

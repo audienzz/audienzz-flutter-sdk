@@ -66,6 +66,27 @@ void main() {
       .map((s) => '${s.width}x${s.height}')
       .toList();
 
+  test('backend adaptive width and max height reach the native plugins', () async {
+    AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([
+      RemoteAdConfiguration.fromJson({
+        'id': 'slot',
+        'config': {'adType': 'banner'},
+        'gamConfig': {
+          'adUnitPath': '/1234/unit', 'adSizes': ['300x250'],
+          'adaptiveBannerConfig': {'enabled': true, 'widthStrategy': 'CUSTOM',
+            'customWidth': 280, 'maxHeight': 180},
+        },
+        'prebidConfig': {'placementId': 'placement', 'adSizes': ['300x250']},
+      }),
+    ]);
+    final payload = await loadPayload();
+    expect(payload['isAdaptiveSize'], isTrue);
+    expect(payload['adaptiveBannerConfig'], {
+      'enabled': true, 'widthStrategy': 'CUSTOM', 'customWidth': 280.0, 'maxHeight': 180.0,
+    });
+    expect(sizes(payload['prebidAdSizes']), ['300x250']);
+  });
+
   test('matching lists (prod 46/48/50): Prebid gets exactly the GAM sizes',
       () async {
     // The no-op case: every current production banner looks like this, so its

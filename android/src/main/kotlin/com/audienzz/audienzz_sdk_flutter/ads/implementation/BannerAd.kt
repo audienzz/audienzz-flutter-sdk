@@ -2,7 +2,6 @@ package com.audienzz.audienzz_sdk_flutter.ads.implementation
 
 import android.content.Context
 import androidx.core.view.doOnAttach
-import androidx.core.view.doOnNextLayout
 import com.audienzz.audienzz_sdk_flutter.ads.base.Ad
 import com.audienzz.audienzz_sdk_flutter.ads.base.FullScreenCoverableAd
 import com.audienzz.audienzz_sdk_flutter.entities.AdFormat
@@ -54,6 +53,7 @@ class BannerAd(
      * banner with no Prebid sizes turns it off.
      */
     private val headerBidding: Boolean = true,
+    private val adaptiveBannerConfig: Map<String, Any?>? = null,
 ) : Ad(), FullScreenCoverableAd {
     /**
      * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
@@ -62,6 +62,9 @@ class BannerAd(
      * because the ad unit is built from the first size and an empty list would crash.
      */
     private val prebidSizes: List<AdSize> = prebidAdSizes?.takeIf { it.isNotEmpty() } ?: adSizes
+
+    internal var loadGoogle: (AdManagerAdView, com.google.android.gms.ads.admanager.AdManagerAdRequest) -> Unit =
+        { view, request -> view.loadAd(request) }
 
     /**
      * Builds the Prebid ad unit. A seam so a test can see which size it was built from: the size
@@ -90,17 +93,6 @@ class BannerAd(
         adView = AdManagerAdView(context)
 
         val currentAdView = adView
-
-        if (isAdaptiveSize && currentAdView != null) {
-            currentAdView.doOnNextLayout {
-                currentAdView.setAdSizes(
-                    AdSize.getInlineAdaptiveBannerAdSize(
-                        context.resources.pxToDp(currentAdView.width),
-                        context.resources.pxToDp(currentAdView.height),
-                    )
-                )
-            }
-        }
 
         currentAdView?.setAdSizes(*adSizes.toTypedArray())
         currentAdView?.adUnitId = adUnitId
@@ -166,7 +158,8 @@ class BannerAd(
             ) { request, _ ->
                 // Always call loadAd() immediately so onAdLoaded can fire even when the
                 // customer gates AdWidget behind the load callback (legacy pattern).
-                adView.loadAd(request)
+                prepareGoogleSize(adView)
+                loadGoogle(adView, request)
                 // Race-condition guard: if loadAd() fired before Flutter embedded the
                 // platform view, GAM's internal invalidate() is a no-op (no window token).
                 // We register doOnAttach so the creative is drawn once the view attaches.
@@ -232,6 +225,19 @@ class BannerAd(
     /// by the pageImpression reload broadcast (only for on-screen banners).
     fun forceReload() {
         adViewHandler?.reloadAd()
+    }
+
+    internal fun prepareGoogleSize(view: AdManagerAdView) {
+        if (!isAdaptiveSize) return
+        val configuredWidth = (adaptiveBannerConfig?.get("customWidth") as? Number)?.toInt() ?: 0
+        val availablePx = (view.parent as? android.view.View)?.width?.takeIf { it > 0 }
+            ?: view.width.takeIf { it > 0 } ?: context.resources.displayMetrics.widthPixels
+        val width = if (adaptiveBannerConfig?.get("widthStrategy") == "CUSTOM" && configuredWidth > 0)
+            configuredWidth else context.resources.pxToDp(availablePx)
+        val maxHeight = (adaptiveBannerConfig?.get("maxHeight") as? Number)?.toInt() ?: 0
+        val adaptive = if (maxHeight > 0) AdSize.getInlineAdaptiveBannerAdSize(width, maxHeight)
+            else AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(context, width)
+        view.setAdSizes(adaptive, *adSizes.toTypedArray())
     }
 
     override fun dispose() {

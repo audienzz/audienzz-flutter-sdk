@@ -122,6 +122,42 @@ final class RunnerTests: XCTestCase {
         XCTAssertTrue(reports.isEmpty)
     }
 
+    func testAdaptiveGoogleRequestUsesMountedWidthAndRetainsNonzeroPlaceholder() throws {
+        let host = UIViewController()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = host
+        window.isHidden = false
+        let ad = FBannerAd(adUnitId: "/test", auConfigId: "test",
+            sizes: [FAdSize(width: 300, height: 250)], isAdaptiveSize: true, isLazyLoad: true,
+            smartRefresh: false, prefetchMarginPoints: 0, refreshTimeInterval: nil,
+            adFormat: .banner, apiParameters: [], videoProtocols: [], videoPlacement: .InBanner,
+            videoPlaybackMethods: [], videoBitrate: FVideoBitrate(min: 0, max: 0),
+            videoDuration: FVideoDuration(min: 0, max: 0), pbAdSlot: nil, gpId: nil,
+            customImpOrtbConfig: nil, pageKey: "route-1", rootViewController: host,
+            adId: 40, manager: manager)
+        defer { ad.dispose(); window.isHidden = true }
+        ad.pauseAutoRefresh() // No live auctions: exercise only the installed bridge handoff.
+        var widths: [CGFloat] = []
+        ad.loadGoogle = { google, _ in
+            widths.append(google.adSize.size.width)
+            XCTAssertEqual(google.adSize.size.height, 0, "must be inline adaptive, not the fixed 300x250")
+            XCTAssertEqual(google.validAdSizes?.count, 2)
+        }
+        ad.load()
+        let native = try XCTUnwrap(ad.auBannerView)
+        XCTAssertGreaterThan(native.frame.height, 0, "lazy geometry must exist before a response")
+        host.view.addSubview(native)
+        native.frame = CGRect(x: 0, y: 100, width: 280, height: 250)
+        let callback = try XCTUnwrap(native.onLoadRequest)
+        callback(AdManagerRequest())
+        native.frame.size.width = 360
+        callback(AdManagerRequest())
+        XCTAssertEqual(widths, [280, 360], "every handoff re-reads the mounted width")
+        native.onAdSizeChanged?(CGSize(width: 280, height: 140))
+        let rendered = try XCTUnwrap(ad.getPlatformAdSize())
+        XCTAssertEqual(rendered.height, 140, "Dart needs the creative's height, not the zero-height descriptor")
+    }
+
     func testPublisherAndInterstitialPausesCannotClearEachOther() throws {
         let realBanner = FBannerAd(adUnitId: "/test", auConfigId: "test",
             sizes: [FAdSize(width: 300, height: 250)], isAdaptiveSize: false, isLazyLoad: true,

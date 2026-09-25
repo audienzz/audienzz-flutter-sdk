@@ -111,6 +111,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<List<AdSize>>("prebidAdSizes"),
                     // Absent from Dart unless header bidding is off.
                     call.argument<Boolean>("headerBidding") ?: true,
+                    call.argument<Map<String, Any?>>("adaptiveBannerConfig"),
                 )
 
                 call.argument<String>("requestSlot")?.let {
@@ -178,7 +179,7 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 )
 
                 call.argument<String>("requestSlot")?.let {
-                    interstitialAd.requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext.forSlot(it)
+                    interstitialAd.requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext.forInterstitial(it)
                 }
                 adInstanceManager?.trackAd(interstitialAd, adId)
                 interstitialAd.load()

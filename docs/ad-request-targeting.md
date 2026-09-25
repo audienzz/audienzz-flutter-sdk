@@ -7,8 +7,8 @@ counter or new integration parameter is required.
 | Key | Meaning | First value |
 | --- | --- | --- |
 | `au_page_seq` | Session sequence of the native `pageImpression` report | `1` |
-| `au_slot` | Automatically assigned logical placement number within the page impression | `1` |
-| `hb_refresh_count` | Additional admitted requests for this slot in this page impression | `0` |
+| `au_slot` | Automatically assigned **banner** placement number within the page impression | `1` |
+| `hb_refresh_count` | Additional admitted requests for this ad owner in this page impression | `0` |
 
 Values are decimal strings. For example, on the first page, the second slot's first request
 contains `au_page_seq=1`, `au_slot=2`, `hb_refresh_count=0`. Its next request has `hb_refresh_count=1`.
@@ -29,10 +29,11 @@ Refreshing that slot does not change the first slot's counter. Another `pageImpr
   renumbered after a layout change. Removed slots can leave gaps.
 - Two ad instances using the same configuration are two slots. A retained RemoteBanner owner,
   managed Flutter banner, or React Native view shares its context with its replacement native
-  ads. A retained Flutter interstitial keeps its context across successive prefetches. A wholly
-  new logical owner is a new slot.
-- Interstitial placements use the same numbering space; their number identifies their registered
-  display opportunity, not a vertical coordinate.
+  ads. A wholly new banner owner is a new slot.
+- Interstitials do not reserve banner numbers and omit `au_slot` from their requests, including
+  any stale/publisher value under that reserved name. Their own `hb_refresh_count` still advances
+  per admitted request and resets on a new page impression. A retained Flutter interstitial
+  keeps this request-counter identity across successive prefetches.
 
 ## Request boundaries
 
@@ -43,7 +44,7 @@ cancelled. `hb_refresh_count` is therefore a request counter, not an impression 
 
 Each request carries its own snapshot through Prebid and into Google. A subsequent page report
 or refresh cannot relabel an outstanding request. Existing publisher targeting is preserved;
-the SDK overwrites these three reserved keys. They are request-local, not global targeting. See
+the SDK controls these reserved keys (`au_slot` is absent for interstitials). They are request-local, not global targeting. See
 "Publisher key-values and the SDK's, side by side" below.
 
 `hb_refresh_count` shares Prebid's `hb_` prefix, and Prebid iOS removes every `hb_` key from the
@@ -58,7 +59,7 @@ these counters; keep GAM automatic refresh unset, as required by the SDK-owned r
 
 ## Publisher key-values and the SDK's, side by side
 
-The SDK never removes a publisher's key-value, and a publisher can never remove or override the
+The SDK preserves publisher key-values outside its reserved names, and a publisher can never remove or override the
 SDK's. This holds for every original-API ad type on every platform: banners (including remote and
 GAM-only ones), interstitials, remote interstitials, rewarded, native and multiformat.
 
@@ -70,7 +71,7 @@ Every auction's GAM request is assembled from three layers, later ones winning a
    `AudienzzTargetingParams`, and the React Native / Flutter `Targeting` APIs, which forward to them).
 3. **The SDK's keys** — `au_sdk`, `au_page_seq`, `au_slot`, `hb_refresh_count` and any reserved
    bridge keys. `removeGlobalTargeting` / `clearGlobalTargeting` cannot remove them, and a publisher
-   key of the same name is replaced.
+   key of the same name is replaced (or removed for interstitial `au_slot`).
 
 The layers are applied to a **new request for every auction**. The publisher's own request object
 or builder is never modified, so one can serve several ads, and a global key-value added or removed

@@ -44,6 +44,8 @@ final class RemoteBannerAd extends BannerAd {
           auConfigId: _getAuConfigId(configId),
           refreshTimeInterval: _getRefreshTime(configId),
           isAdaptiveSize: _getIsAdaptive(configId),
+          adaptiveBannerConfig:
+              _getConfig(configId)?.gamConfig.adaptiveBannerConfig,
           // Ad config -> SDK default, for both delivery settings.
           isLazyLoad: _getLazyLoad(configId),
           prefetchMargin: _getPrefetchMargin(configId),

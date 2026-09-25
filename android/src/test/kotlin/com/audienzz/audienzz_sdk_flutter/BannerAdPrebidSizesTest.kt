@@ -51,11 +51,13 @@ class BannerAdPrebidSizesTest {
         adSizes: List<String>,
         prebidAdSizes: List<String>?,
         headerBidding: Boolean = true,
+        adaptive: Boolean = false,
+        adaptiveConfig: Map<String, Any?>? = null,
     ) = BannerAd(
         adUnitId = "/1234/test",
         auConfigId = "test",
         adSizes = adSizes.map(::size),
-        isAdaptiveSize = false,
+        isAdaptiveSize = adaptive,
         isLazyLoad = false,
         smartRefresh = false,
         prefetchMarginDp = 200,
@@ -75,6 +77,7 @@ class BannerAdPrebidSizesTest {
         context = RuntimeEnvironment.getApplication(),
         prebidAdSizes = prebidAdSizes?.map(::size),
         headerBidding = headerBidding,
+        adaptiveBannerConfig = adaptiveConfig,
     ).apply {
         adUnitFactory = { _, width, height, _ ->
             prebidPrimary += "${width}x$height"
@@ -88,6 +91,45 @@ class BannerAdPrebidSizesTest {
 
     private fun prebid() = prebidPrimary + prebidAdditional
     private fun BannerAd.gam() = gamAdSizes.map { "${it.width}x${it.height}" }
+
+    @Test
+    fun `adaptive handoff uses mounted width on every request and keeps Prebid sizes`() {
+        var handoff: ((com.google.android.gms.ads.admanager.AdManagerAdRequest, org.audienzz.mobile.AudienzzResultCode?) -> Unit)? = null
+        every { anyConstructed<AudienzzAdViewHandler>().load(any(), any(), any(), any()) } answers {
+            handoff = lastArg()
+        }
+        val ad = banner(listOf("300x250"), listOf("300x250"), adaptive = true)
+        val widths = mutableListOf<Int>()
+        ad.loadGoogle = { google, _ ->
+            widths += google.adSizes!!.first().width
+            assertEquals(0, google.adSizes!!.first().height)
+            assertEquals(2, google.adSizes!!.size)
+        }
+        ad.load()
+        val view = ad.platformView!!.view
+        val context = RuntimeEnvironment.getApplication()
+        val container = android.widget.FrameLayout(context)
+        container.addView(view)
+        val density = context.resources.displayMetrics.density
+        for (width in listOf(280, 360)) {
+            container.layout(0, 0, (width * density).toInt(), (250 * density).toInt())
+            requireNotNull(handoff)(com.google.android.gms.ads.admanager.AdManagerAdRequest.Builder().build(), null)
+        }
+        assertEquals(listOf(280, 360), widths)
+        assertEquals(listOf("300x250"), prebid())
+        ad.dispose()
+    }
+
+    @Test
+    fun `custom adaptive width and max height reach Google unchanged`() {
+        val ad = banner(listOf("300x250"), null, adaptive = true,
+            adaptiveConfig = mapOf("widthStrategy" to "CUSTOM", "customWidth" to 280.0, "maxHeight" to 180.0))
+        ad.load()
+        val view = ad.platformView!!.view as com.google.android.gms.ads.admanager.AdManagerAdView
+        ad.prepareGoogleSize(view)
+        assertEquals(AdSize.getInlineAdaptiveBannerAdSize(280, 180), view.adSizes!!.first())
+        ad.dispose()
+    }
 
     @Test
     fun `a GAM-only size reaches GAM and never reaches the Prebid ad unit`() {

@@ -391,6 +391,8 @@ final class AdInstanceManager {
           // Absent unless off, for the same reason.
           if (!ad.headerBidding) 'headerBidding': false,
           'isAdaptiveSize': ad.isAdaptiveSize,
+          if (ad.adaptiveBannerConfig != null)
+            'adaptiveBannerConfig': ad.adaptiveBannerConfig!.toJson(),
           'isLazyLoad': ad.isLazyLoad,
           'smartRefresh': ad.smartRefresh,
           // Applied by the plugin BEFORE it starts the request, so an already

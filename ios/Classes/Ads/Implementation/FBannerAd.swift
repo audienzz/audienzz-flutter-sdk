@@ -4,6 +4,7 @@ import AudienzziOSSDK
 
 class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPlatformView, BannerViewDelegate {
     var requestContext = AUAdRequestContext()
+    internal var loadGoogle: (AdManagerBannerView, Request) -> Void = { $0.load($1) }
 
     private let adUnitId: String
     private let auConfigId: String
@@ -12,6 +13,8 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     private let prebidSizes: [FAdSize]?
     /// False serves GAM-only; a remote banner with no Prebid sizes turns it off.
     private let headerBidding: Bool
+    private let adaptiveBannerConfig: [String: Any]?
+    private var renderedSize: CGSize?
     private let isAdaptiveSize: Bool
     private let isLazyLoad: Bool
     private let smartRefresh: Bool
@@ -45,7 +48,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     // AUBannerView (VisibleView) detects scroll events via KVO on UIScrollView ancestor
     // contentOffset. Flutter platform views have no UIScrollView in their ancestor chain,
     // so that mechanism never fires. Instead we poll every 0.5 s and pause/resume
-    // Prebid auto-refresh ourselves using the public adUnitConfiguration API.
+    // the SDK-owned refresh controller; Dart also reports viewport/cover state.
 
     private var smartRefreshTimer: Timer?
     private var smartRefreshWasVisible = false
@@ -221,6 +224,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         prebidSizes: [FAdSize]? = nil,
         headerBidding: Bool = true,
         isAdaptiveSize: Bool,
+        adaptiveBannerConfig: [String: Any]? = nil,
         isLazyLoad: Bool,
         smartRefresh: Bool,
         smartRefreshV2: Bool = false,
@@ -247,6 +251,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         self.headerBidding = headerBidding
         self.auConfigId = auConfigId
         self.isAdaptiveSize = isAdaptiveSize
+        self.adaptiveBannerConfig = adaptiveBannerConfig
         self.isLazyLoad = isLazyLoad
         self.smartRefresh = smartRefresh
         self.smartRefreshV2 = smartRefreshV2
@@ -331,15 +336,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         if let pageKey { auBannerView?.setScreen(pageKey) }
         auBannerView?.frame = CGRect(origin: .zero, size: CGSize(width: mainSize.width, height: mainSize.height))
         auBannerView?.backgroundColor = .clear
-        // Always set smartRefresh = false on AUBannerView in Flutter.
-        // When smartRefresh = true, AUBannerView_Private.onBecameVisible() schedules a
-        // DispatchWorkItem that calls fetchRequest() directly after the remaining interval.
-        // Because Flutter has no UIScrollView ancestors, onBecameHidden() never fires to
-        // cancel that work item — so fetchRequest() fires even when the ad is off-screen,
-        // bypassing our external stopAutoRefresh() call.
-        // With smartRefresh = false the guard in onBecameVisible() exits after
-        // super.onBecameVisible() (which handles lazy load via detectVisible()), so no
-        // work item is ever scheduled. Our 0.5s polling timer owns stop/resume entirely.
+        // Flutter owns viewport/cover reporting: UIKit cannot see Flutter's scroll clips or
+        // painted overlays. Keep the native viewport gate off and feed the SDK-owned refresh
+        // controller through the host pause/resume API instead.
         auBannerView?.smartRefresh = false
         auBannerView?.prefetchMarginPoints = prefetchMarginPoints
 
@@ -385,17 +384,24 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         }
 
         auBannerView?.requestContext = requestContext
+        auBannerView?.onAdSizeChanged = { [weak self] size in
+            guard size.width > 0, size.height > 0 else { return }
+            self?.renderedSize = size
+        }
+        auBannerView?.onLoadRequest = { [weak self] gamRequest in
+            guard let self, let request = gamRequest as? Request,
+                  let bannerView = self.bannerViewInstance else { return }
+            // The mounted platform view has the publisher's actual available width.
+            // Resolve before EVERY Google request, including after orientation changes.
+            self.prepareGoogleSize()
+            self.loadGoogle(bannerView, request)
+        }
+        prepareGoogleSize()
         auBannerView?.createAd(
             with: request,
             gamBanner: bannerViewInstance!,
             eventHandler: AUBannerEventHandler(adUnitId: adUnitId, gamView: bannerViewInstance!)
         )
-
-        auBannerView?.onLoadRequest = { [weak self] gamRequest in
-            guard let request = gamRequest as? Request,
-                  let bannerViewInstance = self?.bannerViewInstance else { return }
-            bannerViewInstance.load(request)
-        }
 
         if smartRefresh {
             startSmartRefreshPolling()
@@ -411,8 +417,27 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     // MARK: - Size
 
     func getPlatformAdSize() -> FAdSize? {
-        guard let size = bannerViewInstance?.adSize else { return nil }
-        return FAdSize(width: Int(size.size.width), height: Int(size.size.height))
+        guard let size = renderedSize ?? bannerViewInstance?.adSize.size,
+              size.width > 0, size.height > 0 else { return nil }
+        return FAdSize(width: Int(size.width), height: Int(size.height))
+    }
+
+    // Internal so bridge tests can exercise the actual request-size preparation.
+    func prepareGoogleSize() {
+        guard isAdaptiveSize, let banner = bannerViewInstance else { return }
+        let mountedWidth = auBannerView?.window != nil ? auBannerView?.bounds.width : nil
+        let available = mountedWidth ?? rootViewController.view.bounds.width
+        let customWidth = (adaptiveBannerConfig?["customWidth"] as? NSNumber)?.doubleValue ?? 0
+        let width = adaptiveBannerConfig?["widthStrategy"] as? String == "CUSTOM" && customWidth > 0
+            ? CGFloat(customWidth) : (available > 0 ? available : UIScreen.main.bounds.width)
+        let maxHeight = (adaptiveBannerConfig?["maxHeight"] as? NSNumber)?.doubleValue ?? 0
+        banner.adSize = maxHeight > 0
+            ? inlineAdaptiveBanner(width: width, maxHeight: CGFloat(maxHeight))
+            : currentOrientationInlineAdaptiveBanner(width: width)
+        // Keep configured fixed reservation sizes available alongside the adaptive descriptor.
+        banner.validAdSizes = [nsValue(for: banner.adSize)] + sizes.map {
+            nsValue(for: adSizeFor(cgSize: CGSize(width: $0.width, height: $0.height)))
+        }
     }
 
     // MARK: - BannerViewDelegate

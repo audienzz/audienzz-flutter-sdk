@@ -6,6 +6,7 @@ import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_format.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/api_parameter.dart';
+import 'package:audienzz_sdk_flutter/src/entities/remote_config/adaptive_banner_config.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/placement.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/playback_method.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/protocol.dart';
@@ -42,6 +43,7 @@ class BannerAd extends AdWithView {
     this.onAdOpened,
     this.onAdImpression,
     this.isAdaptiveSize = false,
+    this.adaptiveBannerConfig,
     this.refreshTimeInterval,
     bool isLazyLoad = false,
     this.smartRefresh = false,
@@ -90,6 +92,9 @@ class BannerAd extends AdWithView {
 
   /// Specify if the ad size should be adaptive, by default - false
   final bool isAdaptiveSize;
+
+  /// Backend adaptive width and maximum height; ignored for fixed-size banners.
+  final AdaptiveBannerConfig? adaptiveBannerConfig;
 
   /// Specify refresh time in milliseconds for the ad
   final int? refreshTimeInterval;

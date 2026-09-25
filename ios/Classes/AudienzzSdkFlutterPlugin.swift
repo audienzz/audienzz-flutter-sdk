@@ -173,6 +173,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 // Absent from Dart unless header bidding is off.
                 headerBidding: args["headerBidding"] as? Bool ?? true,
                 isAdaptiveSize: isAdaptiveSize,
+                adaptiveBannerConfig: args["adaptiveBannerConfig"] as? [String: Any],
                 isLazyLoad: isLazyLoad,
                 smartRefresh: smartRefresh,
                 smartRefreshV2: smartRefreshV2,
@@ -326,7 +327,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             )
 
             if let slot = args["requestSlot"] as? String {
-                interstitialAd.requestContext = AUAdRequestContext.forSlot(slot)
+                interstitialAd.requestContext = AUAdRequestContext.forInterstitial(slot)
             }
             manager.loadAd(ad: interstitialAd)
             result(nil)
