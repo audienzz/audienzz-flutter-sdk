@@ -431,11 +431,15 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         let width = adaptiveBannerConfig?["widthStrategy"] as? String == "CUSTOM" && customWidth > 0
             ? CGFloat(customWidth) : (available > 0 ? available : UIScreen.main.bounds.width)
         let maxHeight = (adaptiveBannerConfig?["maxHeight"] as? NSNumber)?.doubleValue ?? 0
-        banner.adSize = maxHeight > 0
+        let adaptive = maxHeight > 0
             ? inlineAdaptiveBanner(width: width, maxHeight: CGFloat(maxHeight))
             : currentOrientationInlineAdaptiveBanner(width: width)
-        // Keep configured fixed reservation sizes available alongside the adaptive descriptor.
-        banner.validAdSizes = [nsValue(for: banner.adSize)] + sizes.map {
+        // GADBannerView.adSize's setter can issue its own request after a creative has shown.
+        // GAM's resize API explicitly does not. Keep the nonzero placeholder on AUBannerView:
+        // changing Google's frame here would convert this descriptor back to a fixed size.
+        banner.resize(adaptive)
+        // GAM takes the adaptive descriptor from adSize and reservation sizes from this list.
+        banner.validAdSizes = sizes.map {
             nsValue(for: adSizeFor(cgSize: CGSize(width: $0.width, height: $0.height)))
         }
     }

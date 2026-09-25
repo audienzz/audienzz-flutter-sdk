@@ -141,7 +141,12 @@ final class RunnerTests: XCTestCase {
         ad.loadGoogle = { google, _ in
             widths.append(google.adSize.size.width)
             XCTAssertEqual(google.adSize.size.height, 0, "must be inline adaptive, not the fixed 300x250")
-            XCTAssertEqual(google.validAdSizes?.count, 2)
+            XCTAssertEqual(nsValue(for: google.adSize),
+                           nsValue(for: currentOrientationInlineAdaptiveBanner(width: google.adSize.size.width)))
+            XCTAssertEqual(google.validAdSizes?.count, 1)
+            // Model the native delegate resizing to a returned creative. The next request
+            // must restore the adaptive descriptor without using the request-triggering setter.
+            google.resize(adSizeFor(cgSize: CGSize(width: google.adSize.size.width, height: 140)))
         }
         ad.load()
         let native = try XCTUnwrap(ad.auBannerView)
@@ -150,6 +155,7 @@ final class RunnerTests: XCTestCase {
         native.frame = CGRect(x: 0, y: 100, width: 280, height: 250)
         let callback = try XCTUnwrap(native.onLoadRequest)
         callback(AdManagerRequest())
+        XCTAssertGreaterThan(native.bounds.height, 0, "only the host owns the lazy placeholder")
         native.frame.size.width = 360
         callback(AdManagerRequest())
         XCTAssertEqual(widths, [280, 360], "every handoff re-reads the mounted width")
