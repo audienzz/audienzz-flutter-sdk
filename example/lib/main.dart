@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
+import 'package:audienzz_sdk_flutter_example/charles_proxy.dart';
 import 'package:audienzz_sdk_flutter_example/pages/banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/interstitial_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/list_with_ads_example.dart';
@@ -22,7 +23,10 @@ import 'package:audienzz_sdk_flutter_example/pages/scroll_render_test_example.da
 import 'package:audienzz_sdk_flutter_example/pages/test_screen_example.dart';
 import 'package:flutter/material.dart';
 
-void main() => runApp(const MyApp());
+void main() {
+  configureCharlesProxy();
+  runApp(const MyApp());
+}
 
 
 class MyApp extends StatefulWidget {

@@ -48,8 +48,51 @@ sources without editing the committed `Podfile`; the generated lockfile records 
 ## Run
 
 ```bash
-flutter run
+cd ~/Documents/audienzz-flutter-sdk/example
+flutter run --debug
 ```
+
+## Charles SSL Proxying on Android
+
+Use the example's **debug build**. Native Prebid/Google requests and Dart remote-config requests
+use different networking stacks, so configure both:
+
+1. Set the phone's Wi-Fi HTTP proxy to the Charles computer's address and port (usually 8888).
+   Allow the phone in Charles. Install that Charles instance's root certificate on Android as a
+   **CA certificate**, following **Help → SSL Proxying → Install Charles Root Certificate on a
+   Mobile Device or Remote Browser**. The example's debug network configuration trusts these
+   user-installed CAs; release/profile builds and the SDK library do not get that override.
+2. Enable SSL Proxying in Charles for the remote-config, Prebid and Google hosts you need to
+   inspect. Keep the original HTTPS SDK endpoints; a reverse-proxy endpoint is not required.
+3. For Dart's remote-config traffic too, export the **public root certificate in PEM format**
+   using **Help → SSL Proxying → Save Charles Root Certificate** and launch with:
+
+   ```bash
+   cd ~/Documents/audienzz-flutter-sdk/example
+   flutter run --debug \
+     --dart-define=CHARLES_PROXY=192.168.1.10:8888 \
+     --dart-define="CHARLES_CA_BASE64=$(base64 < /path/to/charles.pem | tr -d '\n')"
+   ```
+
+   Replace the address and certificate path with yours. Without these flags, Dart remote-config
+   requests connect directly and will not appear in Charles, even when native ad requests do.
+   The example logs `Charles proxy enabled for Dart HTTP` when configured. It trusts the provided
+   CA alongside system roots; it still rejects invalid certificate chains and hostnames. An
+   unreachable proxy fails visibly instead of falling back to a direct connection.
+4. Fully rebuild/restart after changing certificates, proxy flags or the Android manifest.
+   Hot reload does not apply this setup. Relaunch without the flags to disable the Dart override.
+
+The Dart override is gated by `kDebugMode` and lives only in the example. Your Charles certificate,
+private key and proxy address are not committed. For a publisher's own debug app, apply these settings
+in that app; the SDK does not change the publisher's certificate trust.
+
+The proxy regression tests run with `flutter test test/example_charles_proxy_test.dart` from the
+repo root. They use host OpenSSL to create a temporary certificate and verify real HTTP/HTTPS
+proxy connections, including rejection of a wrong hostname.
+
+References: [Charles certificate setup](https://www.charlesproxy.com/documentation/using-charles/ssl-certificates/),
+[Android debug CA configuration](https://developer.android.com/privacy-and-security/security-config#Debug),
+[Dart proxy selection](https://api.dart.dev/dart-io/HttpClient/findProxy.html).
 
 ## Collecting a log
 

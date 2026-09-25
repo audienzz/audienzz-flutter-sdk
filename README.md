@@ -11,6 +11,10 @@ Audienzz SDK Flutter
 > Until native releases and bridge pins are updated, use the local native overrides in
 > [LOCAL_TESTING.md](LOCAL_TESTING.md#pending-native-fixes-in-this-branch).
 
+Testing Android with Charles? Use the example's debug build and follow the
+[Charles setup](LOCAL_TESTING.md#charles-ssl-proxying-on-android), including the Dart proxy flags
+if you also want to inspect remote-configuration requests.
+
 ## Quick integration (remote config + `pageImpression`)
 
 The recommended path: Audienzz supplies your publisher and placement IDs, the backend configures
