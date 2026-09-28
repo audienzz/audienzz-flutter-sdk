@@ -11,3 +11,9 @@ so those fields remain absent. Attribute values remain JSON strings.
 New native SDK releases must ship before updating bridge pins. Dart/JS updates alone do not apply
 native analytics fixes. See the contract for page-impression ownership, immediate durable delivery,
 legacy payload handling and outstanding client/backend checks.
+
+Ad events retain the `page_impression_id` and screen name captured at request start. A new page
+impression (including returning to a screen) creates a new ID; refreshes keep the current visit ID.
+An interstitial prefetched on A and shown on B keeps A's ID throughout. Report the page before
+loading ads; a request made before the first page report has no page ID. No manual ID propagation
+is needed in Dart/JS. These guarantees require the matching native release.
