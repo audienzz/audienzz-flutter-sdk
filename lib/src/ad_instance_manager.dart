@@ -76,6 +76,7 @@ final class AdInstanceManager {
 
   int _nextAdId = 0;
   final _loadedAds = <int, Ad>{};
+  final _bannerSizes = <int, AdSize>{};
   final _interstitialLoads = <int, _InterstitialLoad>{};
 
   /// Banners the publisher has declared covered by something the framework cannot see.
@@ -189,6 +190,7 @@ final class AdInstanceManager {
     }
     return switch (eventName) {
       'onAdLoaded' => _invokeOnAdLoaded(ad, eventName),
+      'onAdSizeChanged' => _invokeOnAdSizeChanged(ad, arguments),
       'onAdFailedToLoad' => _invokeOnAdFailedToLoad(ad, eventName, arguments),
       'onAdClicked' => _invokeOnAdClicked(ad, eventName),
       'onAdOpened' => _invokeOnAdOpened(ad, eventName),
@@ -210,6 +212,22 @@ final class AdInstanceManager {
     } else {
       log('Invalid ad: $ad, for event name: $eventName');
     }
+  }
+
+  void _invokeOnAdSizeChanged(Ad ad, Map<dynamic, dynamic>? arguments) {
+    if (ad is! BannerAd) {
+      return;
+    }
+    final id = adIdFor(ad);
+    final width = arguments?['width'] as num?;
+    final height = arguments?['height'] as num?;
+    if (id == null || width == null || height == null ||
+        width <= 0 || height <= 0) {
+      return;
+    }
+    final size = AdSize(width: width.toInt(), height: height.toInt());
+    _bannerSizes[id] = size;
+    ad.onAdSizeChanged?.call(ad, size);
   }
 
   void _invokeOnAdClicked(Ad ad, String eventName) {
@@ -743,10 +761,14 @@ final class AdInstanceManager {
       );
     }
 
-    return methodChannel.invokeMethod<AdSize?>(
+    final previous = _bannerSizes[adId];
+    final size = await methodChannel.invokeMethod<AdSize?>(
       'getPlatformAdSize',
       {'adId': adId},
     );
+    // A size event received during this query is newer than its reply.
+    final latest = _bannerSizes[adId];
+    return !identical(previous, latest) ? latest : size ?? latest;
   }
 
   Future<void> disposeAd(Ad ad) {
@@ -767,6 +789,7 @@ final class AdInstanceManager {
       return Future.value();
     }
     _adPages.remove(adId);
+    _bannerSizes.remove(adId);
     // Ids are allocated monotonically and never reused, so a stale entry cannot be misattributed
     // to a later ad — it simply accumulates for the life of the isolate. Retained bookkeeping for
     // every banner an app ever obscures is the leak.

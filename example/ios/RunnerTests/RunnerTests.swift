@@ -7,8 +7,13 @@ import AudienzziOSSDK
 
 final class RunnerTests: XCTestCase {
     final class Messenger: NSObject, FlutterBinaryMessenger {
-        func send(onChannel channel: String, message: Data?) {}
+        var calls: [FlutterMethodCall] = []
+        func send(onChannel channel: String, message: Data?) {
+            guard let message else { return }
+            calls.append(FlutterStandardMethodCodec(readerWriter: AdReaderWriter()).decodeMethodCall(message))
+        }
         func send(onChannel channel: String, message: Data?, binaryReply callback: FlutterBinaryReply?) {
+            send(onChannel: channel, message: message)
             callback?(nil)
         }
         func setMessageHandlerOnChannel(_ channel: String,
@@ -27,6 +32,7 @@ final class RunnerTests: XCTestCase {
         weak var fullScreenContentDelegate: FullScreenContentDelegate?
     }
 
+    var messenger: Messenger!
     var manager: AdInstanceManager!
     var banner: Banner!
     var interstitial: FInterstitialAd!
@@ -36,7 +42,8 @@ final class RunnerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        manager = AdInstanceManager(binaryMessenger: Messenger())
+        messenger = Messenger()
+        manager = AdInstanceManager(binaryMessenger: messenger)
         manager.isAppActive = { true }
         banner = Banner(adId: 1)
         manager.loadAd(ad: banner)
@@ -159,9 +166,24 @@ final class RunnerTests: XCTestCase {
         native.frame.size.width = 360
         callback(AdManagerRequest())
         XCTAssertEqual(widths, [280, 360], "every handoff re-reads the mounted width")
-        native.onAdSizeChanged?(CGSize(width: 280, height: 140))
+        // Exercise the installed bridge callback AFTER load, as Google's size delegate can fire.
+        manager.onAdLoaded(ad: ad)
+        messenger.calls.removeAll()
+        let sizeCallback = try XCTUnwrap(native.onAdSizeChanged)
+        sizeCallback(CGSize(width: 280, height: 140))
+        let event = try XCTUnwrap(messenger.calls.last?.arguments as? [String: Any])
+        XCTAssertEqual(event["eventName"] as? String, "onAdSizeChanged")
+        XCTAssertEqual(event["adId"] as? NSNumber, 40)
+        XCTAssertEqual(event["width"] as? Int, 280)
+        XCTAssertEqual(event["height"] as? Int, 140)
+        sizeCallback(CGSize(width: 280, height: 140))
+        sizeCallback(.zero)
+        XCTAssertEqual(messenger.calls.count, 1, "No duplicate or zero-size notifications")
         let rendered = try XCTUnwrap(ad.getPlatformAdSize())
         XCTAssertEqual(rendered.height, 140, "Dart needs the creative's height, not the zero-height descriptor")
+        ad.dispose()
+        sizeCallback(CGSize(width: 280, height: 200))
+        XCTAssertEqual(messenger.calls.count, 1, "A retired banner must not notify Dart")
     }
 
     func testPublisherAndInterstitialPausesCannotClearEachOther() throws {

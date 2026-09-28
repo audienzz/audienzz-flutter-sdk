@@ -6,8 +6,9 @@ Audienzz SDK Flutter
 > refresh and interstitial APIs used by this bridge. The examples use published dependencies
 > by default. Optional local development overrides are described in [LOCAL_TESTING.md](LOCAL_TESTING.md).
 
-> **Unreleased fixes on this branch:** adaptive iOS loading and banner-only slot numbering
-> need the matching native fixes. Flutter also needs the new native interstitial context API.
+> **Unreleased fixes on this branch:** adaptive iOS loading, banner-only slot numbering,
+> Android foreground recovery after interstitials, and Prebid failure fallback need the
+> matching native fixes. Flutter also needs the new native interstitial context API.
 > Until native releases and bridge pins are updated, use the local native overrides in
 > [LOCAL_TESTING.md](LOCAL_TESTING.md#pending-native-fixes-in-this-branch).
 
@@ -506,23 +507,23 @@ Center(
 ```
 
 #### Adaptive Banner
-If adaptive banners are enabled in the backend for your configuration ID, the SDK will automatically calculate the optimal height. You should ensure the `AdWidget` has enough horizontal space to calculate the adaptive size correctly:
+`AudienzzBanner` reserves space before loading and adjusts its height when the creative's size
+arrives, including iOS size updates delivered after `onAdLoaded`:
 
 ```dart
-Center(
-  child: AdWidget(ad: remoteBanner),
+AudienzzBanner(
+  adConfigId: 'YOUR_CONFIG_ID',
+  slotKey: 'article-banner',
 )
 ```
 
-```dart
-// 3. Display the ad using AdWidget
-@override
-Widget build(BuildContext context) {
-  return Center(
-    child: AdWidget(ad: remoteBanner),
-  );
-}
+For a low-level `RemoteBannerAd`, mount `AdWidget` inside a **sized** placeholder before loading.
+Read `getPlatformAdSize()` in `onAdLoaded`, and handle `onAdSizeChanged: (ad, size) { ... }`
+to update that placeholder's height when iOS delivers a later size. Check `mounted` and that
+the callback still belongs to the current ad. Resizing does not require another `load()` call.
+See `RemoteBannerAdLoader` in the example for the complete implementation.
 
+```dart
 // 4. Dispose when done
 @override
 void dispose() {

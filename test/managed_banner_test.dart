@@ -106,6 +106,106 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  for (final delayedLookup in [false, true]) {
+    testWidgets(
+      'late adaptive resize wins over size lookup (delayed=$delayedLookup)',
+      (tester) async {
+        AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([
+          RemoteAdConfiguration.fromJson({
+            'id': 'managed',
+            'config': {'adType': 'banner'},
+            'gamConfig': {
+              'adUnitPath': '/test',
+              'adSizes': ['300x250'],
+              'adaptiveBannerConfig': {'enabled': true},
+            },
+            'prebidConfig': {
+              'placementId': 'test',
+              'adSizes': ['300x250'],
+            },
+          }),
+        ]);
+        final pending = Completer<AdSize?>();
+        var loaded = 0;
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          if (call.method == 'getPlatformAdSize') {
+            return pending.future;
+          }
+          return null;
+        });
+        await tester.pumpWidget(
+          app(
+            AudienzzPage(
+              name: 'late-size',
+              child: AudienzzBanner(
+                adConfigId: 'managed',
+                slotKey: 'one',
+                onAdLoaded: (_) => loaded++,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final id =
+            (calls.singleWhere((c) => c.method == 'loadBannerAd').arguments
+                as Map)['adId'];
+        Future<void> event(String name, [int? height]) =>
+            messenger.handlePlatformMessage(
+              channel.name,
+              channel.codec.encodeMethodCall(
+                MethodCall('onAdEvent', {
+                  'adId': id,
+                  'eventName': name,
+                  if (height != null) 'width': 320,
+                  if (height != null) 'height': height,
+                }),
+              ),
+              (_) {},
+            );
+        await event('onAdLoaded');
+        await tester.pump();
+        if (!delayedLookup) {
+          pending.complete(
+            null,
+          ); // Inline descriptor can still have zero height at load time.
+          await tester.pumpAndSettle();
+        }
+        await event('onAdSizeChanged', 140);
+        await tester.pumpAndSettle();
+        expect(tester.getSize(find.byType(AudienzzBanner)).height, 140);
+        if (delayedLookup) {
+          pending.complete(
+            const AdSize(width: 320, height: 250),
+          ); // Stale query must not undo the event.
+          await tester.pumpAndSettle();
+        }
+        expect(tester.getSize(find.byType(AudienzzBanner)).height, 140);
+        await event('onAdSizeChanged', 0);
+        await tester.pumpAndSettle();
+        expect(tester.getSize(find.byType(AudienzzBanner)).height, 140);
+        expect(
+          loaded,
+          1,
+          reason: 'Resizing must not manufacture another load callback',
+        );
+        expect(
+          loadCount(),
+          1,
+          reason: 'Resizing must not request a replacement ad',
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        await event(
+          'onAdSizeChanged',
+          300,
+        ); // Retired platform callback is ignored.
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('an adaptive size reply after page release cannot resize or notify the retired slot', (tester) async {
     AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([
       RemoteAdConfiguration.fromJson({

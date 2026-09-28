@@ -303,6 +303,13 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
       // so a stop replayed after `load()` arrived too late for a slot the
       // publisher had already stopped.
       startPublisherPaused: _publisherStopped,
+      onAdSizeChanged: (ad, size) {
+        if (_disposed || _ownerGeneration != owner ||
+            !identical(_ad, ad) || !ad.isAdaptiveSize) {
+          return;
+        }
+        setState(() => _renderedHeight = size.height.toDouble());
+      },
       onAdLoaded: (loadedAd) async {
         // A response can arrive after this state was disposed, or after the
         // slot was replaced. Neither may touch the replacement.

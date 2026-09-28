@@ -132,6 +132,19 @@ class BannerAdPrebidSizesTest {
     }
 
     @Test
+    fun `explicit anchored config uses logical custom width and excludes reservation sizes`() {
+        val ad = banner(listOf("300x250"), null, adaptive = true,
+            adaptiveConfig = mapOf("type" to "ANCHORED", "widthStrategy" to "CUSTOM",
+                "customWidth" to 320.0, "includeReservationSizes" to false))
+        ad.load()
+        val view = ad.platformView!!.view as com.google.android.gms.ads.admanager.AdManagerAdView
+        ad.prepareGoogleSize(view)
+        assertEquals(listOf(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
+            RuntimeEnvironment.getApplication(), 320)), view.adSizes!!.toList())
+        ad.dispose()
+    }
+
+    @Test
     fun `a GAM-only size reaches GAM and never reaches the Prebid ad unit`() {
         // dev config 192: 300x600 is sold direct in GAM and kept out of header bidding.
         val ad = banner(listOf("300x250", "300x600", "320x480"), listOf("320x480", "300x250"))

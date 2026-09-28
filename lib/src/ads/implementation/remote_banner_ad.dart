@@ -26,6 +26,7 @@ final class RemoteBannerAd extends BannerAd {
     super.onAdClosed,
     super.onAdOpened,
     super.onAdImpression,
+    super.onAdSizeChanged,
     // Lazy loading and the prefetch margin are deliberately not arguments:
     // they come from the ad config's `lazyLoad` and `prefetchDistanceDp`
     // alone, so a placement behaves the same in every app and on every

@@ -38,6 +38,11 @@ class RemoteBannerAdLoader extends ChangeNotifier {
   void _createAndLoad() {
     _ad = RemoteBannerAd(
       configId: configId,
+      onAdSizeChanged: (ad, size) {
+        if (_disposed || !identical(_ad, ad)) return;
+        adSize = size;
+        notifyListeners();
+      },
       onAdLoaded: (ad) async {
         final size = await ad.getPlatformAdSize();
         if (_disposed || !identical(_ad, ad)) return;

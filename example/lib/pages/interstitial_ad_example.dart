@@ -95,6 +95,9 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
       // boundary, and they are — a second call joins the request in flight or
       // reuses ready inventory.
       await _controller.prefetch();
+      if (mounted && !_showing && _controller.isReady) {
+        _setStatus('ready to show');
+      }
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -117,7 +120,9 @@ class _InterstitialAdExampleState extends State<InterstitialAdExample> {
     try {
       final submitted = await _controller.show(eligible: true);
       // Reported rather than silently queued: `show` takes an opportunity or skips it.
-      _setStatus(submitted ? 'showing' : 'not ready — nothing to show (prefetch first)');
+      _setStatus(submitted ? 'showing' : _controller.isReady
+          ? 'opportunity skipped — ready to show'
+          : 'not ready — nothing to show (prefetch first)');
       if (!submitted && mounted) {
         setState(() {
           _showing = false;

@@ -147,6 +147,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         // native destructor. Without this a disposed/refreshing banner keeps
         // firing Prebid auctions invisibly.
         stopSmartRefreshPolling()
+        auBannerView?.onAdSizeChanged = nil
         auBannerView?.pauseSmartRefresh()
         auBannerView?.removeFromSuperview()
         auBannerView = nil
@@ -385,8 +386,10 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
 
         auBannerView?.requestContext = requestContext
         auBannerView?.onAdSizeChanged = { [weak self] size in
-            guard size.width > 0, size.height > 0 else { return }
-            self?.renderedSize = size
+            guard let self, self.auBannerView != nil, size.width > 0, size.height > 0 else { return }
+            guard self.renderedSize != size else { return }
+            self.renderedSize = size
+            self.manager?.onAdSizeChanged(ad: self, size: size)
         }
         auBannerView?.onLoadRequest = { [weak self] gamRequest in
             guard let self, let request = gamRequest as? Request,

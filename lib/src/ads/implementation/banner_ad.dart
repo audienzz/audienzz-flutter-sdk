@@ -42,6 +42,7 @@ class BannerAd extends AdWithView {
     this.onAdClosed,
     this.onAdOpened,
     this.onAdImpression,
+    this.onAdSizeChanged,
     this.isAdaptiveSize = false,
     this.adaptiveBannerConfig,
     this.refreshTimeInterval,
@@ -177,6 +178,11 @@ class BannerAd extends AdWithView {
   /// A callback triggered when an ad is received.
   final void Function(BannerAd ad) onAdLoaded;
 
+  /// The rendered creative changed size, possibly after [onAdLoaded].
+  /// Resize the host slot without loading another ad. Uses logical pixels.
+  /// Currently emitted by the iOS bridge's Google size delegate.
+  final void Function(BannerAd ad, AdSize size)? onAdSizeChanged;
+
   /// A callback triggered when an ad request failed.
   final void Function(BannerAd ad, AdError? error) onAdFailedToLoad;
 
@@ -239,6 +245,7 @@ class BannerAd extends AdWithView {
         prebidSizes,
         headerBidding,
         onAdLoaded,
+        onAdSizeChanged,
         onAdFailedToLoad,
         onAdImpression,
         onAdOpened,

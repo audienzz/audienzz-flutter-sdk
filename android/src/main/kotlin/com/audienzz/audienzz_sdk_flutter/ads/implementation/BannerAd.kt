@@ -235,9 +235,17 @@ class BannerAd(
         val width = if (adaptiveBannerConfig?.get("widthStrategy") == "CUSTOM" && configuredWidth > 0)
             configuredWidth else context.resources.pxToDp(availablePx)
         val maxHeight = (adaptiveBannerConfig?.get("maxHeight") as? Number)?.toInt() ?: 0
-        val adaptive = if (maxHeight > 0) AdSize.getInlineAdaptiveBannerAdSize(width, maxHeight)
-            else AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(context, width)
-        view.setAdSizes(adaptive, *adSizes.toTypedArray())
+        val type = adaptiveBannerConfig?.get("type") as? String
+        val adaptive = when {
+            type.equals("ANCHORED", ignoreCase = true) ->
+                AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, width)
+            maxHeight > 0 -> AdSize.getInlineAdaptiveBannerAdSize(width, maxHeight)
+            else -> AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(context, width)
+        }
+        // Preserve legacy defaults, but respect explicit backend delivery choices.
+        val reservations = if (adaptiveBannerConfig?.get("includeReservationSizes") == false)
+            emptyList() else adSizes
+        view.setAdSizes(adaptive, *reservations.toTypedArray())
     }
 
     override fun dispose() {

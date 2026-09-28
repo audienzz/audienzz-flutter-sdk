@@ -222,6 +222,23 @@ factory, so these changes cannot compile against the old published native pins.
 Use the local overrides below while testing. Release native Android and iOS first, then update
 both bridge dependency pins and lockfiles before publishing the bridges. Do not ship local pins.
 
+The September 28 Flutter/RN comparison also requires these native changes:
+
+- iOS `a43d2d7`: forwards late Google adaptive-size changes. Flutter now carries that event
+  to Dart and resizes its managed banner and remote-banner example without another auction.
+- Android `c32fd5e`: restores foreground state after translucent interstitial activities.
+- Android `d341f61`: continues to Google when Prebid fails or does not finish.
+
+The published pins above do not include those commits. Passing tests with a local override
+does not validate a build against the published versions. Release those native changes and
+update the Flutter pins before distributing this branch.
+
+For device verification, repeat `Prefetch → Show → dismiss` three times, repeat Prefetch while
+already ready, and block the Prebid endpoint. Check adaptive banners both on first load and
+refresh, with custom width and inline/anchored backend configurations. Check the app's back
+button below the status bar separately from Google's interstitial close button: those belong
+to different windows, and an inset fix in the app does not establish Google's close-button safety.
+
 ## ATT in the iOS example
 
 The example requests ATT only when the app is active and status is `notDetermined`, before

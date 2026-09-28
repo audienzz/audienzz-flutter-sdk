@@ -73,9 +73,14 @@ void main() {
   testWidgets(
       'banner button destination has Material styling, back navigation and correct page ownership',
       (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(top: 32);
+    tester.view.viewPadding = const FakeViewPadding(top: 32);
+    addTearDown(tester.view.reset);
     await open(tester);
     expect(find.byType(Scaffold), findsOneWidget);
     expect(find.byType(BackButton), findsOneWidget);
+    expect(tester.getTopLeft(find.byType(BackButton)).dy, greaterThanOrEqualTo(32));
     final description = find.text(
       'One banner on its own screen — for screen-tracking / analytics logs.',
     );
