@@ -136,6 +136,39 @@ a failed show must not report a page return; native foreground recovery must not
 duplicate return PI. Off-screen banners remain deferred until eligible. These checks require a
 device/live test ad to validate actual Google presentation and painting.
 
+### Interstitial status bar and close button
+
+Both original and remote Flutter interstitials use Google's native fullscreen presentation.
+Android now calls Google's `setImmersiveMode(true)` before each `show()`. This requests immersive
+system UI in Google's ad activity; it does not mutate the Flutter activity or need a restore timer.
+Google documents immersive sticky/navigation-bar behavior, not a guarantee that every creative's
+close button respects every device's status bar or camera cutout.
+
+On iOS, leave `UIViewControllerBasedStatusBarAppearance` enabled. The example explicitly sets it
+to `true`; Google owns status-bar visibility during the ad. A custom native container must allow
+its presented controller to control the status bar, as described in Google's
+[iOS migration guidance](https://developers.google.com/ad-manager/mobile-ads-sdk/ios/migration#stricter_enforcement_of_status_bar_controls).
+Do not set a global hidden status bar or add a fixed top inset to the Google ad's views.
+
+Test **prefetch → show → dismiss** at least twice, and **prefetchAndShow**, in portrait and
+landscape. Verify the close button is tappable, rotation/cutouts do not cover it, and the app's
+original system bars return after dismissal, failure, and background/foreground. Include Android
+15+ and an iPhone with a notch. A passing bridge test only verifies that the presentation option
+is applied; real Google creatives and device system UI still need visual checks. If overlap
+persists, capture the device/OS, screenshot and Google response ID for a renderer/creative report.
+
+Flutter's `SafeArea` and padding on `MainActivity` do not control Google's separate ad screen.
+There is no supported cross-platform Google setting to force an interstitial into a rectangle
+below a permanently visible status bar. The Android API is documented
+[here](https://developers.google.com/ad-manager/mobile-ads-sdk/android/reference/com/google/android/gms/ads/interstitial/InterstitialAd#setImmersiveMode(boolean)).
+
+Verified September 28, 2026: a Google test interstitial presented from the Flutter example on
+the iOS 26.2 iPhone 17 Pro simulator changed status-bar visibility from visible, to hidden during
+the ad, to visible after dismissal. That probe used the same `present(from: nil)` entry point as
+the plugin. Android bridge tests verify immersive mode precedes presentation for each new ad,
+single-use enforcement remains intact, and a missing activity does not consume ready inventory.
+No Android device was connected for a visual check of the affected creative.
+
 ### Android interstitial return regression
 
 Native `0.3.0` can latch `APP_BACKGROUND` after a translucent Google `AdActivity` closes: SDK

@@ -51,6 +51,9 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Google fullscreen ads must be allowed to control their own status bar. -->
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

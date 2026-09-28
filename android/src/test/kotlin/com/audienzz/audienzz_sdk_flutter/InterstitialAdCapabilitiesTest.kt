@@ -4,6 +4,8 @@ import com.audienzz.audienzz_sdk_flutter.ads.implementation.InterstitialAd
 import com.audienzz.audienzz_sdk_flutter.entities.MinSizePercentage
 import com.audienzz.audienzz_sdk_flutter.entities.VideoBitrate
 import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
+import android.app.Activity
+import com.google.android.gms.ads.admanager.AdManagerInterstitialAd
 import io.mockk.*
 import org.audienzz.mobile.AudienzzBridgeApi
 import org.audienzz.mobile.AudienzzInterstitialAdUnit
@@ -12,6 +14,8 @@ import org.audienzz.mobile.AudienzzVideoParameters
 import org.audienzz.mobile.original.AudienzzInterstitialAdHandler
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -89,5 +93,35 @@ class InterstitialAdCapabilitiesTest {
     fun `only a playable video container is advertised`() {
         interstitial(null, null).load()
         assertEquals(listOf("video/mp4"), videoMimes)
+    }
+
+    @Test
+    fun `each new interstitial enables Google immersive mode before showing without changing the host window`() {
+        val activity = mockk<Activity>(relaxed = true)
+        repeat(2) {
+            val google = mockk<AdManagerInterstitialAd>(relaxed = true)
+            val ad = interstitial(null, null)
+            ad.setAd(google)
+            assertTrue(ad.show(activity))
+            verifyOrder {
+                google.setImmersiveMode(true)
+                google.show(activity)
+            }
+            assertFalse("A presented ad is single-use", ad.show(activity))
+            verify(exactly = 1) { google.show(activity) }
+            ad.dispose()
+        }
+        verify(exactly = 0) { activity.window }
+    }
+
+    @Test
+    fun `a missing host does not alter system UI or consume the ready interstitial`() {
+        val google = mockk<AdManagerInterstitialAd>(relaxed = true)
+        val ad = interstitial(null, null)
+        ad.setAd(google)
+        assertFalse(ad.show(null))
+        verify(exactly = 0) { google.setImmersiveMode(any()) }
+        verify(exactly = 0) { google.show(any()) }
+        assertTrue(ad.show(mockk<Activity>(relaxed = true)))
     }
 }

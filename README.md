@@ -155,6 +155,14 @@ reported that page visit. Android waits for the host activity to resume if dismi
 Do not add a manual PI in `onAdClosed`. Failed presentation does not create a page impression, and
 dismissal never clears a publisher's manual refresh pause.
 
+**Interstitial system bars:** Android interstitials enable Google's immersive mode before
+presentation; the plugin does not change the host activity's window flags. On iOS, keep
+`UIViewControllerBasedStatusBarAppearance` set to `true` (the default) in the app's `Info.plist`
+so Google can control status-bar visibility while its ad is open. The example sets this explicitly.
+Flutter `SafeArea` protects app content, but cannot inset Google's separate fullscreen ad screen.
+See the [system-bar checks](LOCAL_TESTING.md#interstitial-status-bar-and-close-button) for limits
+and device verification.
+
 **Android release dependency:** the native foreground-tracking fix for a translucent Google ad
 activity is required for this flow. It is on the native `feature/page-impression-api` branch and is
 not in the current `0.3.0` pin. Release that native patch and update the pin before shipping these

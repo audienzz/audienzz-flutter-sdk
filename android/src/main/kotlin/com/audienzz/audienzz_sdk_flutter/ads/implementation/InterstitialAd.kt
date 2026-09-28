@@ -71,6 +71,10 @@ class InterstitialAd(
         }
         shown = true
         return try {
+            // The ad has its own Google AdActivity: changing Flutter's window or SafeArea does
+            // not protect its controls from system bars. Let Google own fullscreen UI for this
+            // presentation instead of changing/restoring the publisher Activity's window flags.
+            ad.setImmersiveMode(true)
             ad.show(activity)
             true
         } catch (error: RuntimeException) {
