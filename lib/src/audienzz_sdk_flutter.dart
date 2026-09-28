@@ -29,9 +29,13 @@ final class AudienzzSdkFlutter {
   /// Required to initialize the SDK.
   Future<InitializationStatus> initialize({
     required String companyId,
+    String? publisherId,
+    String environment = 'production',
   }) {
     return adInstanceManager.initialize(
       companyId: companyId,
+      publisherId: publisherId,
+      environment: environment,
     );
   }
 
@@ -40,6 +44,7 @@ final class AudienzzSdkFlutter {
     required String publisherId,
     required String remoteUrl,
     bool enablePolling = true,
+    String environment = 'production',
   }) async {
     final audienzzRemoteConfig = AudienzzRemoteConfig.instance
       ..configureRemote(
@@ -54,7 +59,11 @@ final class AudienzzSdkFlutter {
         // background polling later succeeds so the native SDK still gets
         // initialized instead of the session staying ad-less forever.
         onPollingSuccess: () {
-          _applyConfigAndInitialize(audienzzRemoteConfig.publisherConfig);
+          _applyConfigAndInitialize(
+            audienzzRemoteConfig.publisherConfig,
+            publisherId: publisherId,
+            environment: environment,
+          );
         },
       );
     } catch (e) {
@@ -64,15 +73,21 @@ final class AudienzzSdkFlutter {
           : InitializationStatus.fail;
     }
 
-    return _applyConfigAndInitialize(audienzzRemoteConfig.publisherConfig);
+    return _applyConfigAndInitialize(
+      audienzzRemoteConfig.publisherConfig,
+      publisherId: publisherId,
+      environment: environment,
+    );
   }
 
   /// Applies the publisher config's targeting and initializes the native SDK.
   /// Idempotent: only the first invocation reaches the native initializer, so
   /// the initial-fetch path and the background-polling path never double-init.
   Future<InitializationStatus> _applyConfigAndInitialize(
-    RemotePublisherConfiguration? config,
-  ) async {
+    RemotePublisherConfiguration? config, {
+    required String publisherId,
+    required String environment,
+  }) async {
     if (_remoteNativeInitialized) {
       return InitializationStatus.success;
     }
@@ -126,6 +141,8 @@ final class AudienzzSdkFlutter {
 
     return adInstanceManager.initialize(
       companyId: config?.ortb.schain?.sellerId ?? '1',
+      publisherId: publisherId,
+      environment: environment,
       prebidServerUrl: config?.prebidServer.url,
       // Flutter fetches the publisher config in Dart, so the native SDK never sees it and cannot
       // read this itself. An absent value stays null and native applies its own default (enabled).

@@ -146,11 +146,13 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     final InitializationStatus status;
     if (useRemoteConfiguration) {
       status = await AudienzzSdkFlutter.instance.initializeRemote(
+        environment: 'test',
         publisherId: '35',
         remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1',
       );
     } else {
       status = await AudienzzSdkFlutter.instance.initialize(
+        environment: 'test',
         companyId: 'Company Id',
       );
     }

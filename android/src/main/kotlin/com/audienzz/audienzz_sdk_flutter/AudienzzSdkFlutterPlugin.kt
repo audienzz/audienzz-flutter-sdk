@@ -74,6 +74,12 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 AudienzzPrebidMobile.applyBackendPpidConfig(
                     ppidEnabled = call.argument<Boolean?>("ppidEnabled"),
                 )
+                if (!AudienzzPrebidMobile.configureAnalytics(
+                        call.argument<String>("publisherId"),
+                        call.argument<String>("environment") ?: "production")) {
+                    result.error("INVALID_ENVIRONMENT", "Expected production, staging or test", null)
+                    return
+                }
                 audienzzSdkWrapper.initialize(
                     context,
                     call.argument<String>("companyId")!!,

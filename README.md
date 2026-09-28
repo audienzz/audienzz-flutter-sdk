@@ -1136,3 +1136,12 @@ Original and remote banners include `au_page_seq`, `au_slot` and `hb_refresh_cou
 custom targeting. Interstitials include only `au_page_seq` and `hb_refresh_count`; they never
 consume a banner position. See [the request targeting contract](docs/ad-request-targeting.md)
 for page resets, automatic slot ordering and request-count semantics. No new publisher parameter is required.
+
+### Analytics environments and publisher identity
+
+Remote initialization supplies the ws-sdk-config `publisher_id` automatically (including Flutter).
+The collector resolves company and website IDs. Analytics defaults to `environment=production`;
+set `test` or `staging` before initializing a non-production app. Our examples use `test`.
+See [the analytics contract](docs/analytics-contract.md) for configuration, currency provenance,
+missing Prebid metadata and release requirements. These additions require the upcoming native
+releases; current published native pins do not provide them.

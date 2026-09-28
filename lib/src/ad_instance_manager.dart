@@ -159,6 +159,8 @@ final class AdInstanceManager {
 
   Future<InitializationStatus> initialize({
     required String companyId,
+    String? publisherId,
+    String environment = 'production',
     String? prebidServerUrl,
     bool? ppidEnabled,
   }) async {
@@ -168,6 +170,8 @@ final class AdInstanceManager {
         'initialize',
         {
           'companyId': companyId,
+          'publisherId': publisherId,
+          'environment': environment,
           if (prebidServerUrl != null) 'prebidServerUrl': prebidServerUrl,
           if (ppidEnabled != null) 'ppidEnabled': ppidEnabled,
         },
