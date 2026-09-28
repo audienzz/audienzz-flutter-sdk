@@ -7,7 +7,7 @@ Audienzz SDK Flutter
 > by default. Optional local development overrides are described in [LOCAL_TESTING.md](LOCAL_TESTING.md).
 
 > **Unreleased fixes on this branch:** adaptive iOS loading, banner-only slot numbering,
-> Android foreground recovery after interstitials, and Prebid failure fallback need the
+> iOS analytics delivery, Android foreground recovery after interstitials, and Prebid failure fallback need the
 > matching native fixes. Flutter also needs the new native interstitial context API.
 > Until native releases and bridge pins are updated, use the local native overrides in
 > [LOCAL_TESTING.md](LOCAL_TESTING.md#pending-native-fixes-in-this-branch).
