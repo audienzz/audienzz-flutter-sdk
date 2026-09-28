@@ -216,15 +216,18 @@ unset the variable and run `pod update AudienzziOSSDK` from `example/ios`.
 
 ## Pending native fixes in this branch
 
-iOS analytics delivery also needs the native branch fix. Published 0.4.0 can stop sending after
+Immediate analytics delivery with durable retries requires rebuilding against the matching
+native branch checkout on each platform.
+iOS analytics delivery also needs the native HTTP-204 fix. Published 0.4.0 can stop sending after
 an empty or non-JSON collector reply. Rebuild with `AUDIENZZ_IOS_SDK_PATH` set to the patched
 checkout; a hot reload cannot update the native transport.
 
 For analytics checks, enable SSL proxying for `api.adnz.co:443` and filter Charles for
-`/api/ws-clickstream-collector/submit/batch`. Allow 15 seconds for a partial batch. Native analytics
-uses the device network proxy, not Flutter's Dart-only proxy override. The patched native SDKs
-log `AUDZ analytics queued/sending/sent/failed/dropped` with no event payloads when diagnostics
-are enabled. `sent` confirms HTTP success, not dashboard ingestion.
+`/api/ws-clickstream-collector/submit/batch`. Current-branch natives send each event immediately
+after persistence, with one request in flight. Native analytics uses the device network proxy,
+not Flutter's Dart-only proxy override. With diagnostics enabled, the patched native SDKs log
+`AUDZ analytics queued/sending/sent/failed/retryScheduled/dropped` without event payloads.
+`sent` confirms HTTP success, not dashboard ingestion.
 
 Adaptive iOS bootstrap and banner-only slot numbering require the matching native
 `feature/page-impression-api` checkouts. Flutter also calls the new `forInterstitial` context
