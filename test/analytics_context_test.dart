@@ -48,6 +48,7 @@ void main() {
                 ? []
                 : {
                     'id': 35,
+                    'analyticsBatchSize': 8,
                     'prebidServer': {
                       'url': 'https://example.test/pbs',
                       'accountId': 1,
@@ -69,6 +70,7 @@ void main() {
     expect(initializations.single['publisherId'], '35');
     expect(initializations.single['companyId'], 'seller-1');
     expect(initializations.single['environment'], 'test');
+    expect(initializations.single['analyticsBatchSize'], 8);
   });
 
   test('direct init defaults to production without a publisher', () async {
@@ -76,5 +78,6 @@ void main() {
     expect(initializations, hasLength(1));
     expect(initializations.single['publisherId'], isNull);
     expect(initializations.single['environment'], 'production');
+    expect(initializations.single.containsKey('analyticsBatchSize'), isFalse);
   });
 }

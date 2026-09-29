@@ -88,6 +88,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 // Flutter fetches the publisher config in Dart, so the native SDK never sees it and
                 // cannot read this itself. An absent value stays nil and native keeps its default.
                 Audienzz.shared.applyBackendPpidConfig(ppidEnabled: args["ppidEnabled"] as? Bool)
+                Audienzz.shared.applyBackendAnalyticsConfig(batchSize: args["analyticsBatchSize"] as? Int)
                 guard Audienzz.shared.configureAnalytics(
                     publisherId: args["publisherId"] as? String,
                     environment: args["environment"] as? String ?? "production") else {

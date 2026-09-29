@@ -1,8 +1,15 @@
 # Running this example against the LOCAL native SDKs
 
-The bridge and example use published `com.audienzz:sdk:0.3.1` and
-`AudienzziOSSDK ~> 0.4.1` by default. No native checkout is needed for normal builds.
-The overrides below are optional and only for developing native changes.
+The committed pins are `com.audienzz:sdk:0.3.1` and `AudienzziOSSDK ~> 0.4.1`.
+**On `feature/durable-analytics-batching`, use matching local native checkouts for builds:**
+the new `applyBackendAnalyticsConfig` bridge call is not in those published releases yet.
+Update both native pins after publication before releasing this Flutter branch.
+
+Flutter fetches publisher configuration in Dart and forwards the optional top-level
+`analyticsBatchSize` field to the native sender. Missing, null, blank, invalid or nonpositive
+values use 10; positive integers are capped at 15. The backend controls this setting; no new
+public initialization argument is required. Native still owns persistence, batching and retries.
+The overrides below select the matching native changes for verification.
 
 ## Android — one Gradle property
 
@@ -241,8 +248,9 @@ unset the variable and run `pod update AudienzziOSSDK` from `example/ios`.
 
 1. Delete `audienzzNativeVersion` from `example/android/gradle.properties`.
 2. `unset AUDIENZZ_IOS_SDK_PATH` and `pod install`.
-3. Build both platforms against the published dependencies. The current required releases are
-   Android 0.3.1 and iOS 0.4.1; no local override should be active.
+3. After publishing the batching native releases, update both bridge pins and build both platforms
+   against those published dependencies. No local override should be active. The current
+   0.3.1 / 0.4.1 pins predate this branch's config-forwarding API.
 
 ## Published native fixes and analytics checks
 

@@ -74,6 +74,9 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                 AudienzzPrebidMobile.applyBackendPpidConfig(
                     ppidEnabled = call.argument<Boolean?>("ppidEnabled"),
                 )
+                AudienzzPrebidMobile.applyBackendAnalyticsConfig(
+                    batchSize = call.argument<Int>("analyticsBatchSize"),
+                )
                 if (!AudienzzPrebidMobile.configureAnalytics(
                         call.argument<String>("publisherId"),
                         call.argument<String>("environment") ?: "production")) {

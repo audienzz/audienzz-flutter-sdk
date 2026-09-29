@@ -12,6 +12,7 @@ class RemotePublisherConfiguration {
     this.ios,
     this.ppidEnabled,
     this.smartRefreshV2,
+    this.analyticsBatchSize,
   });
 
   factory RemotePublisherConfiguration.fromJson(Map<String, dynamic> json) {
@@ -29,8 +30,21 @@ class RemotePublisherConfiguration {
           : null,
       ppidEnabled: json['ppidEnabled'] as bool?,
       smartRefreshV2: json['smartRefreshV2'] as bool?,
+      analyticsBatchSize: _readBatchSize(json['analyticsBatchSize']),
     );
   }
+
+  static int? _readBatchSize(Object? value) {
+    final number = value is int
+        ? value
+        : value is String
+            ? int.tryParse(value.trim())
+            : null;
+    return number != null && number > 0 ? number.clamp(1, 15) : null;
+  }
+
+  /// Backend delivery limit. Native defaults to 10 and caps it at 15.
+  final int? analyticsBatchSize;
 
   final int id;
   final PrebidServer prebidServer;
@@ -57,5 +71,7 @@ class RemotePublisherConfiguration {
         if (ios != null) 'ios': ios!.toJson(),
         if (ppidEnabled != null) 'ppidEnabled': ppidEnabled,
         if (smartRefreshV2 != null) 'smartRefreshV2': smartRefreshV2,
+        if (analyticsBatchSize != null)
+          'analyticsBatchSize': analyticsBatchSize,
       };
 }

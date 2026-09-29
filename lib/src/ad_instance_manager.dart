@@ -173,6 +173,7 @@ final class AdInstanceManager {
     String environment = 'production',
     String? prebidServerUrl,
     bool? ppidEnabled,
+    int? analyticsBatchSize,
   }) async {
     try {
       final initializationStatus =
@@ -184,6 +185,8 @@ final class AdInstanceManager {
           'environment': environment,
           if (prebidServerUrl != null) 'prebidServerUrl': prebidServerUrl,
           if (ppidEnabled != null) 'ppidEnabled': ppidEnabled,
+          if (analyticsBatchSize != null)
+            'analyticsBatchSize': analyticsBatchSize,
         },
       );
 

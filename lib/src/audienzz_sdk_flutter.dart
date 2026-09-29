@@ -147,6 +147,7 @@ final class AudienzzSdkFlutter {
       // Flutter fetches the publisher config in Dart, so the native SDK never sees it and cannot
       // read this itself. An absent value stays null and native applies its own default (enabled).
       ppidEnabled: config?.ppidEnabled,
+      analyticsBatchSize: config?.analyticsBatchSize,
     );
   }
 
