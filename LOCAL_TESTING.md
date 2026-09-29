@@ -1,7 +1,7 @@
 # Running this example against the LOCAL native SDKs
 
-The bridge and example use published `com.audienzz:sdk:0.3.0` and
-`AudienzziOSSDK ~> 0.4.0` by default. No native checkout is needed for normal builds.
+The bridge and example use published `com.audienzz:sdk:0.3.1` and
+`AudienzziOSSDK ~> 0.4.1` by default. No native checkout is needed for normal builds.
 The overrides below are optional and only for developing native changes.
 
 ## Android — one Gradle property
@@ -10,23 +10,23 @@ Publish the native SDK to your local Maven repository once:
 
 ```bash
 cd ~/Documents/audienzz-android-sdk
-sed -i '' 's/audienzzSdkVersion = "0.3.0"/audienzzSdkVersion = "0.3.0-local"/' Audienzz/build.gradle.kts
+sed -i '' 's/audienzzSdkVersion = "0.3.1"/audienzzSdkVersion = "0.3.1-local"/' Audienzz/build.gradle.kts
 ./gradlew :Audienzz:publishToMavenLocal
 ```
 
 After publishing a local build, add this temporary override to `example/android/gradle.properties`
-(or pass `-PaudienzzNativeVersion=0.3.0-local` when invoking Gradle):
+(or pass `-PaudienzzNativeVersion=0.3.1-local` when invoking Gradle):
 
 ```properties
-audienzzNativeVersion=0.3.0-local
+audienzzNativeVersion=0.3.1-local
 ```
 
 That property is what switches `android/build.gradle` over and adds `mavenLocal()`. **Delete the
 line to go back to the published pin**, and before releasing — the default in `android/build.gradle`
-is `0.3.0`, so nothing about the shipped package depends on it.
+is `0.3.1`, so nothing about the shipped package depends on it.
 
 Re-publish after every native change; Gradle caches by version, so either re-publish over
-`0.3.0-local` or bump the suffix.
+`0.3.1-local` or bump the suffix.
 
 ## iOS — one environment variable
 
@@ -172,13 +172,10 @@ No Android device was connected for a visual check of the affected creative.
 ### Android interstitial return regression
 
 Native `0.3.0` can latch `APP_BACKGROUND` after a translucent Google `AdActivity` closes: SDK
-initialization missed the host's first start, and returning only resumes it. The fix on native
-`feature/page-impression-api` also records resumed/paused activities as started. Flutter's return
-PI cannot override an incorrect native background verdict.
-
-Until that native patch is released, publish the patched checkout locally with a unique version
-(verified with `0.3.1-flutter-review`), then build this example with
-`-PaudienzzNativeVersion=0.3.1-flutter-review`. Keep the local override out of committed pins.
+initialization missed the host's first start, and returning only resumes it. Android `0.3.1`,
+selected by default, also records resumed/paused activities as started and fixes this case.
+Flutter's return PI cannot override an incorrect native background verdict. Rebuild and reinstall
+the app against the published pin before testing; no local override is required.
 
 Verify this exact sequence on a clean launch:
 
@@ -190,7 +187,7 @@ Verify this exact sequence on a clean launch:
 
 The Flutter bridge unit suite is `./gradlew :audienzz_sdk_flutter:testDebugUnitTest` from
 `example/android`. Native regression tests cover both the foreground monitor and actual banner
-handler handoffs. The release remains blocked on publishing the native fix and updating the pin.
+handler handoffs. The required native fix is included in the published Android `0.3.1` pin.
 
 Device verification on 2026-09-24 (vivo 2004, Android 12; local native `0.3.1-flutter-review`):
 interstitial open for 42 seconds with no banner auctions; dismissal produced one PI and blanked
@@ -245,39 +242,25 @@ unset the variable and run `pod update AudienzziOSSDK` from `example/ios`.
 1. Delete `audienzzNativeVersion` from `example/android/gradle.properties`.
 2. `unset AUDIENZZ_IOS_SDK_PATH` and `pod install`.
 3. Build both platforms against the published dependencies. The current required releases are
-   Android 0.3.0 and iOS 0.4.0; no local override should be active.
+   Android 0.3.1 and iOS 0.4.1; no local override should be active.
 
-## Pending native fixes in this branch
+## Published native fixes and analytics checks
 
-Immediate analytics delivery with durable retries requires rebuilding against the matching
-native branch checkout on each platform.
-iOS analytics delivery also needs the native HTTP-204 fix. Published 0.4.0 can stop sending after
-an empty or non-JSON collector reply. Rebuild with `AUDIENZZ_IOS_SDK_PATH` set to the patched
-checkout; a hot reload cannot update the native transport.
+Android `0.3.1` and iOS `0.4.1`, selected by default, include immediate analytics delivery
+with persistent retries, page-impression attribution, adaptive banner fixes, and banner-only
+slot numbering. iOS includes the HTTP-204 analytics fix and late adaptive-size notifications;
+Android includes Prebid-outage fallback and foreground recovery after translucent interstitials.
+No local native checkout is required. Rebuild and reinstall the example after upgrading;
+hot reload does not replace the native SDKs.
 
-For analytics checks, enable SSL proxying for `api.adnz.co:443` and filter Charles for
-`/api/ws-clickstream-collector/submit/batch`. Current-branch natives send each event immediately
-after persistence, with one request in flight. Native analytics uses the device network proxy,
-not Flutter's Dart-only proxy override. With diagnostics enabled, the patched native SDKs log
+For analytics checks, configure the device network proxy, enable SSL proxying for
+`api.adnz.co:443`, and filter Charles for `/api/ws-clickstream-collector/submit/batch`.
+The native SDKs send each event immediately after persistence, with one request in flight.
+With diagnostics enabled, they log
 `AUDZ analytics queued/sending/sent/failed/retryScheduled/dropped` without event payloads.
 `sent` confirms HTTP success, not dashboard ingestion.
 
-Adaptive iOS bootstrap and banner-only slot numbering require the matching native
-`feature/page-impression-api` checkouts. Flutter also calls the new `forInterstitial` context
-factory, so these changes cannot compile against the old published native pins.
-Use the local overrides below while testing. Release native Android and iOS first, then update
-both bridge dependency pins and lockfiles before publishing the bridges. Do not ship local pins.
-
-The September 28 Flutter/RN comparison also requires these native changes:
-
-- iOS `a43d2d7`: forwards late Google adaptive-size changes. Flutter now carries that event
-  to Dart and resizes its managed banner and remote-banner example without another auction.
-- Android `c32fd5e`: restores foreground state after translucent interstitial activities.
-- Android `d341f61`: continues to Google when Prebid fails or does not finish.
-
-The published pins above do not include those commits. Passing tests with a local override
-does not validate a build against the published versions. Release those native changes and
-update the Flutter pins before distributing this branch.
+Native analytics uses the device network proxy, not Flutter's Dart-only proxy override.
 
 For device verification, repeat `Prefetch → Show → dismiss` three times, repeat Prefetch while
 already ready, and block the Prebid endpoint. Check adaptive banners both on first load and

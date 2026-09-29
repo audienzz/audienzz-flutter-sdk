@@ -1,17 +1,15 @@
 Audienzz SDK Flutter
 ========
 
-> **Native dependencies:** Android `com.audienzz:sdk:0.3.0` (Maven Central) and
-> iOS `AudienzziOSSDK ~> 0.4.0` (CocoaPods). These releases provide the page ownership,
+> **Native dependencies:** Android `com.audienzz:sdk:0.3.1` (Maven Central) and
+> iOS `AudienzziOSSDK ~> 0.4.1` (CocoaPods). These releases provide the page ownership,
 > refresh and interstitial APIs used by this bridge. The examples use published dependencies
 > by default. Optional local development overrides are described in [LOCAL_TESTING.md](LOCAL_TESTING.md).
 
-> **Unreleased native changes:** adaptive iOS loading, banner-only slot numbering,
-> immediate analytics delivery with durable retries, Android foreground recovery after
-> interstitials, and Prebid failure fallback need the matching native fixes.
-> Flutter also needs the new native interstitial context API.
-> Until native releases and bridge pins are updated, use the local native overrides in
-> [LOCAL_TESTING.md](LOCAL_TESTING.md#pending-native-fixes-in-this-branch).
+> These native releases include adaptive banner fixes, banner-only slot numbering,
+> immediate analytics delivery with durable retries, and page-impression attribution.
+> Android also includes interstitial foreground recovery and Google fallback when Prebid fails.
+> Rebuild the app after upgrading; hot reload does not replace the native SDKs.
 
 Testing Android with Charles? Use the example's debug build and follow the
 [Charles setup](LOCAL_TESTING.md#charles-ssl-proxying-on-android), including the Dart proxy flags
@@ -28,7 +26,7 @@ delivery, and managed widgets own each banner's lifecycle. Five steps.
 flutter pub add audienzz_sdk_flutter
 ```
 
-Use the package release that requires **Android 0.3.0 / iOS 0.4.0** (this branch). Older Flutter
+Use the package release that requires **Android 0.3.1 / iOS 0.4.1** (this branch). Older Flutter
 releases do not include the managed APIs below. Minimum deployment targets: **Android API 24**
 and **iOS 15.0**. Set your app's iOS deployment target accordingly.
 
@@ -163,10 +161,9 @@ Flutter `SafeArea` protects app content, but cannot inset Google's separate full
 See the [system-bar checks](LOCAL_TESTING.md#interstitial-status-bar-and-close-button) for limits
 and device verification.
 
-**Android release dependency:** the native foreground-tracking fix for a translucent Google ad
-activity is required for this flow. It is on the native `feature/page-impression-api` branch and is
-not in the current `0.3.0` pin. Release that native patch and update the pin before shipping these
-Android changes; see [local verification](LOCAL_TESTING.md#android-interstitial-return-regression).
+**Android release dependency:** Android `0.3.1`, selected by this bridge, includes the native
+foreground-tracking fix for translucent Google ad activities. See
+[verification steps](LOCAL_TESTING.md#android-interstitial-return-regression).
 
 ### What the SDK handles
 
@@ -1070,7 +1067,7 @@ License
 
 `AdWidget` sends its visibility/overlay/unmount state through a separate internal channel operation (`setBannerViewportVisible`). Publishers should let `AdWidget` manage visibility and use the public pause API only for their own pause policy. Both native plugin implementations preserve these independent reasons.
 
-Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.0 and iOS 0.4.0; both are published and selected by this bridge.
+Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.1 and iOS 0.4.1; both are published and selected by this bridge.
 
 
 ## Interstitial lifecycle and migration
@@ -1143,5 +1140,5 @@ Remote initialization supplies the ws-sdk-config `publisher_id` automatically (i
 The collector resolves company and website IDs. Analytics defaults to `environment=production`;
 set `test` or `staging` before initializing a non-production app. Our examples use `test`.
 See [the analytics contract](docs/analytics-contract.md) for configuration, currency provenance,
-missing Prebid metadata and release requirements. These additions require the upcoming native
-releases; current published native pins do not provide them.
+missing Prebid metadata and release requirements. These additions are included in the required
+Android `0.3.1` and iOS `0.4.1` native releases.

@@ -90,8 +90,8 @@ page-local ledger produces immutable page/slot/refresh snapshots. Bridges transf
 identity, never calculate the counters themselves. Ledger entries contain no view/controller
 references or publisher identifiers and are cleared at the next page impression.
 
-Bridges require the matching native changes. Local verification uses the overrides in
-`LOCAL_TESTING.md`; publish natives before updating the released bridge dependency pins.
+These changes are included in Android `0.3.1` and iOS `0.4.1`, selected by this bridge.
+Optional local development overrides are described in `LOCAL_TESTING.md`.
 
 ### Android GMA compatibility
 
