@@ -51,7 +51,7 @@ class AdInstanceManager : NSObject {
     }
 
     /// Called synchronously by the native observer, before its asynchronous echo to Dart.
-    /// Includes automatic foreground impressions, so closing an interstitial cannot double-report
+    /// Includes automatic foreground recovery, so closing an interstitial cannot double-report
     /// a page already recovered by native or by navigation while the ad was on screen.
     func didReportPageImpression(_ pageId: String) {
         pageRevision += 1

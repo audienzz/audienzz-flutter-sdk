@@ -93,6 +93,34 @@ void main() {
       expect(adInstanceManager.lastReportedPage, 'Home');
     });
 
+    test('foreground recovery keeps the route without a new page report',
+        () async {
+      final calls = <MethodCall>[];
+      messenger.setMockMethodCallHandler(
+        MethodChannel(Constants.methodChannelName, codec),
+        (call) async {
+          calls.add(call);
+          return null;
+        },
+      );
+      await AudienzzSdkFlutter.instance.pageImpression(name: 'Article');
+      await nativeSays('onPageImpression', {'name': 'Article'});
+      expect(
+        calls.where((call) => call.method == 'pageImpression'),
+        hasLength(1),
+      );
+      final before = adInstanceManager.pageEpoch.value;
+      // Same native compatibility signal, now for foreground ad recovery.
+      await nativeSays('onPageImpression', {'name': 'Article'});
+      expect(adInstanceManager.pageEpoch.value, before + 1);
+      expect(adInstanceManager.currentPage, 'Article');
+      expect(adInstanceManager.lastReportedPage, 'Article');
+      expect(
+        calls.where((call) => call.method == 'pageImpression'),
+        hasLength(1),
+      );
+    });
+
     test('drops an echo for a page that has already been superseded', () async {
       // Report B then C before either echo lands. B's confirmation arriving last must not reset
       // the creation stamp, or ads built in that window take permanent ownership of B.

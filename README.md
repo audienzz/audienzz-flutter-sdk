@@ -176,6 +176,15 @@ For custom covers, attach an `AudienzzBannerController` to the banner, call
 `controller.reportCover(covered: true)`, and clear it when the cover disappears. For a whole retained page, set `AudienzzPage.active` to `false`. See [test flows and local setup](LOCAL_TESTING.md) before shipping.
 
 ---
+**App background/foreground is the same page visit.** With the native foreground-continuity
+update, minimizing and reopening the app refreshes its active banners (and blanks them when
+blanking is enabled), but sends no new `pageImpression` analytics event. The existing
+`page_impression_id`, `au_page_seq` and `au_slot` remain; each replacement request advances the
+slot's `hb_refresh_count` and gets a fresh auction ID. Visibility, page ownership and publisher
+pause still apply. Do not call `pageImpression` from app-resume callbacks just because the app
+became active. Report actual navigation, including ad-free screens, back navigation and a new
+article. An explicit call still starts a new page impression, even for the same screen.
+
 
 ## Overview
 

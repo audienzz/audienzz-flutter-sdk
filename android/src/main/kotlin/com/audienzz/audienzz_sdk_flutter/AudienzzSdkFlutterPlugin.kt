@@ -524,8 +524,8 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
     }
 
     /**
-     * Forward every native page impression to Dart — including the automatic one fired on returning
-     * to the foreground, which never passes through the Dart API. Native owns foreground reporting;
+     * Forward native navigation and ad recovery to Dart, including app return
+     * to the foreground, which never passes through the Dart API. Native owns foreground recovery;
      * Dart just advances its page epoch so mounted AdWidgets remount their platform views.
      */
     private fun observeNativePageImpressions() {

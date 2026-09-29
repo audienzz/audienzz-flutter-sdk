@@ -29,12 +29,9 @@ final class AdInstanceManager {
   AdInstanceManager() {
     methodChannel.setMethodCallHandler(
       (call) async {
-        // Native owns page impressions, including the automatic one on
-        // returning to the foreground. Dart used to observe app lifecycle and
-        // report one itself, which meant two independent owners each
-        // scheduling and de-duplicating — no ordering of the two came out
-        // right. Now the epoch only ever advances here, once per real native
-        // page impression, so mounted AdWidgets remount exactly once.
+        // Native owns navigation and foreground ad recovery. This legacy
+        // channel method is a view-refresh signal, not an analytics event.
+        // Recovery keeps native page identity but still remounts AdWidgets.
         if (call.method == 'onPageImpression') {
           final args = call.arguments as Map<dynamic, dynamic>?;
           final name = args?['name'] as String?;
@@ -46,7 +43,7 @@ final class AdInstanceManager {
           // that disagrees is out of date.
           //
           // A null currentPage means the impression originated natively (the
-          // automatic foreground one), which is always current.
+          // foreground recovery), which is always current.
           if (name != null && (currentPage == null || currentPage == name)) {
             lastReportedPage = name;
             lastPageImpressionAt = DateTime.now();
@@ -55,7 +52,7 @@ final class AdInstanceManager {
             // bypassing Dart's page-activation log. This confirms the native
             // report, not analytics delivery; `route` is not the
             // analytics page_impression_id.
-            AudienzzDiagnostics.log('page', 'impression', {
+            AudienzzDiagnostics.log('page', 'adsUpdated', {
               'route': name,
               'epoch': pageEpoch.value,
               'source': 'native',
@@ -333,8 +330,8 @@ final class AdInstanceManager {
     }
   }
 
-  /// The page name reported by the most recent `pageImpression`, stamped onto
-  /// every banner created afterwards so the native page coordinator can tell
+  /// The route key from the most recent page lifecycle notification, stamped
+  /// onto every banner so the native page coordinator can tell
   /// this screen's ads from the previous screen's.
   ///
   /// A Flutter banner lives in the single FlutterActivity /
@@ -344,15 +341,16 @@ final class AdInstanceManager {
   /// ad before ever calling `pageImpression`, which the native side reports.
   String? currentPage;
 
-  /// The page reported by the most recent page impression, alongside a counter.
+  /// The route key from the most recent native page lifecycle notification.
   /// [AdWidget] listens and remounts only when the reported page is its own.
   String? lastReportedPage;
 
-  /// When the last page impression was reported, so the foreground observer can
-  /// tell whether the app already reported one itself.
+  /// Time of the last native lifecycle notification (navigation or recovery).
+  /// Legacy field name; this is not an analytics page timestamp.
   DateTime? lastPageImpressionAt;
 
-  /// Bumped on every page impression. [AdWidget] rebuilds its platform view
+  /// View revision for navigation and recovery, not `au_page_seq`.
+  /// [AdWidget] rebuilds its platform view
   /// when this changes, so a recreated ad gets a fresh texture — an in-place
   /// re-auction does not repaint an AndroidViewSurface / UiKitView on its own.
   final ValueNotifier<int> pageEpoch = ValueNotifier<int>(0);

@@ -15,9 +15,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         super.init()
     }
 
-    /// Forward every native page impression to Dart — including the automatic one fired on
-    /// returning to the foreground, which never passes through the Dart API. Native owns foreground
-    /// reporting; Dart just advances its page epoch so mounted AdWidgets remount their platform views.
+    /// Forward native navigation and foreground ad recovery to Dart. This legacy channel is a
+    /// view-refresh signal, not an analytics event. The local view revision still advances when
+    /// native preserves its page identity on app return.
     ///
     /// Uses the manager's channel rather than the one built in `register(with:)`. Nothing retains
     /// that local channel — Flutter's messenger deliberately does not hold one (it captures only
