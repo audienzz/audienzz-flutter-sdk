@@ -135,12 +135,12 @@ Everything the reviews asked about is reachable in at most two taps from the hom
 | Repeated taps / ineligible opportunity | same screen — every button stays enabled on purpose |
 | Disposal during loading | tap **Prefetch** then immediately leave the screen |
 | Test screen from an inline button | **Open test screen** below a home banner — normal text, app bar and back button; one PI before its banner request |
-| Interstitial return (Android and iOS) | Show an interstitial over a loaded banner, wait past the refresh interval, dismiss — no refresh under the ad, one return PI, then blank/reload on the active page |
+| Interstitial return (Android and iOS) | Show an interstitial over a loaded banner, wait past the refresh interval, dismiss — no refresh under the ad, no new analytics PI, then blank/reload on the active page |
 
 For the interstitial flow, also repeat with a publisher-paused banner, a failed presentation,
 and a background/foreground round trip while the ad is open. A manual pause must survive dismissal;
 a failed show must not report a page return; native foreground recovery must not be followed by a
-duplicate return PI. Off-screen banners remain deferred until eligible. These checks require a
+duplicate replacement. Off-screen banners remain deferred until eligible. These checks require a
 device/live test ad to validate actual Google presentation and painting.
 
 ### Interstitial status bar and close button
@@ -181,22 +181,22 @@ No Android device was connected for a visual check of the affected creative.
 Native `0.3.0` can latch `APP_BACKGROUND` after a translucent Google `AdActivity` closes: SDK
 initialization missed the host's first start, and returning only resumes it. Android `0.3.1`,
 selected by default, also records resumed/paused activities as started and fixes this case.
-Flutter's return PI cannot override an incorrect native background verdict. Rebuild and reinstall
+Dismissal recovery cannot override an incorrect native background verdict. Rebuild and reinstall
 the app against the published pin before testing; no local override is required.
 
 Verify this exact sequence on a clean launch:
 
 1. Let a home banner load, then show and dismiss an interstitial.
-2. Confirm one return PI and a fresh load for the visible banner.
+2. Confirm no new analytics PI and one fresh load for the visible banner.
 3. Open the Test Screen from below a banner; its banner must load.
 4. Go back; the home banner must blank and then load its replacement.
-5. Background for over 30 seconds, then return; no auctions while backgrounded, one recovery PI.
+5. Background for over 30 seconds, then return; no auctions while backgrounded, one recovery without a new analytics PI.
 
 The Flutter bridge unit suite is `./gradlew :audienzz_sdk_flutter:testDebugUnitTest` from
 `example/android`. Native regression tests cover both the foreground monitor and actual banner
 handler handoffs. The required native fix is included in the published Android `0.3.1` pin.
 
-Device verification on 2026-09-24 (vivo 2004, Android 12; local native `0.3.1-flutter-review`):
+Historical verification before the continuity change, on 2026-09-24 (vivo 2004, Android 12; local native `0.3.1-flutter-review`):
 interstitial open for 42 seconds with no banner auctions; dismissal produced one PI and blanked
 both home slots. Each slot loaded its deferred replacement when scrolled into view. The inline
 Test Screen banner loaded and rendered; returning home blanked and rendered a new banner.
@@ -205,8 +205,8 @@ one successful replacement for the visible slot.
 Native unit tests: 251 passed. Flutter Android bridge tests: 23 passed. Removing the foreground
 fix fails five regressions, and removing the bridge's return report/cover fails six regression tests.
 
-Native bridge regressions run in the example's `RunnerTests` target, against the normal published
-SDK pin (no local native override):
+Native bridge regressions run in the example's `RunnerTests` target, against the matching local native checkout:
+
 
 ```bash
 cd example/ios
@@ -286,3 +286,20 @@ publisher's users; the host app owns its ATT/CMP flow and usage-description text
 
 Test a fresh install with Allow and Deny separately, plus relaunch and background/foreground.
 A zero IDFA after Deny is expected; do not use it as proof that ad loading failed.
+
+## Same-page interstitial return (unreleased)
+
+Use `feature/foreground-page-continuity` in both native checkouts and this bridge, with the local
+overrides above. Published Android 0.3.1 / iOS 0.4.1 do not contain this policy yet; update pins after
+publication before releasing these bridge changes.
+
+- Show/dismiss three successive prefetched interstitials: one banner replacement per return,
+  optional blanking until Google responds, no extra analytics `pageImpression`.
+- Compare `page_impression_id`, `au_page_seq`, `au_slot`: unchanged; banner refresh count advances.
+- Navigate during the ad, dismiss while backgrounded, and background/foreground before dismissal:
+  no old-page revival or duplicate reload; no requests while covered/backgrounded.
+- Keep a banner manually paused or off-screen: dismissal must not bypass either hold.
+- Prefetch on A, show on B: interstitial events keep A; banner recovery belongs to B.
+
+The existing bridge page callback is a view lifecycle notification, not evidence that an analytics
+page event was sent. Inspect the collector payload separately.

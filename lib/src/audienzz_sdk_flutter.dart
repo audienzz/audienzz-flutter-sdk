@@ -231,15 +231,14 @@ final class AudienzzSdkFlutter {
       'pageImpression requires a context or a name',
     );
     final screenName = name ?? _deriveScreenName(context!);
-    // Stamp every ad created from here on with this page, and force mounted
     // Stamp synchronously so ads created right after this call belong to this
     // page — the documented ordering is "report the page, then create its ads",
     // and waiting for native's asynchronous echo would stamp them with the
     // previous page, permanently.
     //
     // The epoch bump that drives remounting is NOT done here: it happens once,
-    // when native echoes the impression back, so it also covers the automatic
-    // foreground impression which never passes through this method.
+    // when native emits its view-update callback, so it also covers foreground
+    // and interstitial recovery without reporting another analytics page.
     return activatePage(createAudienzzPage(screenName));
   }
 

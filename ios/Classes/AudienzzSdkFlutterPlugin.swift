@@ -15,7 +15,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         super.init()
     }
 
-    /// Forward native navigation and foreground ad recovery to Dart. This legacy channel is a
+    /// Forward native navigation and foreground/interstitial ad recovery to Dart. This legacy channel is a
     /// view-refresh signal, not an analytics event. The local view revision still advances when
     /// native preserves its page identity on app return.
     ///
@@ -26,7 +26,6 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
     /// forwarding. The manager's channel is a stored property of the manager, which the plugin owns.
     private func observeNativePageImpressions() {
         Audienzz.shared.pageImpressionObserver = { [weak self] name in
-            self?.manager.didReportPageImpression(name)
             DispatchQueue.main.async {
                 self?.manager.channel.invokeMethod("onPageImpression", arguments: ["name": name])
             }

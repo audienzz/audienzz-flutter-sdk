@@ -147,11 +147,9 @@ await interstitial.prefetchAndShow(eligible: canShowAd);
 load and retain ready inventory. Keep the controller alive through dismissal and call `dispose()`
 when its owning scope ends. See [interstitial lifecycle](#interstitial-lifecycle-and-migration).
 
-The bridge holds banner refresh while an SDK interstitial is presented. Dismissal reports the
-current page again and replaces its banners, unless navigation or foreground recovery already
-reported that page visit. Android waits for the host activity to resume if dismissal arrives first.
-Do not add a manual PI in `onAdClosed`. Failed presentation does not create a page impression, and
-dismissal never clears a publisher's manual refresh pause.
+The native SDK holds banner refresh during presentation and recovers banners on dismissal.
+The bridge keeps its cover until Android's host activity has resumed. Neither step reports a new
+analytics page impression or clears a publisher's manual refresh pause.
 
 **Interstitial system bars:** Android interstitials enable Google's immersive mode before
 presentation; the plugin does not change the host activity's window flags. On iOS, keep
@@ -184,6 +182,16 @@ slot's `hb_refresh_count` and gets a fresh auction ID. Visibility, page ownershi
 pause still apply. Do not call `pageImpression` from app-resume callbacks just because the app
 became active. Report actual navigation, including ad-free screens, back navigation and a new
 article. An explicit call still starts a new page impression, even for the same screen.
+
+**Closing an SDK interstitial also keeps the same page.** The native SDK holds banner refresh
+while it is presented, then replaces the active page's banners with the same page ID and sequence.
+Do not call `pageImpression` from its dismissal callback or simply because the covered screen
+reappeared. A navigation that occurred during the ad remains a new page; dismissal does not
+restore the previous page or repeat that navigation's reload. Failed presentation does not force
+a reload. The interstitial's own analytics keep the page captured at prefetch, even if shown on
+another page. These changes require the matching native continuity release; Flutter also needs
+the updated bridge that removes its old dismissal page report.
+
 
 
 ## Overview

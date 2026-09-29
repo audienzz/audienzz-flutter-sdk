@@ -37,7 +37,6 @@ class InterstitialBannerReturnTest {
     private lateinit var host: HostActivity
     private lateinit var banner: Banner
     private val reports = mutableListOf<Pair<String, String>>()
-    private var coveredAtReport = false
     private val callbacks get() = manager.createOverlayAdFullscreenContentListener(2)
 
     @Before
@@ -51,9 +50,6 @@ class InterstitialBannerReturnTest {
         manager.trackAd(mockk<InterstitialAd>(relaxed = true), 2)
         manager.reportPage = { id, name ->
             reports += id to name
-            coveredAtReport = banner.covered
-            // The real plugin observes the native report synchronously before echoing to Dart.
-            manager.didReportPageImpression(id)
         }
         manager.pageImpression("route-1", "Article")
         reports.clear()
@@ -72,39 +68,38 @@ class InterstitialBannerReturnTest {
     }
 
     @Test
-    fun `dismiss then resume reports once before unblocking`() {
+    fun `dismiss then resume releases cover without reporting a page`() {
         open()
         callbacks.onAdDismissedFullScreenContent()
         assertTrue(banner.covered)
         assertTrue(reports.isEmpty())
         host.registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-        assertEquals(listOf("route-1" to "Article"), reports)
-        assertTrue(coveredAtReport)
+        assertTrue(reports.isEmpty())
         assertFalse(banner.covered)
         callbacks.onAdDismissedFullScreenContent()
-        assertEquals(1, reports.size)
+        assertTrue(reports.isEmpty())
     }
 
     @Test
-    fun `resume then dismiss also reports once`() {
+    fun `resume then dismiss also preserves the page`() {
         open()
         host.registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
         assertTrue(reports.isEmpty())
         assertTrue(banner.covered)
         callbacks.onAdDismissedFullScreenContent()
-        assertEquals(listOf("route-1" to "Article"), reports)
-        assertTrue(coveredAtReport)
+        assertTrue(reports.isEmpty())
         assertFalse(banner.covered)
     }
 
     @Test
-    fun `native foreground recovery prevents a second report`() {
-        open()
-        manager.didReportPageImpression("route-1")
-        callbacks.onAdDismissedFullScreenContent()
-        host.registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-        assertTrue(reports.isEmpty())
-        assertFalse(banner.covered)
+    fun `repeated presentation cycles do not report extra pages or retain covers`() {
+        repeat(3) {
+            open()
+            callbacks.onAdDismissedFullScreenContent()
+            host.registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+            assertTrue(reports.isEmpty())
+            assertFalse(banner.covered)
+        }
     }
 
     @Test
@@ -144,7 +139,7 @@ class InterstitialBannerReturnTest {
         manager.disposeAd(2)
         callbacks.onAdDismissedFullScreenContent()
         host.registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-        assertEquals(1, reports.size)
+        assertTrue(reports.isEmpty())
         assertFalse(banner.covered)
     }
 
@@ -158,7 +153,7 @@ class InterstitialBannerReturnTest {
         host.registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         assertTrue(reports.isEmpty())
         host.registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-        assertEquals(1, reports.size)
+        assertTrue(reports.isEmpty())
         assertFalse(banner.covered)
     }
 }

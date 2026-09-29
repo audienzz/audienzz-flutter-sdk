@@ -29,7 +29,7 @@ final class AdInstanceManager {
   AdInstanceManager() {
     methodChannel.setMethodCallHandler(
       (call) async {
-        // Native owns navigation and foreground ad recovery. This legacy
+        // Native owns navigation and foreground/interstitial ad recovery. This legacy
         // channel method is a view-refresh signal, not an analytics event.
         // Recovery keeps native page identity but still remounts AdWidgets.
         if (call.method == 'onPageImpression') {

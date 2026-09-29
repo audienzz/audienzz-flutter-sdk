@@ -38,20 +38,15 @@ final class RunnerTests: XCTestCase {
     var interstitial: FInterstitialAd!
     var google: GoogleAd!
     var reports: [(String, String)] = []
-    var coveredDuringReport = false
 
     override func setUp() {
         super.setUp()
         messenger = Messenger()
         manager = AdInstanceManager(binaryMessenger: messenger)
-        manager.isAppActive = { true }
         banner = Banner(adId: 1)
         manager.loadAd(ad: banner)
         manager.reportPage = { [unowned self] id, name in
             reports.append((id, name))
-            coveredDuringReport = banner.covered
-            // The real plugin's synchronous native page-impression observer does this.
-            manager.didReportPageImpression(id)
         }
         manager.pageImpression(pageId: "route-1", name: "Article")
         reports.removeAll()
@@ -65,8 +60,6 @@ final class RunnerTests: XCTestCase {
     }
 
     override func tearDown() {
-        // No new page during teardown if a test left the native ad open.
-        manager.isAppActive = { false }
         interstitial.adDidDismissFullScreenContent(google)
         interstitial.dispose()
         manager.disposeAllAds()
@@ -75,17 +68,16 @@ final class RunnerTests: XCTestCase {
         super.tearDown()
     }
 
-    func testRealInterstitialDelegatesHoldBannersAndReportOneReturnBeforeUnblocking() {
-        interstitial.adWillPresentFullScreenContent(google)
-        XCTAssertTrue(banner.covered)
-        interstitial.adDidDismissFullScreenContent(google)
-        XCTAssertEqual(reports.count, 1)
-        XCTAssertEqual(reports.first?.0, "route-1")
-        XCTAssertEqual(reports.first?.1, "Article")
-        XCTAssertTrue(coveredDuringReport, "Unblocking first can start an overdue auction before the page replacement")
-        XCTAssertFalse(banner.covered)
-        interstitial.adDidDismissFullScreenContent(google)
-        XCTAssertEqual(reports.count, 1, "Duplicate terminal callback must not re-auction")
+    func testRealInterstitialDelegatesReleaseCoverWithoutReportingAnotherPage() {
+        for _ in 0..<3 {
+            interstitial.adWillPresentFullScreenContent(google)
+            XCTAssertTrue(banner.covered)
+            interstitial.adDidDismissFullScreenContent(google)
+            XCTAssertTrue(reports.isEmpty)
+            XCTAssertFalse(banner.covered)
+            interstitial.adDidDismissFullScreenContent(google)
+            XCTAssertTrue(reports.isEmpty)
+        }
     }
 
     func testBannersCreatedDuringPresentationAreHeldBeforeTheirFirstLoad() {
@@ -97,14 +89,6 @@ final class RunnerTests: XCTestCase {
         XCTAssertFalse(lateBanner.covered)
     }
 
-    func testNativeForegroundImpressionAlreadyOwnsTheReturn() {
-        interstitial.adWillPresentFullScreenContent(google)
-        manager.didReportPageImpression("route-1")
-        interstitial.adDidDismissFullScreenContent(google)
-        XCTAssertTrue(reports.isEmpty)
-        XCTAssertFalse(banner.covered)
-    }
-
     func testNavigationWhilePresentedDoesNotReclaimTheOldPage() {
         interstitial.adWillPresentFullScreenContent(google)
         manager.pageImpression(pageId: "route-2", name: "Settings")
@@ -114,9 +98,8 @@ final class RunnerTests: XCTestCase {
         XCTAssertFalse(banner.covered)
     }
 
-    func testBackgroundDismissalLeavesTheImpressionToNativeForegroundRecovery() {
+    func testDismissalDoesNotRequireAStoredBridgePage() {
         interstitial.adWillPresentFullScreenContent(google)
-        manager.isAppActive = { false }
         interstitial.adDidDismissFullScreenContent(google)
         XCTAssertTrue(reports.isEmpty)
         XCTAssertFalse(banner.covered)

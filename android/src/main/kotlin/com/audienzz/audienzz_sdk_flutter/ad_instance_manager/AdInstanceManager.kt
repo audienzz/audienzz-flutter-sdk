@@ -30,10 +30,8 @@ class AdInstanceManager(private val channel: MethodChannel) {
     private var activity: Activity? = null
     private var hostLifecycle: Lifecycle? = null
     private var hostResumed = false
-    private var currentPage: Pair<String, String>? = null
-    private var pageRevision = 0L
-    private val interstitialPresentations = mutableMapOf<Int, Long>()
-    private var pendingReturnRevision: Long? = null
+    private val interstitialPresentations = mutableSetOf<Int>()
+    private var pendingReturn = false
     internal var reportPage: (String, String) -> Unit = { id, name ->
         AudienzzPrebidMobile.pageImpression(id, name)
     }
@@ -61,28 +59,21 @@ class AdInstanceManager(private val channel: MethodChannel) {
     }
 
     fun pageImpression(pageId: String, name: String) {
-        currentPage = pageId to name
         reportPage(pageId, name)
     }
 
-    /** Every native report, including automatic foreground recovery, owns a new revision. */
-    fun didReportPageImpression(pageId: String) {
-        pageRevision++
-        if (currentPage?.first != pageId) currentPage = null
-    }
-
     private fun beginInterstitialPresentation(adId: Int) {
-        if (adFor(adId) !is InterstitialAd || interstitialPresentations.containsKey(adId)) return
-        interstitialPresentations[adId] = pageRevision
+        if (adFor(adId) !is InterstitialAd || interstitialPresentations.contains(adId)) return
+        interstitialPresentations.add(adId)
         syncBannerCover()
     }
 
     private fun endInterstitialPresentation(adId: Int, dismissed: Boolean) {
         // The publisher may dispose its Dart controller while the native ad is still showing.
         // Match the presentation, not the ad registry, so that cannot strand every banner.
-        val revision = interstitialPresentations.remove(adId) ?: return
+        if (!interstitialPresentations.remove(adId)) return
         if (dismissed) {
-            pendingReturnRevision = revision
+            pendingReturn = true
             completeInterstitialReturn()
         } else {
             syncBannerCover()
@@ -90,18 +81,16 @@ class AdInstanceManager(private val channel: MethodChannel) {
     }
 
     private fun completeInterstitialReturn() {
-        val revision = pendingReturnRevision ?: return
+        if (!pendingReturn) return
         if (!hostResumed || interstitialPresentations.isNotEmpty()) return
-        // Report BEFORE releasing the cover, otherwise an overdue periodic refresh can start
-        // first and immediately be replaced by this page impression. Native cancels its pending
-        // foreground impression; if one already ran, its revision prevents a second report here.
-        if (revision == pageRevision) currentPage?.let { reportPage(it.first, it.second) }
-        pendingReturnRevision = null
+        // Native has already recovered the page under its own hold. Only release the bridge
+        // cover here; a new page report would reset attribution and buy a second auction.
+        pendingReturn = false
         syncBannerCover()
     }
 
     private fun syncBannerCover() {
-        val covered = interstitialPresentations.isNotEmpty() || pendingReturnRevision != null
+        val covered = interstitialPresentations.isNotEmpty() || pendingReturn
         ads.values.filterIsInstance<FullScreenCoverableAd>().forEach { it.setFullScreenCovered(covered) }
     }
 
@@ -124,7 +113,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
         }
 
         ads[adId] = ad
-        if (interstitialPresentations.isNotEmpty() || pendingReturnRevision != null) {
+        if (interstitialPresentations.isNotEmpty() || pendingReturn) {
             (ad as? FullScreenCoverableAd)?.setFullScreenCovered(true)
         }
     }

@@ -530,7 +530,6 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
      */
     private fun observeNativePageImpressions() {
         AudienzzPrebidMobile.pageImpressionObserver = { name ->
-            adInstanceManager?.didReportPageImpression(name)
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 methodChannel?.invokeMethod("onPageImpression", mapOf("name" to name))
             }
