@@ -7,6 +7,7 @@ import 'package:audienzz_sdk_flutter/src/ads/implementation/banner_ad.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/interstitial_ad.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/remote_interstitial_ad.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/rewarded_ad.dart';
+import 'package:audienzz_sdk_flutter/src/audienzz_diagnostics.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
@@ -50,6 +51,15 @@ final class AdInstanceManager {
             lastReportedPage = name;
             lastPageImpressionAt = DateTime.now();
             pageEpoch.value++;
+            // Native also reports interstitial returns and foreground recovery,
+            // bypassing Dart's page-activation log. This confirms the native
+            // report, not analytics delivery; `route` is not the
+            // analytics page_impression_id.
+            AudienzzDiagnostics.log('page', 'impression', {
+              'route': name,
+              'epoch': pageEpoch.value,
+              'source': 'native',
+            });
           }
           return;
         }
