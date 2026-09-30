@@ -8,9 +8,11 @@ import AudienzziOSSDK
 final class RunnerTests: XCTestCase {
     final class Messenger: NSObject, FlutterBinaryMessenger {
         var calls: [FlutterMethodCall] = []
+        var sentOnMainThread: [Bool] = []
         func send(onChannel channel: String, message: Data?) {
             guard let message else { return }
             calls.append(FlutterStandardMethodCodec(readerWriter: AdReaderWriter()).decodeMethodCall(message))
+            sentOnMainThread.append(Thread.isMainThread)
         }
         func send(onChannel channel: String, message: Data?, binaryReply callback: FlutterBinaryReply?) {
             send(onChannel: channel, message: message)
@@ -78,6 +80,65 @@ final class RunnerTests: XCTestCase {
             interstitial.adDidDismissFullScreenContent(google)
             XCTAssertTrue(reports.isEmpty)
         }
+    }
+
+    func testNativeDiagnosticsReachDartOnceOnMainAndRestoreTheSinkOnDisable() {
+        let originalSink = AUDiagnostics.sink
+        let wasEnabled = Audienzz.shared.diagnosticsEnabled
+        var fallback: [String] = []
+        AUDiagnostics.sink = { fallback.append($0) }
+        let plugin = AudienzzSdkFlutterPlugin(binaryMessenger: messenger)
+        func enable(_ enabled: Bool) {
+            plugin.handle(FlutterMethodCall(methodName: "setDiagnosticsEnabled",
+                arguments: ["enabled": enabled])) { _ in }
+        }
+        defer {
+            enable(false)
+            AUDiagnostics.sink = originalSink
+            Audienzz.shared.diagnosticsEnabled = wasEnabled
+        }
+        enable(true)
+        enable(true) // Must not stack forwarding sinks on repeated initialization.
+        let line = "AUDZ slot blank config=test"
+        let forwarded = expectation(description: "background log forwarded on main")
+        DispatchQueue.global().async {
+            AUDiagnostics.sink(line)
+            DispatchQueue.main.async { forwarded.fulfill() }
+        }
+        wait(for: [forwarded], timeout: 2)
+        XCTAssertEqual(messenger.calls.map(\.method), ["onDiagnosticLog"])
+        XCTAssertEqual(messenger.calls.first?.arguments as? String, line)
+        XCTAssertEqual(messenger.sentOnMainThread, [true])
+        XCTAssertTrue(fallback.isEmpty, "Only Dart prints, avoiding duplicate console lines")
+
+        AUDiagnostics.sink("AUDZ slot reveal config=test") // pending main-thread forwarding
+        enable(false)
+        AUDiagnostics.sink("restored sink")
+        let drained = expectation(description: "disabled forwarding drained")
+        DispatchQueue.main.async { drained.fulfill() }
+        wait(for: [drained], timeout: 2)
+        XCTAssertEqual(messenger.calls.count, 1, "Disabling also drops queued diagnostics")
+        XCTAssertEqual(fallback, ["restored sink"])
+    }
+
+    func testDiagnosticForwardingDoesNotRetainThePluginOrReplaceTheSinkAfterTeardown() {
+        let originalSink = AUDiagnostics.sink
+        let wasEnabled = Audienzz.shared.diagnosticsEnabled
+        defer {
+            AUDiagnostics.sink = originalSink
+            Audienzz.shared.diagnosticsEnabled = wasEnabled
+        }
+        var fallback: [String] = []
+        AUDiagnostics.sink = { fallback.append($0) }
+        var plugin: AudienzzSdkFlutterPlugin? = AudienzzSdkFlutterPlugin(binaryMessenger: messenger)
+        weak var weakPlugin = plugin
+        plugin?.handle(FlutterMethodCall(methodName: "setDiagnosticsEnabled",
+            arguments: ["enabled": true])) { _ in }
+        plugin = nil
+        XCTAssertNil(weakPlugin)
+        AUDiagnostics.sink("restored after teardown")
+        XCTAssertEqual(fallback, ["restored after teardown"])
+        XCTAssertTrue(messenger.calls.isEmpty)
     }
 
     func testBannersCreatedDuringPresentationAreHeldBeforeTheirFirstLoad() {

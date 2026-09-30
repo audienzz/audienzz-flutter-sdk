@@ -105,6 +105,13 @@ Diagnostics are **on** in this example. Every decision the SDK makes about a slo
 `AUDZ …` line, and every action you take in the app is an `AUDZ app …` line, so a captured log
 reads back as a sequence without you having to narrate it.
 
+On iOS, use the **Flutter terminal / IDE console** and filter for `AUDZ`. Native
+SDK diagnostics are forwarded through Dart while diagnostics are enabled, so
+`page recovered`, `slot blank`, `auction start/end`, and `slot reveal` appear
+alongside the Dart `page adsUpdated` and viewport lines. This forwarding only logs
+decisions; it does not send analytics events or trigger page impressions. Rebuild
+the iOS app after updating the plugin's Swift code; hot reload is not sufficient.
+
 ```bash
 adb logcat -c && adb logcat -s AUDZ ReactNative ReactNativeJS flutter > audz.log     # Android
 xcrun simctl spawn booted log stream --style compact \

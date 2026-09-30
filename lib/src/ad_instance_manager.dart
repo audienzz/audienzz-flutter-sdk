@@ -29,6 +29,16 @@ final class AdInstanceManager {
   AdInstanceManager() {
     methodChannel.setMethodCallHandler(
       (call) async {
+        // iOS forwards native diagnostics through Dart so flutter run / IDE logs
+        // include the same slot decisions as Android logcat. Keep the formatted
+        // line intact; it must not become another page/ad event.
+        if (call.method == 'onDiagnosticLog') {
+          final line = call.arguments;
+          if (AudienzzDiagnostics.isEnabled && line is String) {
+            AudienzzDiagnostics.sink(line);
+          }
+          return;
+        }
         // Native owns navigation and foreground/interstitial ad recovery. This legacy
         // channel method is a view-refresh signal, not an analytics event.
         // Recovery keeps native page identity but still remounts AdWidgets.

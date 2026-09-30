@@ -177,8 +177,9 @@ final class AudienzzSdkFlutter {
   /// stack — the Dart decision (focus, viewport gate) and the native
   /// consequence (auction, refresh block) appear in one stream.
   ///
-  /// Collect with `flutter logs`, `adb logcat -s flutter` or the Xcode console;
-  /// route it elsewhere with [AudienzzDiagnostics.sink].
+  /// On iOS, native lines are forwarded to [AudienzzDiagnostics.sink], so they
+  /// appear in `flutter run` / IDE output alongside Dart diagnostics. On Android,
+  /// capture both tags with `adb logcat -s AUDZ flutter`.
   // ignore: avoid_positional_boolean_parameters
   Future<void> setDiagnosticsEnabled(bool enabled) {
     AudienzzDiagnostics.isEnabled = enabled;
@@ -300,4 +301,3 @@ final class AudienzzSdkFlutter {
     );
   }
 }
-

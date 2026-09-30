@@ -8,11 +8,45 @@ private let flutterSdkVersion = "0.1.9"
 public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
     private var manager: AdInstanceManager
     private var targetingWrapper: AudienzzTargetingWrapper
+    private var previousDiagnosticsSink: ((String) -> Void)?
 
     init(binaryMessenger: FlutterBinaryMessenger) {
         manager = AdInstanceManager(binaryMessenger: binaryMessenger)
         targetingWrapper = AudienzzTargetingWrapper()
         super.init()
+    }
+
+    deinit {
+        restoreDiagnosticsSink()
+    }
+
+    public func detachFromEngine(for registrar: FlutterPluginRegistrar) {
+        restoreDiagnosticsSink()
+    }
+
+    private func restoreDiagnosticsSink() {
+        guard let sink = previousDiagnosticsSink else { return }
+        AUDiagnostics.sink = sink
+        previousDiagnosticsSink = nil
+    }
+
+    private func setDiagnosticsEnabled(_ enabled: Bool) {
+        if enabled, previousDiagnosticsSink == nil {
+            previousDiagnosticsSink = AUDiagnostics.sink
+            // Swift stdout is not reliably captured by flutter run / the IDE on iOS.
+            // Use Dart's diagnostic sink as the single output while enabled, including
+            // for native analytics queue messages emitted on a background thread.
+            AUDiagnostics.sink = { [weak self] line in
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.previousDiagnosticsSink != nil,
+                          Audienzz.shared.diagnosticsEnabled else { return }
+                    self.manager.channel.invokeMethod("onDiagnosticLog", arguments: line)
+                }
+            }
+        } else if !enabled {
+            restoreDiagnosticsSink()
+        }
+        Audienzz.shared.diagnosticsEnabled = enabled
     }
 
     /// Forward native navigation and foreground/interstitial ad recovery to Dart. This legacy channel is a
@@ -915,7 +949,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         case "setDiagnosticsEnabled":
             if let args = call.arguments as? [String: Any],
                let enabled = args["enabled"] as? Bool {
-                Audienzz.shared.diagnosticsEnabled = enabled
+                setDiagnosticsEnabled(enabled)
             }
             result(nil)
 
