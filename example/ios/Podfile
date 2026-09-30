@@ -47,11 +47,13 @@ target 'Runner' do
   # PrebidMobile and Protobuf are forced back to dynamic in pre_install above.
   use_frameworks! :linkage => :static
 
-  # Published native SDK by default. For local development only, set
-  # AUDIENZZ_IOS_SDK_PATH to the native checkout before pod install.
-  # See LOCAL_TESTING.md; never commit a lockfile containing that local path.
-  audienzz_local_ios_sdk = ENV['AUDIENZZ_IOS_SDK_PATH']
-  if audienzz_local_ios_sdk && !audienzz_local_ios_sdk.empty?
+  # Testing branch: use the sibling native checkout. An empty environment override
+  # selects the published pin; the plugin podspec itself keeps its release dependency.
+  audienzz_local_ios_sdk = ENV.fetch('AUDIENZZ_IOS_SDK_PATH', '../../../audienzz-ios-sdk')
+  unless audienzz_local_ios_sdk.empty?
+    unless File.file?(File.expand_path(File.join(audienzz_local_ios_sdk, 'AudienzziOSSDK.podspec'), __dir__))
+      raise "Audienzz native checkout not found at #{audienzz_local_ios_sdk}. See LOCAL_TESTING.md."
+    end
     Pod::UI.puts "[Audienzz] using LOCAL iOS SDK at #{audienzz_local_ios_sdk}".yellow
     pod 'AudienzziOSSDK', :path => audienzz_local_ios_sdk
   else

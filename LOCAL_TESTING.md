@@ -1,56 +1,54 @@
 # Running this example against the LOCAL native SDKs
 
-The committed pins are `com.audienzz:sdk:0.3.1` and `AudienzziOSSDK ~> 0.4.1`.
-**On `feature/durable-analytics-batching`, use matching local native checkouts for builds:**
-the new `applyBackendAnalyticsConfig` bridge call is not in those published releases yet.
-Update both native pins after publication before releasing this Flutter branch.
+On `feature/page-impression-api`, the example uses local native SDKs:
+`../audienzz-android-sdk` and `../audienzz-ios-sdk` (relative to this repository).
+Publish Android locally as described below; iOS links directly to source. Use current native
+`main` branches, which include analytics batching, foreground/interstitial
+page continuity, and cold-start attribution fixes. The library package pins remain Android
+`0.3.1` / iOS `~> 0.4.1`; those published versions predate these changes. Publish new natives
+and update the package pins before releasing this wrapper.
 
-Flutter fetches publisher configuration in Dart and forwards the optional top-level
-`analyticsBatchSize` field to the native sender. Missing, null, blank, invalid or nonpositive
-values use 10; positive integers are capped at 15. The backend controls this setting; no new
-public initialization argument is required. Native still owns persistence, batching and retries.
-The overrides below select the matching native changes for verification.
+Flutter forwards backend `analyticsBatchSize` to the native sender: missing/invalid values
+use 10, and positive integers are capped at 15. Native owns persistence, batching and retries.
 
-## Android — one Gradle property
+## Android — local Maven build
 
-Publish the native SDK to your local Maven repository once:
-
-```bash
-cd ~/Documents/audienzz-android-sdk
-sed -i '' 's/audienzzSdkVersion = "0.3.1"/audienzzSdkVersion = "0.3.1-local"/' Audienzz/build.gradle.kts
-./gradlew :Audienzz:publishToMavenLocal
-```
-
-After publishing a local build, add this temporary override to `example/android/gradle.properties`
-(or pass `-PaudienzzNativeVersion=0.3.1-local` when invoking Gradle):
-
-```properties
-audienzzNativeVersion=0.3.1-local
-```
-
-That property is what switches `android/build.gradle` over and adds `mavenLocal()`. **Delete the
-line to go back to the published pin**, and before releasing — the default in `android/build.gradle`
-is `0.3.1`, so nothing about the shipped package depends on it.
-
-Re-publish after every native change; Gradle caches by version, so either re-publish over
-`0.3.1-local` or bump the suffix.
-
-## iOS — one environment variable
+The example's `gradle.properties` selects `audienzzNativeVersion=0.3.1-local`.
+Publish current native sources before the first build, and again after native edits:
 
 ```bash
-export AUDIENZZ_IOS_SDK_PATH=~/Documents/audienzz-ios-sdk
-cd audienzz-flutter-sdk/example/ios && pod install
+cd ../audienzz-android-sdk
+./gradlew :Audienzz:publishToMavenLocal \
+  -I ../audienzz-flutter-sdk/example/android/publish-local-native.gradle
+cd ../audienzz-flutter-sdk/example/android
+./gradlew :app:dependencyInsight --dependency com.audienzz:sdk \
+  --configuration debugRuntimeClasspath --refresh-dependencies
 ```
 
-To go back:
+The init script changes only the local publication coordinate and disables signing for that
+local build. It does not edit the native release version or publish anything remotely. Resolution
+must show `com.audienzz:sdk:0.3.1-local`. Keep the property set while testing so a plain app rebuild
+continues using the local artifact. Republish and use `--refresh-dependencies` after native edits;
+hot reload does not replace native code. A missing local artifact fails dependency resolution.
+
+Direct Gradle source substitution is not used: native and wrapper builds use different Android
+Gradle plugin versions. To verify a future published release, remove `audienzzNativeVersion`
+and update the library's released dependency pin first.
+
+## iOS — local development pod
+
+The example Podfile defaults to `../../../audienzz-ios-sdk`:
 
 ```bash
-unset AUDIENZZ_IOS_SDK_PATH
-cd audienzz-flutter-sdk/example/ios && pod install
+cd example/ios
+pod install
 ```
 
-`pod install` prints when it uses the local checkout. The environment variable lets you switch
-sources without editing the committed `Podfile`; the generated lockfile records the selected source.
+It prints `[Audienzz] using LOCAL iOS SDK`. CocoaPods compiles sources from that checkout.
+Rebuild after native edits; rerun `pod install` after adding/removing native source files.
+`AUDIENZZ_IOS_SDK_PATH=/another/checkout pod install` selects a different checkout.
+An empty override (`AUDIENZZ_IOS_SDK_PATH='' pod install`) selects the released dependency.
+Keep the same override on subsequent CocoaPods/Flutter invocations when testing a released SDK.
 
 ## Run
 
@@ -182,7 +180,7 @@ Native `0.3.0` can latch `APP_BACKGROUND` after a translucent Google `AdActivity
 initialization missed the host's first start, and returning only resumes it. Android `0.3.1`,
 selected by default, also records resumed/paused activities as started and fixes this case.
 Dismissal recovery cannot override an incorrect native background verdict. Rebuild and reinstall
-the app against the published pin before testing; no local override is required.
+the app against local native main for the updated return behavior.
 
 Verify this exact sequence on a clean launch:
 
@@ -240,30 +238,30 @@ matches the `page impression` before it, then at `refresh block … held=`.
 
 ## A note on `Podfile.lock`
 
-`example/ios/Podfile.lock` is generated locally and ignored by Git. Running `pod install` with
-`AUDIENZZ_IOS_SDK_PATH` set records your checkout in it. To return to the published dependency,
-unset the variable and run `pod update AudienzziOSSDK` from `example/ios`.
+`example/ios/Podfile.lock` is generated locally and ignored by Git.
+Keep it in sync with `Pods/Manifest.lock` by running `pod install` after changing sources.
+Restoring only one lockfile causes Xcode's "sandbox is not in sync" build failure.
 
 ## Before releasing
 
-1. Delete `audienzzNativeVersion` from `example/android/gradle.properties`.
-2. `unset AUDIENZZ_IOS_SDK_PATH` and `pod install`.
-3. After publishing the batching native releases, update both bridge pins and build both platforms
-   against those published dependencies. No local override should be active. The current
-   0.3.1 / 0.4.1 pins predate this branch's config-forwarding API.
+1. Publish the native changes and update both library dependency pins.
+2. Remove the example's `audienzzNativeVersion` property and restore the Podfile's released default.
+3. Run `pod install`, rebuild both platforms against the published dependencies, and rerun the
+   bridge suites. No local native source override should remain active in release verification.
 
 ## Published native fixes and analytics checks
 
-Android `0.3.1` and iOS `0.4.1`, selected by default, include immediate analytics delivery
+Published Android `0.3.1` and iOS `0.4.1` include immediate analytics delivery
 with persistent retries, page-impression attribution, adaptive banner fixes, and banner-only
 slot numbering. iOS includes the HTTP-204 analytics fix and late adaptive-size notifications;
 Android includes Prebid-outage fallback and foreground recovery after translucent interstitials.
-No local native checkout is required. Rebuild and reinstall the example after upgrading;
+This testing branch uses local native main for the newer changes. Rebuild and reinstall;
 hot reload does not replace the native SDKs.
 
 For analytics checks, configure the device network proxy, enable SSL proxying for
 `api.adnz.co:443`, and filter Charles for `/api/ws-clickstream-collector/submit/batch`.
-The native SDKs send each event immediately after persistence, with one request in flight.
+The local native SDKs persist events and batch by auction after 2 seconds without new events.
+The backend batch cap defaults to 10 and cannot exceed 15, with one request in flight.
 With diagnostics enabled, they log
 `AUDZ analytics queued/sending/sent/failed/retryScheduled/dropped` without event payloads.
 `sent` confirms HTTP success, not dashboard ingestion.
@@ -289,9 +287,9 @@ A zero IDFA after Deny is expected; do not use it as proof that ad loading faile
 
 ## Same-page interstitial return (unreleased)
 
-Use `feature/foreground-page-continuity` in both native checkouts and this bridge, with the local
-overrides above. Published Android 0.3.1 / iOS 0.4.1 do not contain this policy yet; update pins after
-publication before releasing these bridge changes.
+Use current native `main` in both sibling checkouts and this wrapper branch. Published Android
+0.3.1 / iOS 0.4.1 do not contain this policy yet; update pins after publication before releasing
+these bridge changes.
 
 - Show/dismiss three successive prefetched interstitials: one banner replacement per return,
   optional blanking until Google responds, no extra analytics `pageImpression`.

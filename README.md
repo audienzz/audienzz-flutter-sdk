@@ -3,8 +3,10 @@ Audienzz SDK Flutter
 
 > **Native dependencies:** Android `com.audienzz:sdk:0.3.1` (Maven Central) and
 > iOS `AudienzziOSSDK ~> 0.4.1` (CocoaPods). These releases provide the page ownership,
-> refresh and interstitial APIs used by this bridge. The examples use published dependencies
-> by default. Optional local development overrides are described in [LOCAL_TESTING.md](LOCAL_TESTING.md).
+> refresh and interstitial APIs. **This testing branch builds the examples from the sibling
+> Android/iOS native checkouts on `main`**, including the newer batching, page-continuity and
+> cold-start fixes. See [LOCAL_TESTING.md](LOCAL_TESTING.md). Update the package pins to new native
+> releases before publishing this wrapper.
 
 > These native releases include adaptive banner fixes, banner-only slot numbering,
 > immediate analytics delivery with durable retries, and page-impression attribution.
