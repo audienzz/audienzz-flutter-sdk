@@ -37,6 +37,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
+    // Let visibility polling see the route's completed transition layout.
+    await tester.pump(const Duration(milliseconds: 500));
   }
 
   setUp(() {
@@ -45,6 +47,20 @@ void main() {
     delayedSize = null;
     AudienzzPageRegistry.instance.resetForTesting();
     adInstanceManager.currentPage = null;
+    AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([
+      RemoteAdConfiguration.fromJson({
+        'id': '46',
+        'config': {'adType': 'banner', 'refreshTimeSeconds': 7},
+        'gamConfig': {
+          'adUnitPath': '/fixture/remote-banner',
+          'adSizes': ['300x250'],
+        },
+        'prebidConfig': {
+          'placementId': 'remote-placement',
+          'adSizes': ['300x250'],
+        },
+      }),
+    ]);
     messenger
       ..setMockMethodCallHandler(channel, (call) async {
         calls.add(call);
@@ -65,10 +81,57 @@ void main() {
   });
 
   tearDown(() {
+    AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting(null);
     messenger
       ..setMockMethodCallHandler(channel, null)
       ..setMockMethodCallHandler(SystemChannels.platform_views, null);
   });
+
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    testWidgets(
+      '$platform test destination forwards backend refresh and mounts its lazy banner',
+      (tester) async {
+        await open(tester);
+
+        final load = calls.singleWhere((c) => c.method == 'loadBannerAd');
+        final args = load.arguments as Map;
+        expect(args['adUnitId'], '/fixture/remote-banner');
+        expect(args['auConfigId'], 'remote-placement');
+        expect(args['refreshTimeInterval'], 7000);
+        expect(args['smartRefresh'], isTrue);
+        expect(args['isLazyLoad'], isTrue);
+        expect(args['prefetchMargin'], 200);
+        // No onAdLoaded has been delivered. A lazy ad must already be mounted
+        // so native prefetch can evaluate its position and start the first request.
+        expect(find.byType(AdWidget), findsOneWidget);
+        await messenger.handlePlatformMessage(
+          Constants.methodChannelName,
+          codec.encodeMethodCall(
+            MethodCall('onAdEvent', {
+              'adId': args['adId'],
+              'eventName': 'onAdLoaded',
+            }),
+          ),
+          (_) {},
+        );
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        // Once the loading indicator is removed, the visible creative must
+        // allow the native eligible-time clock to run.
+        final visible = calls
+            .where((c) => c.method == 'setBannerViewportVisible')
+            .map((c) => c.arguments as Map)
+            .where((a) => a['adId'] == args['adId'])
+            .toList();
+        expect(visible, isNotEmpty);
+        expect(visible.last['visible'], isTrue);
+
+        await tester.pumpWidget(const SizedBox());
+        expect(calls.where((c) => c.method == 'disposeAd'), hasLength(1));
+      },
+      variant: TargetPlatformVariant.only(platform),
+    );
+  }
 
   testWidgets(
       'banner button destination has Material styling, back navigation and correct page ownership',

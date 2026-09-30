@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 ///
 /// Owns its Scaffold for every entry point. The page wrapper and navigator observer share one
 /// identity, and the banner waits for that page to be active before loading.
+/// Uses remote placement 46 so its refresh interval and lazy loading come from the backend,
+/// just like the main screen's banner.
 class TestScreenExample extends StatelessWidget {
   const TestScreenExample({super.key});
 
@@ -66,14 +68,9 @@ class _TestScreenContentState extends State<_TestScreenContent> {
       _adSize = null;
     });
 
-    _banner = BannerAd(
+    _banner = RemoteBannerAd(
+      configId: '46',
       pageKey: page!.page.id,
-      adUnitId: '/96628199/de_audienzz.ch_v2/multi-size',
-      auConfigId: 'wuobgeuc',
-      sizes: const {
-        AdSize(height: 250, width: 300),
-        AdSize(height: 50, width: 320),
-      },
       onAdLoaded: (ad) async {
         if (!mounted || !identical(ad, _banner)) return;
         log('[TestScreen] banner loaded: ${ad.adUnitId}');
