@@ -13,6 +13,11 @@ Testing Android with Charles? Use the example's debug build and follow the
 [Charles setup](LOCAL_TESTING.md#charles-ssl-proxying-on-android), including the Dart proxy flags
 if you also want to inspect remote-configuration requests.
 
+> **Upcoming refresh timing:** native `main` now counts eligible time only, with a backend interval
+> defaulting to 10 seconds. The pinned native releases above still use wall-clock timing (and the
+> old 30-second clamp). Test the new timing using [local natives](LOCAL_TESTING.md); production
+> adoption requires the next native releases and updated wrapper pins.
+
 ## Quick integration (remote config + `pageImpression`)
 
 The recommended path: Audienzz supplies your publisher and placement IDs, the backend configures
@@ -332,16 +337,19 @@ The SDK polls the ad's position every 500 ms using Flutter's `RenderBox.localToG
 - **iOS** — UIKit already moves its views during scroll, but the polling approach keeps parity with the Android implementation and avoids UIScrollView ancestor look-ups.
 - **Android** — Flutter does not physically move the embedded `AdManagerAdView` when a `ListView` or `SingleChildScrollView` scrolls (it applies compositor-level clipping instead). Native visibility APIs (`getGlobalVisibleRect`, `getLocationOnScreen`) therefore always report the view's original position. The Flutter coordinate-space polling works around this limitation entirely. No `ScrollController` needs to be wired up by the caller.
 
-#### Stale-aware resume
+#### Eligible-time resume (upcoming native release)
 
-When the ad scrolls back into view the SDK checks how long it was off-screen:
+Periodic refresh counts **only time when the banner is eligible to refresh**: its page is active,
+the app is foregrounded, the viewport gate allows it, and no attachment, cover or publisher hold
+blocks it. Pausing preserves accrued time. With a 10-second interval, 6 eligible seconds followed
+by 40 hidden seconds leave 4 eligible seconds before the next request. A fresh interval starts
+after each request completes; time spent loading does not count.
 
-| State | Action |
-|---|---|
-| **Stale** — hidden ≥ refresh interval | Fetches new demand immediately, then resumes normal auto-refresh. |
-| **Fresh** — hidden < refresh interval | Waits the remaining interval, then fetches and resumes auto-refresh. |
-
-This means the refresh cycle is never reset to zero when the ad returns — it continues from where it left off.
+Remote banners read `config.refreshTimeSeconds` from the backend: missing/null defaults to **10
+seconds**, `0` disables periodic refresh, and positive values are honored without the former
+30-second minimum. An explicit backend value of `30` still means 30 eligible seconds. Initial
+prefetch, explicit page changes, foreground recovery and interstitial-dismissal recovery keep
+their existing behavior. No publisher timer is needed.
 
 #### Usage
 
@@ -352,7 +360,7 @@ final banner = BannerAd(
   adUnitId: 'YOUR_AD_UNIT_ID',
   auConfigId: 'YOUR_AU_CONFIG_ID',
   sizes: {const AdSize(width: 320, height: 50)},
-  refreshTimeInterval: 30000, // 30-second refresh cycle
+  refreshTimeInterval: 10000, // 10 eligible seconds with the upcoming native release
   isLazyLoad: true,
   smartRefresh: true,
   onAdLoaded: (_) {},
@@ -382,7 +390,7 @@ await AudienzzSdkFlutter.instance.pauseAllAutoRefresh();
 await AudienzzSdkFlutter.instance.resumeAllAutoRefresh();
 ```
 
-Resume is stale-aware: it keeps the existing refresh cycle rather than restarting the interval from zero.
+With the upcoming native release, resume continues the remaining eligible interval; paused time does not count.
 
 > **Note:** These methods act on banner auto-refresh only, and require the banner to have been loaded with a `refreshTimeInterval`. They work whether or not `smartRefresh` is enabled.
 
@@ -847,7 +855,7 @@ await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
 | `refreshTimeInterval` | `int?`                                       | Refresh time in milliseconds. Optional.                                 |
 | `isLazyLoad`          | `bool`                                       | If true, defers ad loading until the view is visible. Requires `smartRefresh: true` (coerced off otherwise). Default: `false`. |
 | `prefetchMargin`      | `int`                                        | Logical pixels before the view enters the viewport at which the demand fetch begins. Maps to `prefetchMarginPoints` on iOS and `prefetchMarginDp` on Android. Has no practical effect inside `ListView`/`GridView`. Default: `200`. |
-| `smartRefresh`        | `bool`                                       | If true, pauses auto-refresh when < 20 % of the ad height is visible and resumes — with stale-aware timing — when it returns. Requires `refreshTimeInterval`. Default: `false`. |
+| `smartRefresh`        | `bool`                                       | If true, gates refresh on the selected v1/v2 viewport rule. The upcoming native release preserves elapsed eligible time across pauses. Requires `refreshTimeInterval`. Default: `false`. |
 | `adFormat`            | `AdFormat`                                   | Desired ad format (banner, video, or both). Default: `AdFormat.banner`. |
 | `apiParameters`       | `Set<ApiParameter>`                          | API frameworks for bid response. Default: `{mraid3, omid1}`.            |
 | `protocols`           | `Set<Protocol>`                              | Supported video protocols. Optional.                                    |
@@ -867,7 +875,7 @@ await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
 | `getPlatformAdSize()` | `Future<AdSize?>`                            | Gets the ad size assigned on the platform.                              |
 | `load()`              | `Future<void>`                               | Loads the ad.                                                           |
 | `pauseAutoRefresh()`  | `Future<void>`                               | Pauses auto-refresh for this banner (e.g. when an overlay covers it). Requires `refreshTimeInterval`. |
-| `resumeAutoRefresh()` | `Future<void>`                               | Resumes auto-refresh for this banner, with stale-aware timing.          |
+| `resumeAutoRefresh()` | `Future<void>`                               | Resumes auto-refresh; the upcoming native release counts only remaining eligible time.          |
 
 ## InterstitialAd (extends AdWithoutView)
 

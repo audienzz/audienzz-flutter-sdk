@@ -2,9 +2,10 @@
 
 Changes to **when** a banner spends a request.
 
-Sections 2 and 3 remain **proposals**: nothing in them is implemented, and the correctness fixes
-that ship alongside this document deliberately do not touch refresh timing. Section 1 has been
-partly superseded by shipped work and is marked accordingly.
+Sections 2 and 3 remain **proposals**: the first-impression gate and its recovery deadline are not
+implemented. Eligible-time refresh has since been implemented separately in native `main` (pending
+release); it excludes hidden time without requiring a Google impression callback. Section 1 has
+been partly superseded by shipped work and is marked accordingly.
 
 Each proposal is written so it can be rejected on its own. All of them need the show-rate metric
 definition settled first — without the numerator and denominator we cannot tell whether any of them
@@ -103,12 +104,12 @@ keeps working unchanged and is deprecated on a normal deprecation cycle, not swi
 
 ## 2. Do not replace a creative that was never seen
 
-### What is wrong today
+### Original problem and current status
 
-The refresh interval is measured from load completion and keeps counting while the ad is hidden. A
-creative prefetched at T0 and first reached at T0+35s is already overdue when the user arrives, so
-it is replaced immediately — having never rendered. That slot spent two requests to produce one
-impression.
+The earlier wall-clock interval kept counting while an ad was hidden, so a prefetched creative
+could be overdue on first visibility and replaced before rendering. Eligible-time refresh in
+native `main` now excludes that hidden time. The separate first-impression gate below is still a
+proposal: eligibility alone does not prove Google recorded an impression.
 
 ### Proposal
 
@@ -122,8 +123,9 @@ One new state on the refresh controller: `awaitingFirstImpression`.
 **This is not viewable-time accounting, and the distinction matters.** Waiting for the first
 impression waits for a single discrete event that the ad server already reports. It needs no timer
 tick, no visibility integration, no per-frame accumulation and no new threshold. Accumulating
-visible time — "refresh only after N seconds of ≥50% visibility" — is a different, much larger
-change that was deliberately excluded from the refresh migration and stays excluded here.
+eligible time is a separate rule, now implemented using the existing viewport and lifecycle gates.
+This proposal would add a first-impression requirement on top of that rule; it does not introduce
+a new visibility threshold.
 
 ### Risk
 

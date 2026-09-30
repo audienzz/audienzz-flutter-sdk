@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Remote banner interval fallback is now 10 seconds when backend `refreshTimeSeconds` is missing/null.
+  Backend values remain authoritative; 0 disables periodic refresh. Eligible-time accounting and
+  removal of the old native 30-second clamp require the next native releases (or local native
+  testing); published Android 0.3.2 / iOS 0.4.2 pins are unchanged.
+
 - Requires AudienzziOSSDK `~> 0.4.2` and `com.audienzz:sdk:0.3.2`.
 - Examples now resolve the published native releases by default; local native builds require
   an explicit override. The iOS example resolves the native SDK through CocoaPods trunk.

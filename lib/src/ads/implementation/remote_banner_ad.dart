@@ -50,8 +50,8 @@ final class RemoteBannerAd extends BannerAd {
           // Ad config -> SDK default, for both delivery settings.
           isLazyLoad: _getLazyLoad(configId),
           prefetchMargin: _getPrefetchMargin(configId),
-          // Always enable smart refresh for remote-config banners: pause auto-refresh
-          // when the ad scrolls off-screen, resume (or force-refresh if stale) on return.
+          // Always enable smart refresh for remote-config banners: count refresh time only
+          // while eligible, pausing off-screen and resuming the remainder on return.
           smartRefresh: true,
         );
 
@@ -86,7 +86,7 @@ final class RemoteBannerAd extends BannerAd {
     return _getConfig(configId)?.prebidConfig.placementId ?? '';
   }
 
-  static const _defaultRefreshSeconds = 30;
+  static const _defaultRefreshSeconds = 10;
   static const _defaultPrefetchMargin = 200;
 
   /// Lazy when the ad config says nothing, like every other platform.
@@ -103,16 +103,17 @@ final class RemoteBannerAd extends BannerAd {
   }
 
   static int _getRefreshTime(String configId) {
-    // Fall back to 30 s when refreshTimeSeconds is absent or null in the remote payload.
-    final seconds =
-        _getConfig(configId)?.config.refreshTimeSeconds ?? _defaultRefreshSeconds;
+    // Fall back to 10 s when refreshTimeSeconds is absent or null in the remote payload.
+    final seconds = _getConfig(configId)?.config.refreshTimeSeconds ??
+        _defaultRefreshSeconds;
     return seconds * 1000;
   }
 
   static int _getPrefetchMargin(String configId) {
     // Fall back to 200 logical pixels when prefetchDistanceDp is absent or null.
     // Maps to prefetchMarginDp on Android and prefetchMarginPoints on iOS.
-    return _getConfig(configId)?.config.prefetchDistanceDp ?? _defaultPrefetchMargin;
+    return _getConfig(configId)?.config.prefetchDistanceDp ??
+        _defaultPrefetchMargin;
   }
 
   static bool _getIsAdaptive(String configId) {

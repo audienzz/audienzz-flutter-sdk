@@ -8,6 +8,19 @@ per creative. Local native testing is an explicit opt-in described below.
 Flutter forwards backend `analyticsBatchSize` to the native sender: missing/invalid values
 use 10, and positive integers are capped at 15. Native owns persistence, batching and retries.
 
+## Testing eligible-time refresh from native `main`
+
+This behavior is not in the default Android `0.3.2` / iOS `0.4.2` pins. Use the local overrides
+below on both platforms. Remote banners use backend `config.refreshTimeSeconds`, default 10 when
+missing/null; explicit backend values remain authoritative and 0 disables periodic refresh.
+
+With the backend interval set to 10 seconds, wait for a banner to finish loading, keep it eligible
+for 6 seconds, scroll it out for 40 seconds, then return. There must be no off-screen request and
+no immediate refresh on return; the next request needs the remaining 4 eligible seconds. Repeat
+with overlapping cover/publisher holds. An in-flight request starts a fresh interval only when it
+completes. Page navigation, app foreground and interstitial dismissal still perform their explicit
+recovery separately from periodic timing.
+
 ## Android — optional local Maven build
 
 Published Android `0.3.2` is the default. To test native edits, publish the sibling checkout:

@@ -7,12 +7,14 @@ import 'package:flutter_test/flutter_test.dart';
 /// only: the ad config's `lazyLoad` and `prefetchDistanceDp`, else the SDK
 /// defaults. There is no publisher argument for either.
 void main() {
-  RemoteAdConfiguration config({bool? lazyLoad, int? prefetchDistanceDp}) {
+  RemoteAdConfiguration config(
+      {bool? lazyLoad, int? prefetchDistanceDp, int? refreshTimeSeconds}) {
     return RemoteAdConfiguration.fromJson({
       'id': 'remote-banner',
       'config': {
         'adType': 'banner',
-        'refreshTimeSeconds': 30,
+        if (refreshTimeSeconds != null)
+          'refreshTimeSeconds': refreshTimeSeconds,
         if (lazyLoad != null) 'lazyLoad': lazyLoad,
         if (prefetchDistanceDp != null)
           'prefetchDistanceDp': prefetchDistanceDp,
@@ -28,9 +30,15 @@ void main() {
     });
   }
 
-  void seed({bool? lazyLoad, int? prefetchDistanceDp}) {
+  void seed(
+      {bool? lazyLoad, int? prefetchDistanceDp, int? refreshTimeSeconds}) {
     AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting(
-      [config(lazyLoad: lazyLoad, prefetchDistanceDp: prefetchDistanceDp)],
+      [
+        config(
+            lazyLoad: lazyLoad,
+            prefetchDistanceDp: prefetchDistanceDp,
+            refreshTimeSeconds: refreshTimeSeconds)
+      ],
     );
   }
 
@@ -56,6 +64,7 @@ void main() {
         reason: 'lazy by default, like every other platform',
       );
       expect(ad.prefetchMargin, 200);
+      expect(ad.refreshTimeInterval, 10000);
     });
 
     test('the ad config overrides the sdk defaults', () {
@@ -63,6 +72,23 @@ void main() {
       final ad = build();
       expect(ad.isLazyLoad, isTrue);
       expect(ad.prefetchMargin, 600);
+    });
+
+    test('backend seconds reach the bridge in milliseconds, including zero',
+        () {
+      for (final seconds in [5, 10, 17, 600, 0]) {
+        seed(refreshTimeSeconds: seconds);
+        expect(build().refreshTimeInterval, seconds * 1000);
+      }
+    });
+
+    test('null refresh seconds uses the ten-second fallback', () {
+      final json = config().toJson();
+      (json['config'] as Map<String, dynamic>)['refreshTimeSeconds'] = null;
+      AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting(
+        [RemoteAdConfiguration.fromJson(json)],
+      );
+      expect(build().refreshTimeInterval, 10000);
     });
 
     test('a backend eager choice wins over nothing', () {
