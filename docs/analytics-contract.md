@@ -8,21 +8,22 @@ company/website mapping moves to the collector; plain-decimal CPM with source-sp
 omitted; iOS impressions guarded per creative. Stock Prebid iOS cannot expose exact bid economics,
 so those fields remain absent. Attribute values remain JSON strings.
 
-The required native versions are Android `0.3.1` and iOS `0.4.1`, selected by this bridge.
+This bridge selects Android `0.3.2` and iOS `0.4.2`, including those additions and the lifecycle
+and batching behavior below.
 Rebuild and reinstall the app after upgrading; Dart/JS reloads do not apply native analytics fixes.
-See the contract for page-impression ownership, immediate durable delivery, legacy payload handling
+See the contract for page-impression ownership, durable auction-based batching, legacy payload handling
 and outstanding client/backend checks.
 
 Ad events retain the `page_impression_id` and screen name captured at request start. A new page
-impression (including returning to a screen) creates a new ID; refreshes keep the current visit ID.
+impression on real navigation (including back navigation) creates a new ID. Foreground and
+interstitial returns recover banners without a new page event; refreshes keep the current visit ID.
 An interstitial prefetched on A and shown on B keeps A's ID throughout. Report the page before
 loading ads; a request made before the first page report has no page ID. No manual ID propagation
 is needed in Dart/JS. These guarantees are included in the required native releases.
 
-### Interstitial dismissal (unreleased)
+### Interstitial dismissal
 
-Requires the matching native and bridge changes on `feature/foreground-page-continuity`,
-not the released 0.3.1 / 0.4.1 pins above.
+Included in the native releases selected by this bridge.
 
 SDK interstitial presentation captures the active ad revision separately from the prefetch page
 used by its analytics. Banners (including newly registered ones) are held while the ad covers them.

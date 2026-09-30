@@ -1,16 +1,13 @@
 Audienzz SDK Flutter
 ========
 
-> **Native dependencies:** Android `com.audienzz:sdk:0.3.1` (Maven Central) and
-> iOS `AudienzziOSSDK ~> 0.4.1` (CocoaPods). These releases provide the page ownership,
-> refresh and interstitial APIs. **This testing branch builds the examples from the sibling
-> Android/iOS native checkouts**, including the newer batching, page-continuity and
-> cold-start fixes. See [LOCAL_TESTING.md](LOCAL_TESTING.md). Update the package pins to new native
-> releases before publishing this wrapper.
-
-> Rebuild after native changes; hot reload does not replace native SDKs. The automatic
-> return behavior below requires the newer native code; the published `0.3.1` / `0.4.1` pins
-> alone do not include page continuity. Do not ship the example’s local dependency overrides.
+> **Native dependencies:** Android `com.audienzz:sdk:0.3.2` (Maven Central) and
+> iOS `AudienzziOSSDK ~> 0.4.2` (CocoaPods). The library and examples use these published
+> releases by default, including analytics batching, foreground/interstitial page continuity,
+> cold-start attribution and one `viewability.start` per creative.
+>
+> Rebuild after upgrading; hot reload does not replace native SDKs. Optional local native
+> testing is documented in [LOCAL_TESTING.md](LOCAL_TESTING.md).
 
 Testing Android with Charles? Use the example's debug build and follow the
 [Charles setup](LOCAL_TESTING.md#charles-ssl-proxying-on-android), including the Dart proxy flags
@@ -182,7 +179,7 @@ Flutter `SafeArea` protects app content, but cannot inset Google's separate full
 See the [system-bar checks](LOCAL_TESTING.md#interstitial-status-bar-and-close-button) for limits
 and device verification.
 
-**Android release dependency:** Android `0.3.1`, selected by this bridge, includes the native
+**Android release dependency:** Android `0.3.2`, selected by this bridge, includes the native
 foreground-tracking fix for translucent Google ad activities. See
 [verification steps](LOCAL_TESTING.md#android-interstitial-return-regression).
 
@@ -1088,7 +1085,7 @@ License
 
 `AdWidget` sends its visibility/overlay/unmount state through a separate internal channel operation (`setBannerViewportVisible`). Publishers should let `AdWidget` manage visibility and use the public pause API only for their own pause policy. Both native plugin implementations preserve these independent reasons.
 
-Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.1 and iOS 0.4.1; both are published and selected by this bridge.
+Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.2 and iOS 0.4.2; both are published and selected by this bridge.
 
 
 ## Interstitial lifecycle and migration
@@ -1162,4 +1159,4 @@ The collector resolves company and website IDs. Analytics defaults to `environme
 set `test` or `staging` before initializing a non-production app. Our examples use `test`.
 See [the analytics contract](docs/analytics-contract.md) for configuration, currency provenance,
 missing Prebid metadata and release requirements. These additions are included in the required
-Android `0.3.1` and iOS `0.4.1` native releases.
+Android `0.3.2` and iOS `0.4.2` native releases.

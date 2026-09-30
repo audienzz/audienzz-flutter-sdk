@@ -5,8 +5,9 @@ This app also contains lower-level and legacy examples for regression testing.
 
 ## Run
 
-This branch uses **local native SDKs**. First follow [LOCAL_TESTING.md](../LOCAL_TESTING.md) to
-publish Android locally and install the iOS development pod, then run from the repository root:
+The example defaults to published **Android 0.3.2 / iOS 0.4.2**; no sibling checkout is needed.
+Optional local native testing is documented in [LOCAL_TESTING.md](../LOCAL_TESTING.md).
+Run from the repository root:
 
 ```sh
 flutter pub get
@@ -37,5 +38,5 @@ Use `AUDZ` logs to verify actual requests and events. Flutter iOS forwards enabl
 to the Flutter terminal/IDE console. See [logging and device checks](../LOCAL_TESTING.md).
 
 The example reports real navigation once through its page/navigation integration. App return and
-SDK interstitial dismissal recover banners without a new analytics page when using the current
-local native SDKs. Do not add another `pageImpression` call to those callbacks.
+SDK interstitial dismissal recover banners without a new analytics page when using the published
+native SDKs. Do not add another `pageImpression` call to those callbacks.
