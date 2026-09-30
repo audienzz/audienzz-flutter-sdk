@@ -4,9 +4,8 @@ On `feature/page-impression-api`, the example uses local native SDKs:
 `../audienzz-android-sdk` and `../audienzz-ios-sdk` (relative to this repository).
 Publish Android locally as described below; iOS links directly to source. Native `main`
 includes analytics batching, foreground/interstitial page continuity, and cold-start attribution.
-The current Android test checkout also includes `68084de` on `fix/bridge-page-recovery`, which fixes
-recovery after a bridge route token is collected. Keep that fix when reproducing these tests;
-a plain `main` checkout does not yet contain it. The library package pins remain Android
+Android `main` also includes bridge page recovery after route-token collection (`68084de`);
+no separate native testing branch is needed. The library package pins remain Android
 `0.3.1` / iOS `~> 0.4.1`; those published versions predate these changes. Publish new natives
 and update the package pins before releasing this wrapper.
 
