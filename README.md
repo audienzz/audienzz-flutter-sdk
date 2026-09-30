@@ -4,14 +4,13 @@ Audienzz SDK Flutter
 > **Native dependencies:** Android `com.audienzz:sdk:0.3.1` (Maven Central) and
 > iOS `AudienzziOSSDK ~> 0.4.1` (CocoaPods). These releases provide the page ownership,
 > refresh and interstitial APIs. **This testing branch builds the examples from the sibling
-> Android/iOS native checkouts on `main`**, including the newer batching, page-continuity and
+> Android/iOS native checkouts**, including the newer batching, page-continuity and
 > cold-start fixes. See [LOCAL_TESTING.md](LOCAL_TESTING.md). Update the package pins to new native
 > releases before publishing this wrapper.
 
-> These native releases include adaptive banner fixes, banner-only slot numbering,
-> immediate analytics delivery with durable retries, and page-impression attribution.
-> Android also includes interstitial foreground recovery and Google fallback when Prebid fails.
-> Rebuild the app after upgrading; hot reload does not replace the native SDKs.
+> Rebuild after native changes; hot reload does not replace native SDKs. The automatic
+> return behavior below requires the newer native code; the published `0.3.1` / `0.4.1` pins
+> alone do not include page continuity. Do not ship the example’s local dependency overrides.
 
 Testing Android with Charles? Use the example's debug build and follow the
 [Charles setup](LOCAL_TESTING.md#charles-ssl-proxying-on-android), including the Dart proxy flags
@@ -28,7 +27,8 @@ delivery, and managed widgets own each banner's lifecycle. Five steps.
 flutter pub add audienzz_sdk_flutter
 ```
 
-Use the package release that requires **Android 0.3.1 / iOS 0.4.1** (this branch). Older Flutter
+The examples below target **this branch’s managed APIs**. Check your package release before copying
+them; the native pins alone do not identify the wrapper API version. Older Flutter
 releases do not include the managed APIs below. Minimum deployment targets: **Android API 24**
 and **iOS 15.0**. Set your app's iOS deployment target accordingly.
 
@@ -50,12 +50,14 @@ Future<InitializationStatus> initializeAds() async {
   return AudienzzSdkFlutter.instance.initializeRemote(
     publisherId: 'YOUR_PUBLISHER_ID',
     remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1/',
+    enablePolling: false, // Handle configuration failure with your startup retry UI.
   );
 }
 ```
 
-Await this once after consent. Check the returned status: `success` means ready, `fallbackPolling`
-means configuration recovery is still pending, and `fail` means initialization failed. Keep app
+Await this once after consent and catch initialization exceptions. Check the returned status:
+`success` means ready, `fallbackPolling` means configuration recovery is still pending, and `fail`
+means initialization failed. Keep app
 content available on failure, but mount ad pages and create ads only after native initialization
 succeeds. A completed initialization Future alone does not establish readiness. The example uses
 `enablePolling: false` and an explicit retry screen, so failed configuration cannot open an ad page
@@ -92,6 +94,21 @@ the destination releases the previous page's banners. The page wrapper binds ban
 route instance, even when two routes have the same name. **The observer and managed page already
 report PI: do not add a second manual `pageImpression` call for the same transition.**
 
+| Situation | Report a new page? |
+|---|---|
+| First visible screen, navigation, tab change, back, or a new article | **Yes**, including destinations with no ads; report before loading their ads |
+| App background → foreground | **No** — native recovery refreshes the active page's banners |
+| SDK interstitial dismissal | **No** — native recovery handles it |
+| Layout, render/rebuild, scrolling, or an ad callback | **No** |
+
+A manual `pageImpression` call always starts a new visit, even for the same screen key.
+Automatic recovery keeps `page_impression_id`, `au_page_seq` and `au_slot`; replacement requests
+advance `hb_refresh_count`. Visibility and publisher pauses still apply. Interstitial events keep
+the page captured at prefetch. Actual navigation during an interstitial still needs a page report.
+
+With the managed navigation integration above, these reports are automatic. Do not add manual
+PI calls to app-resume or interstitial-dismissal handlers.
+
 For tabs inside one route, wrap each tab in its own `AudienzzPage` and set `active` to whether it is
 selected. For nested or custom navigation, follow the [managed integration](#the-managed-integration-recommended).
 
@@ -118,9 +135,10 @@ class ArticlePage extends StatelessWidget {
 }
 ```
 
-Keep `slotKey` stable and unique within the page. Reserve the expected height **before** the ad
-loads; `AudienzzBanner` mounts the placeholder, loads and disposes for you. Remote banners default
-to lazy loading; the backend controls `lazyLoad`, prefetch distance and refresh settings.
+Keep `slotKey` stable and unique within the page; it identifies the placement, not its numeric
+`au_slot` (the SDK assigns that). Reserve the expected height **before** the ad loads;
+`AudienzzBanner` mounts the placeholder, loads and disposes for you. The backend owns lazy loading
+(default `true`), prefetch distance (default `200dp` / `200pt`) and refresh settings.
 
 ### 5. Show an interstitial
 
@@ -173,31 +191,12 @@ foreground-tracking fix for translucent Google ad activities. See
 Managed banners own loading, page transitions, viewport refresh gating and disposal. Native code
 pauses refresh in the background and handles foreground recovery. **Do not add refresh timers or
 reload on rebuild, navigation or app resume.** Smart Refresh v2 is selected by backend configuration;
-without it, the classic viewport gate applies.
+without it, the classic viewport gate applies. Page ownership works in both modes.
 
 For custom covers, attach an `AudienzzBannerController` to the banner, call
 `controller.reportCover(covered: true)`, and clear it when the cover disappears. For a whole retained page, set `AudienzzPage.active` to `false`. See [test flows and local setup](LOCAL_TESTING.md) before shipping.
 
 ---
-**App background/foreground is the same page visit.** With the native foreground-continuity
-update, minimizing and reopening the app refreshes its active banners (and blanks them when
-blanking is enabled), but sends no new `pageImpression` analytics event. The existing
-`page_impression_id`, `au_page_seq` and `au_slot` remain; each replacement request advances the
-slot's `hb_refresh_count` and gets a fresh auction ID. Visibility, page ownership and publisher
-pause still apply. Do not call `pageImpression` from app-resume callbacks just because the app
-became active. Report actual navigation, including ad-free screens, back navigation and a new
-article. An explicit call still starts a new page impression, even for the same screen.
-
-**Closing an SDK interstitial also keeps the same page.** The native SDK holds banner refresh
-while it is presented, then replaces the active page's banners with the same page ID and sequence.
-Do not call `pageImpression` from its dismissal callback or simply because the covered screen
-reappeared. A navigation that occurred during the ad remains a new page; dismissal does not
-restore the previous page or repeat that navigation's reload. Failed presentation does not force
-a reload. The interstitial's own analytics keep the page captured at prefetch, even if shown on
-another page. These changes require the matching native continuity release; Flutter also needs
-the updated bridge that removes its old dismissal page report.
-
-
 
 ## Overview
 
