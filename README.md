@@ -1,8 +1,8 @@
 Audienzz SDK Flutter
 ========
 
-> **Native dependencies:** Android `com.audienzz:sdk:0.3.2` (Maven Central) and
-> iOS `AudienzziOSSDK ~> 0.4.2` (CocoaPods). The library and examples use these published
+> **Native dependencies:** Android `com.audienzz:sdk:0.3.3` (Maven Central) and
+> iOS `AudienzziOSSDK ~> 0.4.3` (CocoaPods). The library and examples use these published
 > releases by default, including analytics batching, foreground/interstitial page continuity,
 > cold-start attribution and one `viewability.start` per creative.
 >
@@ -13,10 +13,9 @@ Testing Android with Charles? Use the example's debug build and follow the
 [Charles setup](LOCAL_TESTING.md#charles-ssl-proxying-on-android), including the Dart proxy flags
 if you also want to inspect remote-configuration requests.
 
-> **Upcoming refresh timing:** native `main` now counts eligible time only, with a backend interval
-> defaulting to 10 seconds. The pinned native releases above still use wall-clock timing (and the
-> old 30-second clamp). Test the new timing using [local natives](LOCAL_TESTING.md); production
-> adoption requires the next native releases and updated wrapper pins.
+> **Refresh timing:** these native releases count only eligible time. Remote banners use backend
+> `config.refreshTimeSeconds`, defaulting to 10 seconds when missing/null; an explicit backend
+> value of `30` still means 30 eligible seconds. Pauses preserve the remaining interval.
 
 ## Quick integration (remote config + `pageImpression`)
 
@@ -184,7 +183,7 @@ Flutter `SafeArea` protects app content, but cannot inset Google's separate full
 See the [system-bar checks](LOCAL_TESTING.md#interstitial-status-bar-and-close-button) for limits
 and device verification.
 
-**Android release dependency:** Android `0.3.2`, selected by this bridge, includes the native
+**Android release dependency:** Android `0.3.3`, selected by this bridge, includes the native
 foreground-tracking fix for translucent Google ad activities. See
 [verification steps](LOCAL_TESTING.md#android-interstitial-return-regression).
 
@@ -337,7 +336,7 @@ The SDK polls the ad's position every 500 ms using Flutter's `RenderBox.localToG
 - **iOS** — UIKit already moves its views during scroll, but the polling approach keeps parity with the Android implementation and avoids UIScrollView ancestor look-ups.
 - **Android** — Flutter does not physically move the embedded `AdManagerAdView` when a `ListView` or `SingleChildScrollView` scrolls (it applies compositor-level clipping instead). Native visibility APIs (`getGlobalVisibleRect`, `getLocationOnScreen`) therefore always report the view's original position. The Flutter coordinate-space polling works around this limitation entirely. No `ScrollController` needs to be wired up by the caller.
 
-#### Eligible-time resume (upcoming native release)
+#### Eligible-time resume
 
 Periodic refresh counts **only time when the banner is eligible to refresh**: its page is active,
 the app is foregrounded, the viewport gate allows it, and no attachment, cover or publisher hold
@@ -360,7 +359,7 @@ final banner = BannerAd(
   adUnitId: 'YOUR_AD_UNIT_ID',
   auConfigId: 'YOUR_AU_CONFIG_ID',
   sizes: {const AdSize(width: 320, height: 50)},
-  refreshTimeInterval: 10000, // 10 eligible seconds with the upcoming native release
+  refreshTimeInterval: 10000, // 10 eligible seconds
   isLazyLoad: true,
   smartRefresh: true,
   onAdLoaded: (_) {},
@@ -390,7 +389,7 @@ await AudienzzSdkFlutter.instance.pauseAllAutoRefresh();
 await AudienzzSdkFlutter.instance.resumeAllAutoRefresh();
 ```
 
-With the upcoming native release, resume continues the remaining eligible interval; paused time does not count.
+Resume continues the remaining eligible interval; paused time does not count.
 
 > **Note:** These methods act on banner auto-refresh only, and require the banner to have been loaded with a `refreshTimeInterval`. They work whether or not `smartRefresh` is enabled.
 
@@ -855,7 +854,7 @@ await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
 | `refreshTimeInterval` | `int?`                                       | Refresh time in milliseconds. Optional.                                 |
 | `isLazyLoad`          | `bool`                                       | If true, defers ad loading until the view is visible. Requires `smartRefresh: true` (coerced off otherwise). Default: `false`. |
 | `prefetchMargin`      | `int`                                        | Logical pixels before the view enters the viewport at which the demand fetch begins. Maps to `prefetchMarginPoints` on iOS and `prefetchMarginDp` on Android. Has no practical effect inside `ListView`/`GridView`. Default: `200`. |
-| `smartRefresh`        | `bool`                                       | If true, gates refresh on the selected v1/v2 viewport rule. The upcoming native release preserves elapsed eligible time across pauses. Requires `refreshTimeInterval`. Default: `false`. |
+| `smartRefresh`        | `bool`                                       | If true, gates refresh on the selected v1/v2 viewport rule. The native SDK preserves elapsed eligible time across pauses. Requires `refreshTimeInterval`. Default: `false`. |
 | `adFormat`            | `AdFormat`                                   | Desired ad format (banner, video, or both). Default: `AdFormat.banner`. |
 | `apiParameters`       | `Set<ApiParameter>`                          | API frameworks for bid response. Default: `{mraid3, omid1}`.            |
 | `protocols`           | `Set<Protocol>`                              | Supported video protocols. Optional.                                    |
@@ -875,7 +874,7 @@ await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
 | `getPlatformAdSize()` | `Future<AdSize?>`                            | Gets the ad size assigned on the platform.                              |
 | `load()`              | `Future<void>`                               | Loads the ad.                                                           |
 | `pauseAutoRefresh()`  | `Future<void>`                               | Pauses auto-refresh for this banner (e.g. when an overlay covers it). Requires `refreshTimeInterval`. |
-| `resumeAutoRefresh()` | `Future<void>`                               | Resumes auto-refresh; the upcoming native release counts only remaining eligible time.          |
+| `resumeAutoRefresh()` | `Future<void>`                               | Resumes auto-refresh; the native SDK counts only remaining eligible time.          |
 
 ## InterstitialAd (extends AdWithoutView)
 
@@ -1093,7 +1092,7 @@ License
 
 `AdWidget` sends its visibility/overlay/unmount state through a separate internal channel operation (`setBannerViewportVisible`). Publishers should let `AdWidget` manage visibility and use the public pause API only for their own pause policy. Both native plugin implementations preserve these independent reasons.
 
-Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.2 and iOS 0.4.2; both are published and selected by this bridge.
+Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.3 and iOS 0.4.3; both are published and selected by this bridge.
 
 
 ## Interstitial lifecycle and migration
@@ -1167,4 +1166,4 @@ The collector resolves company and website IDs. Analytics defaults to `environme
 set `test` or `staging` before initializing a non-production app. Our examples use `test`.
 See [the analytics contract](docs/analytics-contract.md) for configuration, currency provenance,
 missing Prebid metadata and release requirements. These additions are included in the required
-Android `0.3.2` and iOS `0.4.2` native releases.
+Android `0.3.3` and iOS `0.4.3` native releases.

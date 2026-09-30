@@ -3,8 +3,8 @@
 Changes to **when** a banner spends a request.
 
 Sections 2 and 3 remain **proposals**: the first-impression gate and its recovery deadline are not
-implemented. Eligible-time refresh has since been implemented separately in native `main` (pending
-release); it excludes hidden time without requiring a Google impression callback. Section 1 has
+implemented. Eligible-time refresh has since shipped separately in Android 0.3.3 and iOS 0.4.3;
+it excludes hidden time without requiring a Google impression callback. Section 1 has
 been partly superseded by shipped work and is marked accordingly.
 
 Each proposal is written so it can be rejected on its own. All of them need the show-rate metric
@@ -108,7 +108,7 @@ keeps working unchanged and is deprecated on a normal deprecation cycle, not swi
 
 The earlier wall-clock interval kept counting while an ad was hidden, so a prefetched creative
 could be overdue on first visibility and replaced before rendering. Eligible-time refresh in
-native `main` now excludes that hidden time. The separate first-impression gate below is still a
+Android 0.3.3 and iOS 0.4.3 now excludes that hidden time. The separate first-impression gate below is still a
 proposal: eligibility alone does not prove Google recorded an impression.
 
 ### Proposal

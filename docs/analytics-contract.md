@@ -8,7 +8,7 @@ company/website mapping moves to the collector; plain-decimal CPM with source-sp
 omitted; iOS impressions guarded per creative. Stock Prebid iOS cannot expose exact bid economics,
 so those fields remain absent. Attribute values remain JSON strings.
 
-This bridge selects Android `0.3.2` and iOS `0.4.2`, including those additions and the lifecycle
+This bridge selects Android `0.3.3` and iOS `0.4.3`, including those additions and the lifecycle
 and batching behavior below.
 Rebuild and reinstall the app after upgrading; Dart/JS reloads do not apply native analytics fixes.
 See the contract for page-impression ownership, durable auction-based batching, legacy payload handling

@@ -8,7 +8,7 @@ gradle.projectsEvaluated {
     def sdk = gradle.rootProject.findProject(":Audienzz")
     if (sdk == null) return // The init script also runs in buildSrc.
     sdk.extensions.getByType(PublishingExtension).publications.withType(MavenPublication).configureEach {
-        version = "0.3.2-local"
+        version = "0.3.3-local"
     }
     sdk.tasks.withType(Sign).configureEach { enabled = false }
 }

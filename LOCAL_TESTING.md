@@ -1,6 +1,6 @@
 # Testing the examples and optional local native SDKs
 
-The library and examples default to published Android `0.3.2` and iOS `~> 0.4.2`.
+The library and examples default to published Android `0.3.3` and iOS `~> 0.4.3`.
 No sibling checkout is required. These releases include analytics batching, foreground/interstitial
 page continuity, cold-start attribution, Android bridge page recovery, and one `viewability.start`
 per creative. Local native testing is an explicit opt-in described below.
@@ -8,10 +8,10 @@ per creative. Local native testing is an explicit opt-in described below.
 Flutter forwards backend `analyticsBatchSize` to the native sender: missing/invalid values
 use 10, and positive integers are capped at 15. Native owns persistence, batching and retries.
 
-## Testing eligible-time refresh from native `main`
+## Testing eligible-time refresh
 
-This behavior is not in the default Android `0.3.2` / iOS `0.4.2` pins. Use the local overrides
-below on both platforms. Remote banners use backend `config.refreshTimeSeconds`, default 10 when
+The default published Android `0.3.3` / iOS `0.4.3` dependencies include this behavior; no local
+native override is needed. Remote banners use backend `config.refreshTimeSeconds`, default 10 when
 missing/null; explicit backend values remain authoritative and 0 disables periodic refresh.
 
 With the backend interval set to 10 seconds, wait for a banner to finish loading, keep it eligible
@@ -23,7 +23,7 @@ recovery separately from periodic timing.
 
 ## Android — optional local Maven build
 
-Published Android `0.3.2` is the default. To test native edits, publish the sibling checkout:
+Published Android `0.3.3` is the default. To test native edits, publish the sibling checkout:
 
 ```bash
 cd ../audienzz-android-sdk
@@ -32,12 +32,12 @@ cd ../audienzz-android-sdk
 cd ../audienzz-flutter-sdk/example/android
 ./gradlew :app:dependencyInsight --dependency com.audienzz:sdk \
   --configuration debugRuntimeClasspath --refresh-dependencies \
-  -PaudienzzNativeVersion=0.3.2-local
+  -PaudienzzNativeVersion=0.3.3-local
 ```
 
 The init script changes only the local publication coordinate and disables signing for that
 local build. It does not edit the native release version or publish anything remotely. Resolution
-must show `com.audienzz:sdk:0.3.2-local`. Supply the same Gradle property when building, or temporarily
+must show `com.audienzz:sdk:0.3.3-local`. Supply the same Gradle property when building, or temporarily
 uncomment it in `example/android/gradle.properties` for Flutter/React Native CLI builds. Do not
 commit that override. Republish and use `--refresh-dependencies` after native edits; hot reload
 does not replace native code. A missing local artifact fails dependency resolution.
@@ -47,7 +47,7 @@ Gradle plugin versions. Remove the property to return to the published dependenc
 
 ## iOS — optional local development pod
 
-The example Podfile defaults to the published `AudienzziOSSDK ~> 0.4.2`. To test native edits:
+The example Podfile defaults to the published `AudienzziOSSDK ~> 0.4.3`. To test native edits:
 
 ```bash
 cd example/ios
@@ -199,7 +199,7 @@ No Android device was connected for a visual check of the affected creative.
 ### Android interstitial return regression
 
 Native `0.3.0` can latch `APP_BACKGROUND` after a translucent Google `AdActivity` closes: SDK
-initialization missed the host's first start, and returning only resumes it. Android `0.3.2`,
+initialization missed the host's first start, and returning only resumes it. Android `0.3.3`,
 selected by default, also records resumed/paused activities as started and fixes this case.
 Dismissal recovery cannot override an incorrect native background verdict. Rebuild and reinstall
 the app against the published native release for the updated return behavior.
@@ -214,7 +214,7 @@ Verify this exact sequence on a clean launch:
 
 The Flutter bridge unit suite is `./gradlew :audienzz_sdk_flutter:testDebugUnitTest` from
 `example/android`. Native regression tests cover both the foreground monitor and actual banner
-handler handoffs. The required native fix is included in the published Android `0.3.2` pin.
+handler handoffs. The required native fix is included in the published Android `0.3.3` pin.
 
 Historical verification before the continuity change, on 2026-09-24 (vivo 2004, Android 12; local native `0.3.1-flutter-review`):
 interstitial open for 42 seconds with no banner auctions; dismissal produced one PI and blanked
@@ -273,7 +273,7 @@ Restoring only one lockfile causes Xcode's "sandbox is not in sync" build failur
 
 ## Published native fixes and analytics checks
 
-Published Android `0.3.2` and iOS `0.4.2` include durable analytics batching,
+Published Android `0.3.3` and iOS `0.4.3` include durable analytics batching,
 page-impression attribution, adaptive banner fixes, and banner-only slot numbering.
 Foreground/interstitial returns recover banners while retaining the current analytics page.
 `viewability.start` is sent once per creative; success still requires continuous visibility.
@@ -308,7 +308,7 @@ A zero IDFA after Deny is expected; do not use it as proof that ad loading faile
 
 ## Same-page interstitial return
 
-Published Android `0.3.2` and iOS `0.4.2`, selected by this wrapper branch, include this policy.
+Published Android `0.3.3` and iOS `0.4.3`, selected by this wrapper branch, include this policy.
 
 - Show/dismiss three successive prefetched interstitials: one banner replacement per return,
   optional blanking until Google responds, no extra analytics `pageImpression`.
