@@ -22,6 +22,7 @@ import 'package:audienzz_sdk_flutter_example/pages/overlay_detection_test.dart';
 import 'package:audienzz_sdk_flutter_example/pages/scroll_render_test_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/test_screen_example.dart';
 import 'package:flutter/material.dart';
+import 'widgets/sdk_initialization_gate.dart';
 
 void main() {
   configureCharlesProxy();
@@ -37,7 +38,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
-  late final Future<void> init;
   bool useRemoteConfiguration = true;
 
 
@@ -63,11 +63,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     super.initState();
     _tabController = TabController(length: 3, vsync: this)
       ..addListener(_onTabChanged);
-    _initializeSdk();
-  }
-
-  void _initializeSdk() {
-    init = initializeSdk();
   }
 
   /// Rebuild so each tab's [AudienzzPage] sees its new `active` value.
@@ -127,9 +122,9 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     log('ATT status: ${await AppTrackingTransparency.trackingAuthorizationStatus}');
   }
 
-  Future<void> initializeSdk() async {
+  Future<InitializationStatus> initializeSdk() async {
     await _requestTrackingAuthorization();
-    if (!mounted) return;
+    if (!mounted) return InitializationStatus.fail;
 
     // Report each ad-bearing route explicitly via pageImpression (see the ListTile onTap + the
     // 'home' report below).
@@ -148,6 +143,8 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
       status = await AudienzzSdkFlutter.instance.initializeRemote(
         environment: 'test',
         publisherId: '35',
+        // Surface failure and retry explicitly; do not open pages while polling is pending.
+        enablePolling: false,
         remoteUrl: 'https://api.adnz.co/api/ws-sdk-config/public/v1',
       );
     } else {
@@ -158,6 +155,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     }
 
     log(status.toString());
+    if (status != InitializationStatus.success) return status;
 
     // The initial route is reported automatically by AudienzzNavigatorObserver
     // once the MaterialApp builds — no explicit pageImpression here.
@@ -181,62 +179,44 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
 
     await AudienzzTargeting.addSingleGlobalTargeting("TEST", "1");
 
-    // Deliberately NOT creating the banner loaders here.
-    //
-    // RemoteBannerAdLoader loads in its constructor, and this runs before the
-    // MaterialApp exists — so before AudienzzNavigatorObserver has reported the
-    // initial route. An ad created before its page is reported carries no page,
-    // and the next page impression sweeps it as belonging to somewhere else.
-    // The ~100–400 ms this used to save is not worth a slot that can be
-    // released the moment the reader navigates.
-    //
-    // They are created in _AdsHomeState.initState instead, which runs after the
-    // Navigator has reported the route this page lives on.
+    return status;
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: init,
-      builder: (_, snapshot) {
-        if (snapshot.connectionState == ConnectionState.done) {
-          return MaterialApp(
-            // The observer auto-reports every named route pushed/returned below.
-            navigatorObservers: [_navObserver],
-            home: Scaffold(
-              appBar: AppBar(
-                title: TabBar(
-                  controller: _tabController,
-                  tabs: [
-                    for (final key in _tabKeys) Tab(text: key),
-                  ],
-                ),
-                actions: const [],
-              ),
-              body: TabBarView(
+    return SdkInitializationGate(
+      initialize: initializeSdk,
+      readyBuilder: (_) {
+        return MaterialApp(
+          // The observer auto-reports every named route pushed/returned below.
+          navigatorObservers: [_navObserver],
+          home: Scaffold(
+            appBar: AppBar(
+              title: TabBar(
                 controller: _tabController,
-                children: [
-                  // One page per tab, and only the selected one is active. Two
-                  // retained tabs are two screens: without this they would share
-                  // the enclosing route's identity, so switching tabs left every
-                  // banner belonging to a screen nobody was looking at.
-                  for (var i = 0; i < _tabKeys.length; i++)
-                    AudienzzPage(
-                      name: _tabKeys[i],
-                      active: _tabController.index == i,
-                      child: _tabBody(i),
-                    ),
+                tabs: [
+                  for (final key in _tabKeys) Tab(text: key),
                 ],
               ),
+              actions: const [],
             ),
-          );
-        } else {
-          return const MaterialApp(
-            home: Center(
-              child: CircularProgressIndicator(),
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                // One page per tab, and only the selected one is active. Two
+                // retained tabs are two screens: without this they would share
+                // the enclosing route's identity, so switching tabs left every
+                // banner belonging to a screen nobody was looking at.
+                for (var i = 0; i < _tabKeys.length; i++)
+                  AudienzzPage(
+                    name: _tabKeys[i],
+                    active: _tabController.index == i,
+                    child: _tabBody(i),
+                  ),
+              ],
             ),
-          );
-        }
+          ),
+        );
       },
     );
   }

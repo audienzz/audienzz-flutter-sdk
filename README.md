@@ -54,7 +54,10 @@ Future<InitializationStatus> initializeAds() async {
 
 Await this once after consent. Check the returned status: `success` means ready, `fallbackPolling`
 means configuration recovery is still pending, and `fail` means initialization failed. Keep app
-content available on failure; create remote interstitials only after configuration is available.
+content available on failure, but mount ad pages and create ads only after native initialization
+succeeds. A completed initialization Future alone does not establish readiness. The example uses
+`enablePolling: false` and an explicit retry screen, so failed configuration cannot open an ad page
+before native setup. It reports the first page before creating its banners after a successful retry.
 
 On iOS, if your app requests tracking permission, add `NSUserTrackingUsageDescription` and
 resolve ATT while the app is active, **before ad initialization**. Prompt only for `notDetermined`;
