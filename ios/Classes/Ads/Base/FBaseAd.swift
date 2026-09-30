@@ -19,6 +19,11 @@ protocol FDisposableAd {
     func dispose()
 }
 
+/// Native fullscreen presentations do not change Flutter's route or hit-test tree.
+protocol FFullScreenCoverableAd {
+    func setFullScreenCovered(_ covered: Bool)
+}
+
 class FBaseAd: NSObject {
     let adId: NSNumber
     

@@ -10,14 +10,13 @@ import io.flutter.plugin.common.MethodChannel.Result
 private const val FLUTTER_SDK_VERSION = "0.1.9"
 
 class AudienzzSdkWrapper {
-    fun initialize(context: Context, companyId: String, isAutomaticPpidEnabled: Boolean, prebidServerUrl: String?, result: Result){
+    fun initialize(context: Context, companyId: String, prebidServerUrl: String?, result: Result){
         if (AudienzzPrebidMobile.isSdkInitialized) {
             result.success(InitializationStatus.SUCCESS)
         } else {
             AudienzzPrebidMobile.initializeSdk(
                 context,
                 companyId,
-                isAutomaticPpidEnabled,
                 prebidServerUrl,
             ) { status ->
                 when (status) {

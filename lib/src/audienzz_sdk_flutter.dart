@@ -1,12 +1,17 @@
+import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
 
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
+import 'package:audienzz_sdk_flutter/src/audienzz_diagnostics.dart';
 import 'package:audienzz_sdk_flutter/src/audienzz_targeting.dart';
 import 'package:audienzz_sdk_flutter/src/entities/initialization_status.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_publisher_configuration.dart';
+import 'package:audienzz_sdk_flutter/src/page/audienzz_page_handle.dart';
+import 'package:audienzz_sdk_flutter/src/refresh/smart_refresh_policy.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 final class AudienzzSdkFlutter {
   const AudienzzSdkFlutter._();
@@ -24,11 +29,13 @@ final class AudienzzSdkFlutter {
   /// Required to initialize the SDK.
   Future<InitializationStatus> initialize({
     required String companyId,
-    bool isAutomaticPpidEnabled = false,
+    String? publisherId,
+    String environment = 'production',
   }) {
     return adInstanceManager.initialize(
       companyId: companyId,
-      isAutomaticPpidEnabled: isAutomaticPpidEnabled,
+      publisherId: publisherId,
+      environment: environment,
     );
   }
 
@@ -36,8 +43,8 @@ final class AudienzzSdkFlutter {
   Future<InitializationStatus> initializeRemote({
     required String publisherId,
     required String remoteUrl,
-    bool isAutomaticPpidEnabled = false,
     bool enablePolling = true,
+    String environment = 'production',
   }) async {
     final audienzzRemoteConfig = AudienzzRemoteConfig.instance
       ..configureRemote(
@@ -54,7 +61,8 @@ final class AudienzzSdkFlutter {
         onPollingSuccess: () {
           _applyConfigAndInitialize(
             audienzzRemoteConfig.publisherConfig,
-            isAutomaticPpidEnabled,
+            publisherId: publisherId,
+            environment: environment,
           );
         },
       );
@@ -67,7 +75,8 @@ final class AudienzzSdkFlutter {
 
     return _applyConfigAndInitialize(
       audienzzRemoteConfig.publisherConfig,
-      isAutomaticPpidEnabled,
+      publisherId: publisherId,
+      environment: environment,
     );
   }
 
@@ -75,9 +84,10 @@ final class AudienzzSdkFlutter {
   /// Idempotent: only the first invocation reaches the native initializer, so
   /// the initial-fetch path and the background-polling path never double-init.
   Future<InitializationStatus> _applyConfigAndInitialize(
-    RemotePublisherConfiguration? config,
-    bool isAutomaticPpidEnabled,
-  ) async {
+    RemotePublisherConfiguration? config, {
+    required String publisherId,
+    required String environment,
+  }) async {
     if (_remoteNativeInitialized) {
       return InitializationStatus.success;
     }
@@ -131,8 +141,13 @@ final class AudienzzSdkFlutter {
 
     return adInstanceManager.initialize(
       companyId: config?.ortb.schain?.sellerId ?? '1',
-      isAutomaticPpidEnabled: isAutomaticPpidEnabled,
+      publisherId: publisherId,
+      environment: environment,
       prebidServerUrl: config?.prebidServer.url,
+      // Flutter fetches the publisher config in Dart, so the native SDK never sees it and cannot
+      // read this itself. An absent value stays null and native applies its own default (enabled).
+      ppidEnabled: config?.ppidEnabled,
+      analyticsBatchSize: config?.analyticsBatchSize,
     );
   }
 
@@ -152,16 +167,24 @@ final class AudienzzSdkFlutter {
     );
   }
 
-  /// Enable/disable native automatic screen tracking.
+  /// Emit one greppable `AUDZ …` line per decision the SDK makes about a slot:
+  /// which page became current, which page a slot belongs to, when an auction
+  /// started, and why one did not.
   ///
-  /// Native auto-tracking is ON, but a Flutter app has a single host Activity /
-  /// UIViewController, so it collapses every Dart route into one coarse page
-  /// impression. Call `setAutoScreenTracking(false)` **before** [initialize]
-  /// and report each route with [onScreenResumed] for per-route analytics.
+  /// Off by default. Turn it on when you need a log you can capture on a device
+  /// and hand to someone else. This switches on the Dart side *and* both native
+  /// SDKs, which emit the same line format, so one capture covers the whole
+  /// stack — the Dart decision (focus, viewport gate) and the native
+  /// consequence (auction, refresh block) appear in one stream.
+  ///
+  /// On iOS, native lines are forwarded to [AudienzzDiagnostics.sink], so they
+  /// appear in `flutter run` / IDE output alongside Dart diagnostics. On Android,
+  /// capture both tags with `adb logcat -s AUDZ flutter`.
   // ignore: avoid_positional_boolean_parameters
-  Future<void> setAutoScreenTracking(bool enabled) {
+  Future<void> setDiagnosticsEnabled(bool enabled) {
+    AudienzzDiagnostics.isEnabled = enabled;
     return adInstanceManager.methodChannel.invokeMethod(
-      'setAutoScreenTracking',
+      'setDiagnosticsEnabled',
       {'enabled': enabled},
     );
   }
@@ -172,6 +195,10 @@ final class AudienzzSdkFlutter {
   /// ≥20%-visible gate. Call before creating banners. Omit to defer to backend.
   // ignore: avoid_positional_boolean_parameters
   Future<void> setSmartRefreshV2Enabled(bool enabled) {
+    // Recorded on the Dart side as well as forwarded. Flutter's banner gate is
+    // evaluated in Dart, so forwarding alone left the documented directional
+    // rule unreachable from Flutter.
+    SmartRefreshPolicy.instance.setOverride(enabled);
     return adInstanceManager.methodChannel.invokeMethod(
       'setSmartRefreshV2Enabled',
       {'enabled': enabled},
@@ -193,22 +220,53 @@ final class AudienzzSdkFlutter {
     );
   }
 
-  /// Report the active screen by an opaque [routeKey] (your navigation route
-  /// name). Fires a `pageImpression` and starts a fresh page-impression id
-  /// that ties all ad events on this screen visit together. Call on each
-  /// navigation to an ad-bearing screen — e.g. from a [RouteObserver].
-  Future<void> onScreenResumed(String routeKey) {
-    // Analytics only: fire the page impression. A Flutter banner is a platform
-    // view whose texture does NOT refresh on an in-place re-auction, so the SDK
-    // cannot reliably reload it from here. To reload on screen change, the app
-    // recreates its banner ad on that screen (dispose -> fresh load) — which also
-    // blanks the slot during the reload, matching the native behavior. See the
-    // example's tab handler.
+  /// Report an ad-bearing screen, dialog, or popup. Pass a [context] (the
+  /// screen name is derived from its route's `settings.name`, else the
+  /// enclosing widget type) and/or an explicit [name]; at least one is
+  /// required. Fires a `pageImpression` and a fresh page-impression id that
+  /// ties all ad events on this visit together. Call it on each navigation to
+  /// an ad-bearing screen — e.g. from a [RouteObserver] or a route's `build`.
+  Future<void> pageImpression({BuildContext? context, String? name}) {
+    assert(
+      context != null || name != null,
+      'pageImpression requires a context or a name',
+    );
+    final screenName = name ?? _deriveScreenName(context!);
+    // Stamp synchronously so ads created right after this call belong to this
+    // page — the documented ordering is "report the page, then create its ads",
+    // and waiting for native's asynchronous echo would stamp them with the
+    // previous page, permanently.
+    //
+    // The epoch bump that drives remounting is NOT done here: it happens once,
+    // when native emits its view-update callback, so it also covers foreground
+    // and interstitial recovery without reporting another analytics page.
+    return activatePage(createAudienzzPage(screenName));
+  }
+
+  /// Activate a page instance minted with [createAudienzzPage] (or held by an
+  /// `AudienzzPage` widget).
+  ///
+  /// Prefer this over [pageImpression] whenever two routes can share a screen
+  /// name: the id is what the page coordinator matches banners against, and a
+  /// repeated name cannot separate them.
+  Future<void> activatePage(AudienzzPageHandle page) {
+    // Stamp synchronously so ads created right after this call belong to this
+    // page — the documented ordering is "report the page, then create its ads",
+    // and waiting for native's asynchronous echo would stamp them with the
+    // previous page, permanently.
+    adInstanceManager.currentPage = page.id;
     return adInstanceManager.methodChannel.invokeMethod(
-      'onScreenResumed',
-      {'routeKey': routeKey},
+      'pageImpression',
+      {'name': page.name, 'pageId': page.id},
     );
   }
+
+  /// Derive a stable screen name from a [BuildContext]: the current route's
+  /// `settings.name` when set (named routes / go_router), else the enclosing
+  /// widget's type.
+  String _deriveScreenName(BuildContext context) =>
+      ModalRoute.of(context)?.settings.name ??
+      context.widget.runtimeType.toString();
 
   /// Pauses Prebid auto-refresh for ALL currently loaded banner ads.
   ///

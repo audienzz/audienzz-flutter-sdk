@@ -1,4 +1,6 @@
 import Flutter
+import AudienzziOSSDK
+import UIKit
 
 class AdsCollection<KeyType:  NSCopying & Hashable, ObjectType> {
     private var storage: [KeyType: ObjectType] = [:]
@@ -33,6 +35,33 @@ class AdsCollection<KeyType:  NSCopying & Hashable, ObjectType> {
 class AdInstanceManager : NSObject {
     let channel: FlutterMethodChannel
     private var ads: AdsCollection<NSNumber, FAd>
+    private var interstitialPresentations = Set<NSNumber>()
+
+    // Internal seams for deterministic lifecycle tests; production uses the real native sink.
+    var reportPage: (String, String) -> Void = { id, name in
+        Audienzz.shared.pageImpression(pageId: id, name: name)
+    }
+
+    func pageImpression(pageId: String, name: String) {
+        reportPage(pageId, name)
+    }
+
+    private func beginInterstitialPresentation(adId: NSNumber) {
+        guard interstitialPresentations.insert(adId).inserted else { return }
+        for case let banner as FFullScreenCoverableAd in ads.allObjects() {
+            banner.setFullScreenCovered(true)
+        }
+    }
+
+    private func endInterstitialPresentation(adId: NSNumber) {
+        guard interstitialPresentations.remove(adId) != nil,
+              interstitialPresentations.isEmpty else { return }
+        // Native owns dismissal/foreground recovery and preserves page identity. Releasing this
+        // cover cannot create a new page report or override native background/visibility holds.
+        for case let banner as FFullScreenCoverableAd in ads.allObjects() {
+            banner.setFullScreenCovered(false)
+        }
+    }
     
     init(binaryMessenger: FlutterBinaryMessenger) {
         self.ads = AdsCollection()
@@ -61,32 +90,52 @@ class AdInstanceManager : NSObject {
     
     func loadAd(ad: FAd) {
         ads.setObject(ad, forKey: ad.adId)
+        if !interstitialPresentations.isEmpty {
+            (ad as? FFullScreenCoverableAd)?.setFullScreenCovered(true)
+        }
         ad.load()
     }
     
     func dispose(adId: NSNumber) {
+        if let interstitial = ads.object(forKey: adId) as? FInterstitialAd, interstitial.isPresenting { return }
         (ads.object(forKey: adId) as? FDisposableAd)?.dispose()
         ads.removeObject(forKey: adId)
     }
     
-    func showAd(withId adId: NSNumber) {
-        let ad = ad(for: adId) as? FAdWithoutView
-        ad?.show()
+    func showAd(withId adId: NSNumber) -> FlutterError? {
+        if let interstitial = ad(for: adId) as? FInterstitialAd { return interstitial.showIfReady() }
+        guard let ad = ad(for: adId) as? FAdWithoutView else {
+            return FlutterError(code: "-1", message: "No fullscreen ad for this ID.", details: "audienzz")
+        }
+        ad.show()
+        return nil
     }
     
-    func onAdLoaded(ad: FAd) {
-        channel.invokeMethod("onAdEvent", arguments: [
-            "adId":ad.adId,
-            "eventName":"onAdLoaded",
-        ])
+    func onAdFailedToShow(ad: FAd, error: FAdError, domain: String) {
+        if ad is FInterstitialAd { endInterstitialPresentation(adId: ad.adId) }
+        channel.invokeMethod("onAdEvent", arguments: ["adId": ad.adId,
+            "eventName": "onAdFailedToShow", "adError": error, "errorDomain": domain])
+    }
+
+    func onAdLoaded(ad: FAd, responseId: String? = nil) {
+        var arguments: [String: Any] = ["adId": ad.adId, "eventName": "onAdLoaded"]
+        if let responseId { arguments["responseId"] = responseId }
+        channel.invokeMethod("onAdEvent", arguments: arguments)
+    }
+
+    func onAdSizeChanged(ad: FAd, size: CGSize) {
+        channel.invokeMethod("onAdEvent", arguments: ["adId": ad.adId,
+            "eventName": "onAdSizeChanged", "width": Int(size.width), "height": Int(size.height)])
     }
     
-    func onAdFailedToLoad(ad: FAd, error: FAdError) {
-        channel.invokeMethod("onAdEvent", arguments: [
+    func onAdFailedToLoad(ad: FAd, error: FAdError, domain: String? = nil) {
+        var arguments: [String: Any] = [
             "adId":ad.adId,
             "eventName":"onAdFailedToLoad",
             "adError":error,
-        ])
+        ]
+        if let domain { arguments["errorDomain"] = domain }
+        channel.invokeMethod("onAdEvent", arguments: arguments)
     }
     
     func onAdClicked(ad: FAd){
@@ -97,6 +146,7 @@ class AdInstanceManager : NSObject {
     }
     
     func onAdOpened(ad: FAd){
+        if ad is FInterstitialAd { beginInterstitialPresentation(adId: ad.adId) }
         channel.invokeMethod("onAdEvent", arguments: [
             "adId":ad.adId,
             "eventName":"onAdOpened",
@@ -104,6 +154,7 @@ class AdInstanceManager : NSObject {
     }
     
     func onAdClosed(ad: FAd){
+        if ad is FInterstitialAd { endInterstitialPresentation(adId: ad.adId) }
         channel.invokeMethod("onAdEvent", arguments: [
             "adId":ad.adId,
             "eventName":"onAdClosed",

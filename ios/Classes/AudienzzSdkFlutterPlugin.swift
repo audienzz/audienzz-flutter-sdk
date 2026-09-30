@@ -8,11 +8,62 @@ private let flutterSdkVersion = "0.1.9"
 public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
     private var manager: AdInstanceManager
     private var targetingWrapper: AudienzzTargetingWrapper
+    private var previousDiagnosticsSink: ((String) -> Void)?
 
     init(binaryMessenger: FlutterBinaryMessenger) {
         manager = AdInstanceManager(binaryMessenger: binaryMessenger)
         targetingWrapper = AudienzzTargetingWrapper()
         super.init()
+    }
+
+    deinit {
+        restoreDiagnosticsSink()
+    }
+
+    public func detachFromEngine(for registrar: FlutterPluginRegistrar) {
+        restoreDiagnosticsSink()
+    }
+
+    private func restoreDiagnosticsSink() {
+        guard let sink = previousDiagnosticsSink else { return }
+        AUDiagnostics.sink = sink
+        previousDiagnosticsSink = nil
+    }
+
+    private func setDiagnosticsEnabled(_ enabled: Bool) {
+        if enabled, previousDiagnosticsSink == nil {
+            previousDiagnosticsSink = AUDiagnostics.sink
+            // Swift stdout is not reliably captured by flutter run / the IDE on iOS.
+            // Use Dart's diagnostic sink as the single output while enabled, including
+            // for native analytics queue messages emitted on a background thread.
+            AUDiagnostics.sink = { [weak self] line in
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.previousDiagnosticsSink != nil,
+                          Audienzz.shared.diagnosticsEnabled else { return }
+                    self.manager.channel.invokeMethod("onDiagnosticLog", arguments: line)
+                }
+            }
+        } else if !enabled {
+            restoreDiagnosticsSink()
+        }
+        Audienzz.shared.diagnosticsEnabled = enabled
+    }
+
+    /// Forward native navigation and foreground/interstitial ad recovery to Dart. This legacy channel is a
+    /// view-refresh signal, not an analytics event. The local view revision still advances when
+    /// native preserves its page identity on app return.
+    ///
+    /// Uses the manager's channel rather than the one built in `register(with:)`. Nothing retains
+    /// that local channel — Flutter's messenger deliberately does not hold one (it captures only
+    /// the codec and handler), and neither `publish` nor `addMethodCallDelegate` retains it — so it
+    /// is deallocated as soon as registration returns, and a weak capture silently stopped
+    /// forwarding. The manager's channel is a stored property of the manager, which the plugin owns.
+    private func observeNativePageImpressions() {
+        Audienzz.shared.pageImpressionObserver = { [weak self] name in
+            DispatchQueue.main.async {
+                self?.manager.channel.invokeMethod("onPageImpression", arguments: ["name": name])
+            }
+        }
     }
 
     public static func register(with registrar: FlutterPluginRegistrar) {
@@ -32,6 +83,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
         registrar.publish(instance)
         registrar.addMethodCallDelegate(instance, channel: channel)
         registrar.addApplicationDelegate(instance)
+        instance.observeNativePageImpressions()
     }
 
     // Optional — do NOT force-unwrap. Scene-based / add-to-app hosts can call
@@ -64,10 +116,19 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             
         case "initialize":
             if let args = call.arguments as? [String: Any],
-               let companyId = args["companyId"] as? String,
-               let isAutomaticPpidEnabled = args["isAutomaticPpidEnabled"] as? Bool
+               let companyId = args["companyId"] as? String
             {
-                Audienzz.shared.configureSDK(companyId: companyId, enablePPID: isAutomaticPpidEnabled)
+                // Flutter fetches the publisher config in Dart, so the native SDK never sees it and
+                // cannot read this itself. An absent value stays nil and native keeps its default.
+                Audienzz.shared.applyBackendPpidConfig(ppidEnabled: args["ppidEnabled"] as? Bool)
+                Audienzz.shared.applyBackendAnalyticsConfig(batchSize: args["analyticsBatchSize"] as? Int)
+                guard Audienzz.shared.configureAnalytics(
+                    publisherId: args["publisherId"] as? String,
+                    environment: args["environment"] as? String ?? "production") else {
+                    result(FlutterError(code: "INVALID_ENVIRONMENT", message: "Expected production, staging or test", details: nil))
+                    return
+                }
+                Audienzz.shared.configureSDK(companyId: companyId)
                 AudienzzGAMUtils.shared.initializeGAM()
                 Audienzz.shared.setAppVolume(0.0)
                 AUTargeting.shared.setBridgeTargeting(key: "au_flutter_v", value: flutterSdkVersion)
@@ -138,15 +199,24 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             // of true would silently produce no fill.
             let isLazyLoad = args["isLazyLoad"] as? Bool ?? false
             let smartRefresh = args["smartRefresh"] as? Bool ?? false
+            // Resolved in Dart (explicit override -> backend -> v1) so both
+            // gates agree; absent means v1.
+            let smartRefreshV2 = args["smartRefreshV2"] as? Bool ?? false
             let prefetchMarginPoints = CGFloat((args["prefetchMargin"] as? Int) ?? 200)
 
             let bannerAd = FBannerAd(
                 adUnitId: adUnitId,
                 auConfigId: auConfigId,
                 sizes: adSizes,
+                // Absent from Dart unless it differs; FBannerAd falls back to adSizes.
+                prebidSizes: args["prebidAdSizes"] as? [FAdSize],
+                // Absent from Dart unless header bidding is off.
+                headerBidding: args["headerBidding"] as? Bool ?? true,
                 isAdaptiveSize: isAdaptiveSize,
+                adaptiveBannerConfig: args["adaptiveBannerConfig"] as? [String: Any],
                 isLazyLoad: isLazyLoad,
                 smartRefresh: smartRefresh,
+                smartRefreshV2: smartRefreshV2,
                 prefetchMarginPoints: prefetchMarginPoints,
                 refreshTimeInterval: refreshTimeInterval?.doubleValue,
                 adFormat: adFormat,
@@ -159,11 +229,20 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 pbAdSlot: pbAdSlot,
                 gpId: gpId,
                 customImpOrtbConfig: customImpOrtbConfig,
+                pageKey: args["pageKey"] as? String,
                 rootViewController: rootViewController,
                 adId: adId,
                 manager: manager
             )
 
+            // Before loadAd: an eager banner requests as soon as it loads, so a
+            // pause installed afterwards would arrive after that first request.
+            if args["publisherPaused"] as? Bool == true {
+                bannerAd.pauseAutoRefresh()
+            }
+            if let slot = args["requestSlot"] as? String {
+                bannerAd.requestContext = AUAdRequestContext.forSlot(slot, pageKey: args["pageKey"] as? String)
+            }
             manager.loadAd(ad: bannerAd)
             result(nil)
 
@@ -230,10 +309,8 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                   let adId = args["adId"] as? NSNumber,
                   let adUnitId = args["adUnitId"] as? String,
                   let auConfigId = args["auConfigId"] as? String,
-                  let adFormat = args["adFormat"] as? FAdFormat,
                   let minSizePercentage = args["minSizePercentage"]
                   as? FMinSizePercentage,
-                  let apiParameters = args["apiParameters"] as? [AUApi],
                   let videoProtocols = args["protocols"] as? [AUVideoProtocols],
                   let videoPlacement = args["placement"] as? AUPlacement,
                   let videoPlaybackMethods = args["playbackMethods"]
@@ -270,9 +347,11 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             let interstitialAd = FInterstitialAd(
                 adUnitId: adUnitId,
                 auConfigId: auConfigId,
-                adFormat: adFormat,
                 minSizePercentage: minSizePercentage,
-                apiParameters: apiParameters,
+                // Remote interstitials only: the ad config's raw values, read by Dart when this
+                // accepted load was sent. Absent means "not configured".
+                backendFormat: args["backendFormat"] as? String,
+                backendApis: (args["backendApis"] as? [NSNumber])?.map { $0.intValue },
                 videoProtocols: videoProtocols,
                 videoPlacement: videoPlacement,
                 videoPlaybackMethods: videoPlaybackMethods,
@@ -287,6 +366,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 manager: manager
             )
 
+            if let slot = args["requestSlot"] as? String {
+                interstitialAd.requestContext = AUAdRequestContext.forInterstitial(slot)
+            }
             manager.loadAd(ad: interstitialAd)
             result(nil)
 
@@ -294,8 +376,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             if let args = call.arguments as? [String: Any],
                let adId = args["adId"] as? NSNumber
             {
-                manager.showAd(withId: adId)
-                result(nil)
+                result(manager.showAd(withId: adId))
 
             } else {
                 result(
@@ -341,6 +422,15 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 )
             }
 
+        case "setBannerViewportVisible":
+            if let args = call.arguments as? [String: Any],
+               let adId = args["adId"] as? NSNumber,
+               let visible = args["visible"] as? Bool,
+               let bannerAd = manager.ad(for: adId) as? FBannerAd {
+                bannerAd.setViewportVisible(visible)
+            }
+            result(nil)
+
         case "pauseBannerAutoRefresh":
             // The Dart layer pauses a specific banner (e.g. when a same-route
             // overlay covers it — a case the native geometry poll can't detect).
@@ -363,7 +453,7 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         case "reloadBanner":
             // Force a fresh auction now — used when this banner's screen (route
-            // or tab) becomes active again (onScreenResumed broadcast).
+            // or tab) becomes active again (pageImpression broadcast).
             if let args = call.arguments as? [String: Any],
                let adId = args["adId"] as? NSNumber,
                let bannerAd = manager.ad(for: adId) as? FBannerAd
@@ -846,26 +936,20 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
             }
             result(nil)
             
-        case "isAutomaticPpidEnabled":
-            result(PPIDManager.shared.getAutomaticPpidEnabled())
-            
-        case "setAutomaticPpidEnabled":
-            if let args = call.arguments as? [String: Any],
-               let isAutomaticPpidEnabled = args["isAutomaticPpidEnabled"] as? Bool {
-                PPIDManager.shared.setAutomaticPpidEnabled(isAutomaticPpidEnabled)
-            }
+        case "setPublisherPpid":
+            let args = call.arguments as? [String: Any]
+            PPIDManager.shared.setPublisherPPID(args?["ppid"] as? String)
             result(nil)
-            
+
         case "getPpid":
             result(PPIDManager.shared.getPPID())
 
-        // Native auto screen tracking is ON by default, but a Flutter app has a single host
-        // UIViewController — so it would collapse every Dart route into one coarse page impression.
-        // Call before initialize() and report routes explicitly via onScreenResumed.
-        case "setAutoScreenTracking":
+
+        // One greppable AUDZ line per slot decision; see AUDiagnostics.
+        case "setDiagnosticsEnabled":
             if let args = call.arguments as? [String: Any],
                let enabled = args["enabled"] as? Bool {
-                Audienzz.shared.autoScreenTracking = enabled
+                setDiagnosticsEnabled(enabled)
             }
             result(nil)
 
@@ -887,10 +971,13 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
 
         // Report the active screen by an opaque route key; fires a pageImpression + a fresh
         // page-impression id tying this visit's ad events together.
-        case "onScreenResumed":
+        case "pageImpression":
             if let args = call.arguments as? [String: Any],
-               let routeKey = args["routeKey"] as? String {
-                Audienzz.shared.onScreenResumed(routeKey)
+               let name = args["name"] as? String {
+                // Identity and analytics name are separate. Every Flutter ad lives in the one host
+                // view controller, so host identity can never separate two routes — the id is the
+                // only thing that can, and a screen name repeats.
+                manager.pageImpression(pageId: args["pageId"] as? String ?? name, name: name)
             }
             result(nil)
 

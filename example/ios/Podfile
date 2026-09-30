@@ -47,12 +47,20 @@ target 'Runner' do
   # PrebidMobile and Protobuf are forced back to dynamic in pre_install above.
   use_frameworks! :linkage => :static
 
-  # Pin AudienzziOSSDK to the exact release tag so CocoaPods fetches it
-  # directly from GitHub without requiring a trunk registry push.
-  # Remove this override once 0.3.2 is published to the CocoaPods trunk.
-  pod 'AudienzziOSSDK', :git => 'https://github.com/audienzz/audienzz-ios-sdk.git', :tag => '0.3.2'
+  # Use the published release by default. Set AUDIENZZ_IOS_SDK_PATH explicitly
+  # to test a local native checkout; see LOCAL_TESTING.md.
+  audienzz_local_ios_sdk = ENV.fetch('AUDIENZZ_IOS_SDK_PATH', '')
+  unless audienzz_local_ios_sdk.empty?
+    unless File.file?(File.expand_path(File.join(audienzz_local_ios_sdk, 'AudienzziOSSDK.podspec'), __dir__))
+      raise "Audienzz native checkout not found at #{audienzz_local_ios_sdk}. See LOCAL_TESTING.md."
+    end
+    Pod::UI.puts "[Audienzz] using LOCAL iOS SDK at #{audienzz_local_ios_sdk}".yellow
+    pod 'AudienzziOSSDK', :path => audienzz_local_ios_sdk
+  else
+    pod 'AudienzziOSSDK', '~> 0.4.3'
+  end
 
-  # AudienzziOSSDK 0.3.2 builds against STOCK PrebidMobile (no fork). Pin 3.3.1+
+  # AudienzziOSSDK 0.4.3 builds against STOCK PrebidMobile (no fork). Pin 3.3.1+
   # for the UserUniqueID(uniqueId:) API the SDK uses.
   # NOTE: after changing these pins always `flutter clean` — a stale
   # PrebidMobile-Swift.h in build/ otherwise causes a spurious

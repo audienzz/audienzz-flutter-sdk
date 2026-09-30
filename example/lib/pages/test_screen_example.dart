@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
@@ -6,19 +7,36 @@ import 'package:flutter/material.dart';
 /// Minimal second screen for testing per-screen analytics / screen tracking, mirroring the
 /// native example's "ad screen" (RemoteConfigAdScreenViewController / RemoteConfigAdActivity).
 ///
-/// It is opened from the "Test Screen" navigation tile in main.dart, which reports the route via
-/// `onScreenResumed('Test Screen')` on entry and `onScreenResumed('home')` on return — so
-/// navigating Home -> Test Screen -> Home produces a fresh `pageImpression` per visit and this
-/// banner's auction events are attributed to `screen_name: Test Screen`. Uses the same 300x250
-/// unit (wuobgeuc) as the native example so logs line up across platforms.
-class TestScreenExample extends StatefulWidget {
+/// Owns its Scaffold for every entry point. The page wrapper and navigator observer share one
+/// identity, and the banner waits for that page to be active before loading.
+/// Uses remote placement 46 so its refresh interval and lazy loading come from the backend,
+/// just like the main screen's banner.
+class TestScreenExample extends StatelessWidget {
   const TestScreenExample({super.key});
 
+  static Route<void> route() => MaterialPageRoute<void>(
+        settings: const RouteSettings(name: 'Test Screen'),
+        builder: (_) => const TestScreenExample(),
+      );
+
   @override
-  State<TestScreenExample> createState() => _TestScreenExampleState();
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Test Screen')),
+        body: const AudienzzPage(
+          name: 'Test Screen',
+          child: _TestScreenContent(),
+        ),
+      );
 }
 
-class _TestScreenExampleState extends State<TestScreenExample> {
+class _TestScreenContent extends StatefulWidget {
+  const _TestScreenContent();
+
+  @override
+  State<_TestScreenContent> createState() => _TestScreenContentState();
+}
+
+class _TestScreenContentState extends State<_TestScreenContent> {
   BannerAd? _banner;
   bool _loaded = false;
   bool _failed = false;
@@ -27,7 +45,10 @@ class _TestScreenExampleState extends State<TestScreenExample> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadBanner();
+    final page = AudienzzPageScope.maybeOf(context);
+    if (page?.isActive == true && _banner == null && !_failed) {
+      _loadBanner();
+    }
   }
 
   @override
@@ -36,24 +57,25 @@ class _TestScreenExampleState extends State<TestScreenExample> {
     super.dispose();
   }
 
-  Future<void> _loadBanner() async {
+  void _loadBanner() {
+    final page = AudienzzPageScope.maybeOf(context);
+    if (page?.isActive != true) return;
     _banner?.dispose();
     setState(() {
       _banner = null;
       _loaded = false;
       _failed = false;
+      _adSize = null;
     });
 
-    _banner = BannerAd(
-      adUnitId: '/96628199/de_audienzz.ch_v2/multi-size',
-      auConfigId: 'wuobgeuc',
-      sizes: const {
-        AdSize(height: 250, width: 300),
-        AdSize(height: 50, width: 320),
-      },
+    _banner = RemoteBannerAd(
+      configId: '46',
+      pageKey: page!.page.id,
       onAdLoaded: (ad) async {
+        if (!mounted || !identical(ad, _banner)) return;
         log('[TestScreen] banner loaded: ${ad.adUnitId}');
         final adSize = await ad.getPlatformAdSize();
+        if (!mounted || !identical(ad, _banner)) return;
         setState(() {
           _banner = ad;
           _loaded = true;
@@ -62,16 +84,18 @@ class _TestScreenExampleState extends State<TestScreenExample> {
         });
       },
       onAdFailedToLoad: (ad, error) {
+        if (!mounted || !identical(ad, _banner)) return;
         log('[TestScreen] banner failed: ${error?.message}');
         setState(() {
           _failed = true;
-          ad.dispose();
+          _banner = null;
         });
+        unawaited(ad.dispose());
       },
       onAdImpression: (ad) => log('[TestScreen] banner impression'),
     );
 
-    await _banner?.load();
+    unawaited(_banner!.load());
   }
 
   Widget _bannerWidget() {
@@ -84,8 +108,10 @@ class _TestScreenExampleState extends State<TestScreenExample> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    final width = _adSize?.width.toDouble() ?? _banner!.sizes.first.width.toDouble();
-    final height = _adSize?.height.toDouble() ?? _banner!.sizes.first.height.toDouble();
+    final width =
+        _adSize?.width.toDouble() ?? _banner!.sizes.first.width.toDouble();
+    final height =
+        _adSize?.height.toDouble() ?? _banner!.sizes.first.height.toDouble();
     return SizedBox(
       width: width,
       height: height,
@@ -103,11 +129,6 @@ class _TestScreenExampleState extends State<TestScreenExample> {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       children: [
-        const Text(
-          'Test Screen',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 8),
         const Text(
           'One banner on its own screen — for screen-tracking / analytics logs.',
           style: TextStyle(color: Colors.grey),

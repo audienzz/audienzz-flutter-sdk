@@ -10,6 +10,9 @@ class RemotePublisherConfiguration {
     required this.ortb,
     this.android,
     this.ios,
+    this.ppidEnabled,
+    this.smartRefreshV2,
+    this.analyticsBatchSize,
   });
 
   factory RemotePublisherConfiguration.fromJson(Map<String, dynamic> json) {
@@ -25,8 +28,23 @@ class RemotePublisherConfiguration {
       ios: json['ios'] != null
           ? IosConfig.fromJson(json['ios'] as Map<String, dynamic>)
           : null,
+      ppidEnabled: json['ppidEnabled'] as bool?,
+      smartRefreshV2: json['smartRefreshV2'] as bool?,
+      analyticsBatchSize: _readBatchSize(json['analyticsBatchSize']),
     );
   }
+
+  static int? _readBatchSize(Object? value) {
+    final number = value is int
+        ? value
+        : value is String
+            ? int.tryParse(value.trim())
+            : null;
+    return number != null && number > 0 ? number.clamp(1, 15) : null;
+  }
+
+  /// Backend delivery limit. Native defaults to 10 and caps it at 15.
+  final int? analyticsBatchSize;
 
   final int id;
   final PrebidServer prebidServer;
@@ -34,11 +52,26 @@ class RemotePublisherConfiguration {
   final AndroidConfig? android;
   final IosConfig? ios;
 
+  /// Master backend switch for Publisher Provided Identifiers. `false` suppresses every PPID,
+  /// including one the app supplied through [PpidManager.setPublisherPpid] — it is a per-publisher
+  /// privacy switch, not a preference. Absent/null → enabled.
+  final bool? ppidEnabled;
+
+  /// Backend selection of the smart-refresh viewport gate. `true` selects the
+  /// v2 directional rule, `false` or absent keeps the legacy v1 threshold.
+  /// A local override set through
+  /// [AudienzzSdkFlutter.setSmartRefreshV2Enabled] takes precedence.
+  final bool? smartRefreshV2;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'prebidServer': prebidServer.toJson(),
         'ortb': ortb.toJson(),
         if (android != null) 'android': android!.toJson(),
         if (ios != null) 'ios': ios!.toJson(),
+        if (ppidEnabled != null) 'ppidEnabled': ppidEnabled,
+        if (smartRefreshV2 != null) 'smartRefreshV2': smartRefreshV2,
+        if (analyticsBatchSize != null)
+          'analyticsBatchSize': analyticsBatchSize,
       };
 }

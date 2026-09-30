@@ -2,8 +2,8 @@ package com.audienzz.audienzz_sdk_flutter.ads.implementation
 
 import android.content.Context
 import androidx.core.view.doOnAttach
-import androidx.core.view.doOnNextLayout
 import com.audienzz.audienzz_sdk_flutter.ads.base.Ad
+import com.audienzz.audienzz_sdk_flutter.ads.base.FullScreenCoverableAd
 import com.audienzz.audienzz_sdk_flutter.entities.AdFormat
 import com.audienzz.audienzz_sdk_flutter.entities.VideoBitrate
 import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
@@ -40,9 +40,44 @@ class BannerAd(
     private val bannerPbAdSlot: String?,
     private val gpId: String?,
     private val customImpOrtbConfig: String?,
+    private val pageKey: String?,
     private val adListener: AdListener?,
     private val context: Context,
-) : Ad() {
+    /**
+     * Sizes for the Prebid ad unit when they differ from [adSizes]; null or empty means use
+     * [adSizes]. Last and defaulted so positional callers are unchanged.
+     */
+    private val prebidAdSizes: List<AdSize>? = null,
+    /**
+     * False serves GAM-only: the handler never asks Prebid, and reports no bid events. A remote
+     * banner with no Prebid sizes turns it off.
+     */
+    private val headerBidding: Boolean = true,
+    private val adaptiveBannerConfig: Map<String, Any?>? = null,
+) : Ad(), FullScreenCoverableAd {
+    /**
+     * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
+     * A publisher can allow a size in GAM (for direct-sold line items) that they keep out of
+     * header bidding, and one list for both asked bidders for it anyway. Falls back to [adSizes]
+     * because the ad unit is built from the first size and an empty list would crash.
+     */
+    private val prebidSizes: List<AdSize> = prebidAdSizes?.takeIf { it.isNotEmpty() } ?: adSizes
+
+    internal var loadGoogle: (AdManagerAdView, com.google.android.gms.ads.admanager.AdManagerAdRequest) -> Unit =
+        { view, request -> view.loadAd(request) }
+
+    /**
+     * Builds the Prebid ad unit. A seam so a test can see which size it was built from: the size
+     * lives inside Prebid's own ad unit, with no public way to read it back.
+     */
+    internal var adUnitFactory: (String, Int, Int, EnumSet<AudienzzAdUnitFormat>) -> AudienzzBannerAdUnit =
+        { configId, width, height, formats -> AudienzzBannerAdUnit(configId, width, height, formats) }
+
+    /** The sizes GAM was given. Read-only, for tests. */
+    internal val gamAdSizes: List<AdSize>
+        get() = adView?.adSizes?.toList().orEmpty()
+    var requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext()
+
     private var adView: AdManagerAdView? = null
     private var adViewHandler: AudienzzAdViewHandler? = null
     // Kept as a field so pauseAutoRefresh() / resumeAutoRefresh() can reach it
@@ -58,17 +93,6 @@ class BannerAd(
         adView = AdManagerAdView(context)
 
         val currentAdView = adView
-
-        if (isAdaptiveSize && currentAdView != null) {
-            currentAdView.doOnNextLayout {
-                currentAdView.setAdSizes(
-                    AdSize.getInlineAdaptiveBannerAdSize(
-                        context.resources.pxToDp(currentAdView.width),
-                        context.resources.pxToDp(currentAdView.height),
-                    )
-                )
-            }
-        }
 
         currentAdView?.setAdSizes(*adSizes.toTypedArray())
         currentAdView?.adUnitId = adUnitId
@@ -88,11 +112,13 @@ class BannerAd(
             maxDuration = videoDuration.maxDuration
         }
 
-        val adUnit = when (adFormat) {
-            AdFormat.BANNER -> AudienzzBannerAdUnit(auConfigId, adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.BANNER))
-            AdFormat.VIDEO ->  AudienzzBannerAdUnit(auConfigId, adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.VIDEO))
-            AdFormat.BANNER_AND_VIDEO ->  AudienzzBannerAdUnit(auConfigId,adSizes.first().width, adSizes.first().height, EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO))
+        val formats = when (adFormat) {
+            AdFormat.BANNER -> EnumSet.of(AudienzzAdUnitFormat.BANNER)
+            AdFormat.VIDEO -> EnumSet.of(AudienzzAdUnitFormat.VIDEO)
+            AdFormat.BANNER_AND_VIDEO -> EnumSet.of(AudienzzAdUnitFormat.BANNER, AudienzzAdUnitFormat.VIDEO)
         }
+        val prebidPrimary = prebidSizes.first()
+        val adUnit = adUnitFactory(auConfigId, prebidPrimary.width, prebidPrimary.height, formats)
         bannerAdUnit = adUnit
 
         adUnit.apply {
@@ -101,9 +127,9 @@ class BannerAd(
             pbAdSlot = bannerPbAdSlot
             gpid = gpId
             // The primary size is already set via the AudienzzBannerAdUnit
-            // constructor (adSizes.first()). Only the remaining sizes are
+            // constructor (prebidSizes.first()). Only the remaining sizes are
             // "additional" — adding the first again duplicated it in the request.
-            adSizes.drop(1).forEach { size ->
+            prebidSizes.drop(1).forEach { size ->
                 addAdditionalSize(size.width, size.height)
             }
             // refreshTimeInterval arrives in milliseconds from Dart (seconds * 1000).
@@ -113,15 +139,27 @@ class BannerAd(
         }
 
         currentAdView?.let { adView ->
-            val handler = AudienzzAdViewHandler(adView, adUnit)
+            val handler = AudienzzAdViewHandler(adView, adUnit, requestContext)
             adViewHandler = handler
+            handler.headerBiddingEnabled = headerBidding
+            // A Flutter banner lives in the single FlutterActivity, so the native page coordinator
+            // cannot tell one route's ads from another's by host identity. Tag the handler with the
+            // route key reported to pageImpression so it matches by value instead — this is what
+            // makes page-scoped release/recreate work for Flutter at all.
+            handler.setScreen(pageKey)
+            // Before handler.load(): an eager banner requests inside that call, so a pause the
+            // publisher installed before this ad existed has to be in place first.
+            if (publisherPaused || fullScreenCovered) {
+                handler.stopAutoRefresh()
+            }
             handler.load(
                 withLazyLoading = isLazyLoad,
                 prefetchMarginDp = prefetchMarginDp,
             ) { request, _ ->
                 // Always call loadAd() immediately so onAdLoaded can fire even when the
                 // customer gates AdWidget behind the load callback (legacy pattern).
-                adView.loadAd(request)
+                prepareGoogleSize(adView)
+                loadGoogle(adView, request)
                 // Race-condition guard: if loadAd() fired before Flutter embedded the
                 // platform view, GAM's internal invalidate() is a no-op (no window token).
                 // We register doOnAttach so the creative is drawn once the view attaches.
@@ -147,24 +185,67 @@ class BannerAd(
         }
     }
 
+    /**
+     * Publisher pause requested before [load] built the handler.
+     *
+     * The handler does not exist until load() runs, so forwarding through a nullable reference
+     * dropped a pause installed beforehand — and the handler that arrived afterwards held nothing.
+     * Dart sends `publisherPaused` with creation precisely so an eager banner cannot issue a
+     * request the publisher has already stopped, and that only works if the state is remembered
+     * here until there is something to apply it to.
+     */
+    private var publisherPaused = false
+    private var fullScreenCovered = false
+
     fun pauseAutoRefresh() {
-        // Delegate to the handler so it can also cancel any pending scheduled
-        // refresh runnable (the plain stopAutoRefresh() on bannerAdUnit would
-        // leave a postDelayed Runnable alive and it would fire despite the pause).
-        adViewHandler?.pauseSmartRefresh()
+        publisherPaused = true
+        syncRefreshPause()
     }
 
     fun resumeAutoRefresh() {
-        // Stale-aware resume: if elapsed time since last fetch >= refresh interval
-        // the handler force-fetches demand immediately instead of restarting the
-        // 30 s timer from zero (which is what bannerAdUnit.resumeAutoRefresh() does).
-        adViewHandler?.resumeSmartRefresh()
+        publisherPaused = false
+        syncRefreshPause()
+    }
+
+    override fun setFullScreenCovered(covered: Boolean) {
+        fullScreenCovered = covered
+        syncRefreshPause()
+    }
+
+    private fun syncRefreshPause() {
+        if (publisherPaused || fullScreenCovered) adViewHandler?.stopAutoRefresh()
+        else adViewHandler?.resumeAutoRefresh()
+    }
+
+    fun setViewportVisible(visible: Boolean) {
+        if (visible) adViewHandler?.resumeSmartRefresh() else adViewHandler?.pauseSmartRefresh()
     }
 
     /// Force a fresh auction now, ignoring the stale-aware refresh timing — used
-    /// by the onScreenResumed reload broadcast (only for on-screen banners).
+    /// by the pageImpression reload broadcast (only for on-screen banners).
     fun forceReload() {
         adViewHandler?.reloadAd()
+    }
+
+    internal fun prepareGoogleSize(view: AdManagerAdView) {
+        if (!isAdaptiveSize) return
+        val configuredWidth = (adaptiveBannerConfig?.get("customWidth") as? Number)?.toInt() ?: 0
+        val availablePx = (view.parent as? android.view.View)?.width?.takeIf { it > 0 }
+            ?: view.width.takeIf { it > 0 } ?: context.resources.displayMetrics.widthPixels
+        val width = if (adaptiveBannerConfig?.get("widthStrategy") == "CUSTOM" && configuredWidth > 0)
+            configuredWidth else context.resources.pxToDp(availablePx)
+        val maxHeight = (adaptiveBannerConfig?.get("maxHeight") as? Number)?.toInt() ?: 0
+        val type = adaptiveBannerConfig?.get("type") as? String
+        val adaptive = when {
+            type.equals("ANCHORED", ignoreCase = true) ->
+                AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, width)
+            maxHeight > 0 -> AdSize.getInlineAdaptiveBannerAdSize(width, maxHeight)
+            else -> AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(context, width)
+        }
+        // Preserve legacy defaults, but respect explicit backend delivery choices.
+        val reservations = if (adaptiveBannerConfig?.get("includeReservationSizes") == false)
+            emptyList() else adSizes
+        view.setAdSizes(adaptive, *reservations.toTypedArray())
     }
 
     override fun dispose() {
@@ -172,7 +253,12 @@ class BannerAd(
         // handler/unit alone left a pending smart-refresh runnable alive, so a
         // disposed banner kept running fetchDemand → loadAd() auction loops
         // (accumulating on every navigation and on hot restart).
-        adViewHandler?.pauseSmartRefresh()
+        // destroy() — not just pauseSmartRefresh() — is what deregisters the handler from the page
+        // coordinator and from AppForegroundMonitor. Pausing alone left the handler globally
+        // reachable through the foreground listener, retaining the GAM view and its Activity, and
+        // left it in the coordinator registry so a later page impression could reload a slot that
+        // no longer exists.
+        adViewHandler?.destroy()
         bannerAdUnit?.stopAutoRefresh()
         bannerAdUnit?.destroy()
         adView?.destroy()

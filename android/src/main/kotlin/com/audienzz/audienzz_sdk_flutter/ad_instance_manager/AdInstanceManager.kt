@@ -3,6 +3,10 @@ package com.audienzz.audienzz_sdk_flutter.ad_instance_manager
 import android.app.Activity
 import android.os.Handler
 import android.os.Looper
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import com.audienzz.audienzz_sdk_flutter.ads.base.FullScreenCoverableAd
 import com.audienzz.audienzz_sdk_flutter.entities.RewardAdItem
 import com.google.android.gms.ads.AdError
 import io.flutter.plugin.common.MethodChannel
@@ -18,14 +22,76 @@ import com.google.android.gms.ads.rewarded.RewardedAd
 import org.audienzz.mobile.original.callbacks.AudienzzFullScreenContentCallback
 import org.audienzz.mobile.original.callbacks.AudienzzInterstitialAdLoadCallback
 import org.audienzz.mobile.original.callbacks.AudienzzRewardedAdLoadCallback
+import org.audienzz.mobile.AudienzzPrebidMobile
 
 class AdInstanceManager(private val channel: MethodChannel) {
     private val ads = mutableMapOf<Int, Ad>()
 
     private var activity: Activity? = null
+    private var hostLifecycle: Lifecycle? = null
+    private var hostResumed = false
+    private val interstitialPresentations = mutableSetOf<Int>()
+    private var pendingReturn = false
+    internal var reportPage: (String, String) -> Unit = { id, name ->
+        AudienzzPrebidMobile.pageImpression(id, name)
+    }
+
+    // Google can dismiss before OR after the Flutter host resumes. Observe the host's actual
+    // lifecycle so a return is completed once, with no delay or second foreground timer.
+    private val hostObserver = LifecycleEventObserver { _, event ->
+        if (event == Lifecycle.Event.ON_RESUME) {
+            hostResumed = true
+            completeInterstitialReturn()
+        } else if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP ||
+            event == Lifecycle.Event.ON_DESTROY) {
+            hostResumed = false
+        }
+    }
 
     fun setActivity(activity: Activity?) {
+        hostLifecycle?.removeObserver(hostObserver)
         this.activity = activity
+        hostLifecycle = (activity as? LifecycleOwner)?.lifecycle
+        hostResumed = hostLifecycle?.currentState?.isAtLeast(Lifecycle.State.RESUMED)
+            ?: (activity?.hasWindowFocus() == true)
+        hostLifecycle?.addObserver(hostObserver)
+        completeInterstitialReturn()
+    }
+
+    fun pageImpression(pageId: String, name: String) {
+        reportPage(pageId, name)
+    }
+
+    private fun beginInterstitialPresentation(adId: Int) {
+        if (adFor(adId) !is InterstitialAd || interstitialPresentations.contains(adId)) return
+        interstitialPresentations.add(adId)
+        syncBannerCover()
+    }
+
+    private fun endInterstitialPresentation(adId: Int, dismissed: Boolean) {
+        // The publisher may dispose its Dart controller while the native ad is still showing.
+        // Match the presentation, not the ad registry, so that cannot strand every banner.
+        if (!interstitialPresentations.remove(adId)) return
+        if (dismissed) {
+            pendingReturn = true
+            completeInterstitialReturn()
+        } else {
+            syncBannerCover()
+        }
+    }
+
+    private fun completeInterstitialReturn() {
+        if (!pendingReturn) return
+        if (!hostResumed || interstitialPresentations.isNotEmpty()) return
+        // Native has already recovered the page under its own hold. Only release the bridge
+        // cover here; a new page report would reset attribution and buy a second auction.
+        pendingReturn = false
+        syncBannerCover()
+    }
+
+    private fun syncBannerCover() {
+        val covered = interstitialPresentations.isNotEmpty() || pendingReturn
+        ads.values.filterIsInstance<FullScreenCoverableAd>().forEach { it.setFullScreenCovered(covered) }
     }
 
     fun adFor(id: Int?): Ad? {
@@ -47,6 +113,9 @@ class AdInstanceManager(private val channel: MethodChannel) {
         }
 
         ads[adId] = ad
+        if (interstitialPresentations.isNotEmpty() || pendingReturn) {
+            (ad as? FullScreenCoverableAd)?.setFullScreenCovered(true)
+        }
     }
 
     fun disposeAd(adId: Int) {
@@ -64,9 +133,10 @@ class AdInstanceManager(private val channel: MethodChannel) {
         ads.clear()
     }
 
-    fun onAdLoaded(adId: Int) {
-        val args = mapOf<String, Any>(
+    fun onAdLoaded(adId: Int, responseId: String? = null) {
+        val args = mapOf<String, Any?>(
             AD_ID_KEY to adId,
+            "responseId" to responseId,
             EVENT_NAME_KEY to ON_AD_LOADED_EVENT
         )
 
@@ -78,6 +148,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
             AD_ID_KEY to adId,
             EVENT_NAME_KEY to ON_AD_FAILED_TO_LOAD_EVENT,
             AD_ERROR_KEY to adError,
+            "errorDomain" to adError.domain,
         )
 
         invokeOnAdEvent(args)
@@ -93,6 +164,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
     }
 
     fun onAdOpened(adId: Int) {
+        beginInterstitialPresentation(adId)
         val args = mapOf<String, Any?>(
             AD_ID_KEY to adId,
             EVENT_NAME_KEY to ON_AD_OPENED_EVENT,
@@ -102,6 +174,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
     }
 
     fun onAdClosed(adId: Int) {
+        endInterstitialPresentation(adId, dismissed = true)
         val args = mapOf<String, Any?>(
             AD_ID_KEY to adId,
             EVENT_NAME_KEY to ON_AD_CLOSED_EVENT,
@@ -204,7 +277,11 @@ class AdInstanceManager(private val channel: MethodChannel) {
 
             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                 super.onAdFailedToShowFullScreenContent(adError)
-                onAdFailedToLoad(adId, adError)
+                endInterstitialPresentation(adId, dismissed = false)
+                if (adFor(adId) is InterstitialAd) {
+                    invokeOnAdEvent(mapOf(AD_ID_KEY to adId, EVENT_NAME_KEY to "onAdFailedToShow",
+                        AD_ERROR_KEY to adError, "errorDomain" to adError.domain))
+                } else { onAdFailedToLoad(adId, adError) }
             }
 
             override fun onAdImpression() {
@@ -231,9 +308,9 @@ class AdInstanceManager(private val channel: MethodChannel) {
     fun createInterstitialAdLoadedListener(adId: Int): AudienzzInterstitialAdLoadCallback {
         return object : AudienzzInterstitialAdLoadCallback() {
             override fun onAdLoaded(ad: AdManagerInterstitialAd) {
-                onAdLoaded(adId)
-                val interstitialAd = adFor(adId) as? InterstitialAd
-                interstitialAd?.setAd(ad)
+                val interstitialAd = adFor(adId) as? InterstitialAd ?: return
+                interstitialAd.setAd(ad)
+                onAdLoaded(adId, ad.responseInfo?.responseId)
             }
 
             override fun onAdFailedToLoad(adError: LoadAdError) {

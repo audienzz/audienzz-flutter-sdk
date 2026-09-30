@@ -1,0 +1,14 @@
+// Use only with the native Android checkout's publishToMavenLocal task.
+// Keep its release version/source untouched; give the local artifact a distinct coordinate.
+import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.plugins.signing.Sign
+
+gradle.projectsEvaluated {
+    def sdk = gradle.rootProject.findProject(":Audienzz")
+    if (sdk == null) return // The init script also runs in buildSrc.
+    sdk.extensions.getByType(PublishingExtension).publications.withType(MavenPublication).configureEach {
+        version = "0.3.3-local"
+    }
+    sdk.tasks.withType(Sign).configureEach { enabled = false }
+}
