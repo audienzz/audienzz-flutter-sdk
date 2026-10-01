@@ -22,16 +22,24 @@ if you also want to inspect remote-configuration requests.
 The recommended path: Audienzz supplies your publisher and placement IDs, the backend configures
 delivery, and managed widgets own each banner's lifecycle. Five steps.
 
+**Start here for RemoteBanners and remote interstitials.** Use `AudienzzBanner` below: it creates
+a remote banner and applies backend delivery settings. A manually constructed `BannerAd` is an
+advanced integration and does not inherit those settings. Ask Audienzz for your **publisher ID**
+and **banner/interstitial configuration IDs**; use your own Google Mobile Ads **app ID**.
+
 ### 1. Install
 
 ```sh
 flutter pub add audienzz_sdk_flutter
 ```
 
-The examples below target **this branch’s managed APIs**. Check your package release before copying
-them; the native pins alone do not identify the wrapper API version. Older Flutter
-releases do not include the managed APIs below. Minimum deployment targets: **Android API 24**
-and **iOS 15.0**. Set your app's iOS deployment target accordingly.
+Use the **Flutter release or test build supplied by Audienzz with this guide**. These examples
+describe `feature/page-impression-api`; the package-manager command installs a published package,
+which may not yet contain these managed APIs. Updating the native dependencies alone does not add
+them to an older Flutter wrapper. Minimum deployment targets: **Android API 24** and **iOS 15.0**.
+
+When upgrading, run `flutter pub get`, then `pod update AudienzziOSSDK --repo-update` from your
+app's `ios` directory, and rebuild the app. Hot reload/restart cannot update native dependencies.
 
 Add your GAM/AdMob app ID to `AndroidManifest.xml` as `com.google.android.gms.ads.APPLICATION_ID`
 and to `Info.plist` as `GADApplicationIdentifier` — see [Android setup](#setup-android) and
@@ -141,6 +149,14 @@ Keep `slotKey` stable and unique within the page; it identifies the placement, n
 `AudienzzBanner` mounts the placeholder, loads and disposes for you. The backend owns lazy loading
 (default `true`), prefetch distance (default `200dp` / `200pt`) and refresh settings.
 
+Periodic refresh uses backend `config.refreshTimeSeconds`: missing/null means **10 seconds**,
+`0` disables periodic refresh, and an explicit value such as `7` or `30` is respected.
+The clock starts after loading completes and advances only while the banner is attached, on the
+active page, in the foreground, allowed by the viewport gate, and not paused or covered by an SDK
+interstitial or a reported overlay. Hidden time does not count; returning resumes the remaining
+time. With `7`, the next request starts after **seven eligible seconds**, then needs time to load.
+Navigation/foreground/interstitial recovery is separate from this timer.
+
 ### 5. Show an interstitial
 
 Keep one controller per placement, created after remote initialization, outside transient routes:
@@ -196,6 +212,14 @@ without it, the classic viewport gate applies. Page ownership works in both mode
 
 For custom covers, attach an `AudienzzBannerController` to the banner, call
 `controller.reportCover(covered: true)`, and clear it when the cover disappears. For a whole retained page, set `AudienzzPage.active` to `false`. See [test flows and local setup](LOCAL_TESTING.md) before shipping.
+
+### Verify the integration
+
+- Open the app directly on an ad screen: the navigation integration reports one page before its first ad request.
+- Scroll a banner off-screen and back: periodic refresh pauses, then counts the remaining eligible time.
+- Navigate to an ad-free screen and back: the hidden page stops requesting; each visit gets a new PI.
+- Background/restore the app and show/dismiss an interstitial: eligible banners recover without a
+  new PI. Try `prefetch()` → `show()` twice with the same interstitial controller.
 
 ---
 
@@ -289,8 +313,9 @@ signals.
 
 Initialize SDK
 -------
-First of all, SDK needs to be initialized. It's done asynchronously, so after callback
-is triggered with `InitializationStatus.success`, SDK is ready to be used.
+The following is the **manual configuration** entry point. Remote integrations use
+`initializeRemote(...)` from the quick guide; do not run both startup flows.
+Await initialization and check for `InitializationStatus.success` before creating ads.
 
 ```dart
  final status = await AudienzzSdkFlutter.instance.initialize(companyId: 'CompanyID');
