@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.0
 
 - Remote banner interval fallback is now 10 seconds when backend `refreshTimeSeconds` is missing/null.
   Backend values remain authoritative; 0 disables periodic refresh. The pinned Android 0.3.3 and
