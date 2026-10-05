@@ -2,7 +2,7 @@ import Flutter
 import GoogleMobileAds
 import AudienzziOSSDK
 
-class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPlatformView, BannerViewDelegate {
+class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPlatformView, BannerViewDelegate, AppEventDelegate {
     var requestContext = AUAdRequestContext()
     internal var loadGoogle: (AdManagerBannerView, Request) -> Void = { $0.load($1) }
 
@@ -16,6 +16,22 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     private let adaptiveBannerConfig: [String: Any]?
     private var renderedSize: CGSize?
     private let isAdaptiveSize: Bool
+
+    // ── resizeToPrebidCreative ──────────────────────────────────────────────────────────
+    // Ad config flag: when the Prebid creative rendered inside a larger GAM creative (a 300x250
+    // bid in a 300x600 creative), size the banner to the winning hb_size. Only shrinks; a
+    // creative GAM served itself keeps GAM's size. Two signals per Google load, either order:
+    // GAM's "Prebid" app event, and this load's delivered size. Never act on the event alone
+    // before the load: the banner still holds the PREVIOUS creative's size then.
+    private let resizeToPrebidCreative: Bool
+    private var prebidCreativeSize: CGSize?
+    /// The winning Prebid bid's size for the current auction (hb_size). A seam for tests: the
+    /// SDK only lets itself set `lastPrebidCreativeSize`.
+    internal lazy var currentPrebidCreativeSize: () -> CGSize? = { [weak self] in
+        self?.auBannerView?.lastPrebidCreativeSize
+    }
+    private var prebidRendered = false
+    private var googleLoaded = false
     private let isLazyLoad: Bool
     private let smartRefresh: Bool
     /// The viewport gate resolved by Dart. v2 is the directional rule; v1 is
@@ -244,8 +260,10 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         pageKey: String?,
         rootViewController: UIViewController,
         adId: NSNumber,
-        manager: AdInstanceManager
+        manager: AdInstanceManager,
+        resizeToPrebidCreative: Bool = false
     ) {
+        self.resizeToPrebidCreative = resizeToPrebidCreative
         self.adUnitId = adUnitId
         self.sizes = sizes
         self.prebidSizes = prebidSizes
@@ -387,13 +405,18 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         auBannerView?.requestContext = requestContext
         auBannerView?.onAdSizeChanged = { [weak self] size in
             guard let self, self.auBannerView != nil, size.width > 0, size.height > 0 else { return }
-            guard self.renderedSize != size else { return }
-            self.renderedSize = size
-            self.manager?.onAdSizeChanged(ad: self, size: size)
+            // This load's own size: safe to correct when the Prebid creative already rendered.
+            let effective = self.prebidAdjusted(size) ?? size
+            self.report(size: effective)
+        }
+        if resizeToPrebidCreative {
+            // Before createAd: the SDK's handler captures and forwards this delegate.
+            bannerViewInstance!.appEventDelegate = self
         }
         auBannerView?.onLoadRequest = { [weak self] gamRequest in
             guard let self, let request = gamRequest as? Request,
                   let bannerView = self.bannerViewInstance else { return }
+            self.beginGoogleLoad()
             // The mounted platform view has the publisher's actual available width.
             // Resolve before EVERY Google request, including after orientation changes.
             self.prepareGoogleSize()
@@ -447,9 +470,54 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         }
     }
 
+    // MARK: - resizeToPrebidCreative
+
+    private func report(size: CGSize) {
+        guard renderedSize != size else { return }
+        renderedSize = size
+        manager?.onAdSizeChanged(ad: self, size: size)
+    }
+
+    /// A new Google request is starting: forget the previous delivery's signals.
+    private func beginGoogleLoad() {
+        prebidRendered = false
+        googleLoaded = false
+        prebidCreativeSize = resizeToPrebidCreative ? currentPrebidCreativeSize() : nil
+    }
+
+    /// The Prebid creative size to use instead of [delivered], resizing GAM's view to it; nil when
+    /// the flag is off, the Prebid creative has not rendered for this load, or it would not cut.
+    private func prebidAdjusted(_ delivered: CGSize) -> CGSize? {
+        guard resizeToPrebidCreative, prebidRendered, let target = prebidCreativeSize,
+              target.width > 0, target.height > 0, target != delivered,
+              target.width <= delivered.width, target.height <= delivered.height,
+              let banner = bannerViewInstance else { return nil }
+        banner.resize(adSizeFor(cgSize: target))
+        auBannerView?.setNeedsLayout()
+        return target
+    }
+
+    // MARK: - AppEventDelegate
+
+    func adView(_ banner: BannerView, didReceiveAppEvent name: String, with info: String?) {
+        guard name.caseInsensitiveCompare("Prebid") == .orderedSame else { return }
+        prebidRendered = true
+        // After this load completed: correct the size already reported. Before it, the size
+        // callback for this load applies the correction instead.
+        guard googleLoaded, let delivered = renderedSize ?? bannerViewInstance?.adSize.size,
+              let target = prebidAdjusted(delivered) else { return }
+        report(size: target)
+    }
+
     // MARK: - BannerViewDelegate
 
     func bannerViewDidReceiveAd(_ bannerView: BannerView) {
+        googleLoaded = true
+        // The app event may have landed after this load's size callback but before this one.
+        if let delivered = renderedSize ?? bannerViewInstance?.adSize.size,
+           let target = prebidAdjusted(delivered) {
+            report(size: target)
+        }
         manager?.onAdLoaded(ad: self)
     }
 

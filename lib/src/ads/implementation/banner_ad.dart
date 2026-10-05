@@ -12,6 +12,7 @@ import 'package:audienzz_sdk_flutter/src/entities/video_parameters/playback_meth
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/protocol.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_bitrate.dart';
 import 'package:audienzz_sdk_flutter/src/entities/video_parameters/video_duration.dart';
+import 'package:flutter/foundation.dart';
 
 /// Class for work with banner ads
 class BannerAd extends AdWithView {
@@ -51,6 +52,7 @@ class BannerAd extends AdWithView {
     this.prefetchMargin = 200,
     this.pageKey,
     this.startPublisherPaused = false,
+    this.resizeToPrebidCreative = false,
   }) : isLazyLoad = _resolveLazyLoad(isLazyLoad, smartRefresh);
 
   // On Flutter, lazy load relies on smartRefresh's Flutter-side visibility
@@ -119,6 +121,12 @@ class BannerAd extends AdWithView {
   /// there instead.
   final int prefetchMargin;
 
+  /// Size the banner to the winning Prebid creative (`hb_size`) when that
+  /// creative rendered inside a larger GAM creative. Only shrinks; a creative
+  /// GAM served itself keeps GAM's size. Off by default. A `RemoteBannerAd`
+  /// takes it from the ad config's `resizeToPrebidCreative`.
+  final bool resizeToPrebidCreative;
+
   /// The page this banner belongs to, when the caller knows it better than the
   /// SDK does.
   ///
@@ -178,9 +186,13 @@ class BannerAd extends AdWithView {
   /// A callback triggered when an ad is received.
   final void Function(BannerAd ad) onAdLoaded;
 
-  /// The rendered creative changed size, possibly after [onAdLoaded].
-  /// Resize the host slot without loading another ad. Uses logical pixels.
-  /// Currently emitted by the iOS bridge's Google size delegate.
+  /// The delivered creative's size changed, in logical pixels.
+  ///
+  /// Emitted on Android and iOS before [onAdLoaded] whenever a delivery
+  /// (refreshes included) has a different size than the previous one, and on
+  /// iOS also for a later size update. Resize your container without loading
+  /// another ad, or read [adSize] / [adSizeListenable]. An `AdWidget` without
+  /// a fixed-height parent resizes itself.
   final void Function(BannerAd ad, AdSize size)? onAdSizeChanged;
 
   /// A callback triggered when an ad request failed.
@@ -202,6 +214,15 @@ class BannerAd extends AdWithView {
   /// Get ad size that was assigned on platform (ios/android)
   Future<AdSize?> getPlatformAdSize() =>
       adInstanceManager.getPlatformAdSize(this);
+
+  /// Size of the creative currently delivered to this banner, in logical
+  /// pixels, or `null` before the first delivery and after [dispose]. Same
+  /// value on Android and iOS; updated on every delivery that changes it.
+  AdSize? get adSize => adSizeListenable.value;
+
+  /// Listen to [adSize] — e.g. to size your own wrapper around `AdWidget`.
+  ValueListenable<AdSize?> get adSizeListenable =>
+      adInstanceManager.deliveredSizeListenable(this);
 
   /// Function to load this ad object
   @override
@@ -256,6 +277,7 @@ class BannerAd extends AdWithView {
         isLazyLoad,
         smartRefresh,
         prefetchMargin,
+        resizeToPrebidCreative,
         adFormat,
         apiParameters,
         protocols,

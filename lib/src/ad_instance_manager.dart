@@ -21,6 +21,7 @@ import 'package:audienzz_sdk_flutter/src/refresh/smart_refresh_policy.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 final adInstanceManager = AdInstanceManager();
@@ -94,6 +95,48 @@ final class AdInstanceManager {
   int _nextAdId = 0;
   final _loadedAds = <int, Ad>{};
   final _bannerSizes = <int, AdSize>{};
+
+  /// The creative size currently delivered to each banner, as a listenable so
+  /// `AdWidget` and publishers can follow it. Keyed by the ad object, not its
+  /// id, so it is released with the ad.
+  final _deliveredSizes = Expando<_DeliveredSize>();
+
+  _DeliveredSize _deliveredSizeOf(BannerAd ad) =>
+      _deliveredSizes[ad] ??= _DeliveredSize();
+
+  /// Forgets [ad]'s delivered size on dispose, so a disposed ad — and the same
+  /// object loaded again — never reports or reserves the previous creative's
+  /// size before its own first delivery.
+  void _resetDeliveredSize(BannerAd ad) => _deliveredSizes[ad]?.update(null);
+
+  /// The size of the creative currently delivered to [ad]; see
+  /// [BannerAd.adSizeListenable].
+  ValueListenable<AdSize?> deliveredSizeListenable(BannerAd ad) =>
+      _deliveredSizeOf(ad);
+
+  /// Records a platform-reported size. Both plugins push the delivered size
+  /// before `onAdLoaded` on every delivery that changes it; a lookup reply is
+  /// recorded too. A zero size is not a creative size.
+  void _recordDeliveredSize(BannerAd ad, AdSize size, String source) {
+    if (size.width <= 0 || size.height <= 0) {
+      return;
+    }
+    final notifier = _deliveredSizeOf(ad);
+    final current = notifier.value;
+    if (current != null &&
+        current.width == size.width &&
+        current.height == size.height) {
+      return;
+    }
+    AudienzzDiagnostics.log('banner', 'size', {
+      'adId': adIdFor(ad),
+      'unit': ad.adUnitId,
+      'size': '${size.width}x${size.height}',
+      'source': source,
+    });
+    notifier.update(size);
+  }
+
   final _interstitialLoads = <int, _InterstitialLoad>{};
 
   /// Banners the publisher has declared covered by something the framework cannot see.
@@ -228,6 +271,14 @@ final class AdInstanceManager {
 
   void _invokeOnAdLoaded(Ad ad, String eventName) {
     if (ad is BannerAd) {
+      // One line per delivery, refreshes included. The size is already known:
+      // both plugins push it before this event.
+      final size = _deliveredSizes[ad]?.value;
+      AudienzzDiagnostics.log('banner', 'loaded', {
+        'adId': adIdFor(ad),
+        'unit': ad.adUnitId,
+        'size': size == null ? 'unknown' : '${size.width}x${size.height}',
+      });
       ad.onAdLoaded.call(ad);
     } else if (ad is RewardedAd) {
       ad.onAdLoaded.call(ad);
@@ -251,6 +302,7 @@ final class AdInstanceManager {
     }
     final size = AdSize(width: width.toInt(), height: height.toInt());
     _bannerSizes[id] = size;
+    _recordDeliveredSize(ad, size, 'push');
     ad.onAdSizeChanged?.call(ad, size);
   }
 
@@ -433,6 +485,8 @@ final class AdInstanceManager {
             'prebidAdSizes': ad.prebidSizes!.toList(),
           // Absent unless off, for the same reason.
           if (!ad.headerBidding) 'headerBidding': false,
+          // Absent unless on: an older plugin ignores it and keeps GAM's size.
+          if (ad.resizeToPrebidCreative) 'resizeToPrebidCreative': true,
           'isAdaptiveSize': ad.isAdaptiveSize,
           if (ad.adaptiveBannerConfig != null)
             'adaptiveBannerConfig': ad.adaptiveBannerConfig!.toJson(),
@@ -793,7 +847,11 @@ final class AdInstanceManager {
     );
     // A size event received during this query is newer than its reply.
     final latest = _bannerSizes[adId];
-    return !identical(previous, latest) ? latest : size ?? latest;
+    final result = !identical(previous, latest) ? latest : size ?? latest;
+    if (result != null && adIdFor(ad) == adId) {
+      _recordDeliveredSize(ad, result, 'lookup');
+    }
+    return result;
   }
 
   Future<void> disposeAd(Ad ad) {
@@ -815,6 +873,9 @@ final class AdInstanceManager {
     }
     _adPages.remove(adId);
     _bannerSizes.remove(adId);
+    if (ad is BannerAd) {
+      _resetDeliveredSize(ad);
+    }
     // Ids are allocated monotonically and never reused, so a stale entry cannot be misattributed
     // to a later ad — it simply accumulates for the life of the isolate. Retained bookkeeping for
     // every banner an app ever obscures is the leak.
@@ -913,4 +974,44 @@ final class _InterstitialLoad {
   /// One discard report per load, however many release paths this state
   /// passes through.
   bool discardReported = false;
+}
+
+/// A banner's delivered size. The value changes at once — `adSize` is never
+/// stale — but listeners are told at the end of the frame when the change
+/// happens during a build: a dispose from a widget's `dispose`, a load from
+/// `initState`. A listener that calls `setState` would otherwise throw there.
+final class _DeliveredSize extends ChangeNotifier
+    implements ValueListenable<AdSize?> {
+  AdSize? _value;
+
+  @override
+  AdSize? get value => _value;
+
+  void update(AdSize? next) {
+    final current = _value;
+    final same = identical(current, next) ||
+        (current != null &&
+            next != null &&
+            current.width == next.width &&
+            current.height == next.height);
+    if (same) {
+      return;
+    }
+    _value = next;
+    SchedulerPhase? phase;
+    try {
+      phase = SchedulerBinding.instance.schedulerPhase;
+    } on Object catch (_) {
+      phase = null; // No binding (pure Dart use): nothing can be building.
+    }
+    if (phase == null ||
+        phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      notifyListeners();
+    } else {
+      SchedulerBinding.instance
+        ..addPostFrameCallback((_) => notifyListeners())
+        ..ensureVisualUpdate();
+    }
+  }
 }

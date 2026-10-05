@@ -3,7 +3,7 @@ import Flutter
 import PrebidMobile
 import UIKit
 
-private let flutterSdkVersion = "0.3.0"
+private let flutterSdkVersion = "0.3.1"
 
 public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
     private var manager: AdInstanceManager
@@ -232,7 +232,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 pageKey: args["pageKey"] as? String,
                 rootViewController: rootViewController,
                 adId: adId,
-                manager: manager
+                manager: manager,
+                // Absent from Dart unless the ad config turns it on.
+                resizeToPrebidCreative: args["resizeToPrebidCreative"] as? Bool ?? false
             )
 
             // Before loadAd: an eager banner requests as soon as it loads, so a

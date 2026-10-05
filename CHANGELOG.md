@@ -1,10 +1,41 @@
-## Unreleased
+## 0.3.1
 
 - **Behavior change: a remote banner without a refresh interval no longer refreshes.** When the ad
   config's `refreshTimeSeconds` is missing or `null`, the banner now has no periodic refresh (same as
   `0`) instead of the 10-second fallback introduced in 0.3.0. The interval is sent to native as an
   explicit `0`, which both pinned native releases treat as "no periodic refresh". Explicit backend
   values are unchanged. Page-impression and foreground/interstitial recovery reloads still apply.
+- **Fix: `AudienzzBanner` now sizes to the delivered creative for every placement.** In 0.3.0 only
+  adaptive placements adopted the delivered height; a fixed multi-size placement (e.g. `300x250` +
+  `320x50`) stayed at `placeholderHeight` (default 250), cutting off taller creatives and leaving a
+  gap under shorter ones. The slot now resizes on every delivery, including refreshes that serve a
+  different size and iOS size updates after `onAdLoaded`. A slow size lookup can no longer override
+  a newer delivery.
+- **New: read the delivered size.** `AudienzzBanner.onAdSizeChanged(banner, size)` fires on the
+  first delivery and whenever the size changes (before the matching `onAdLoaded`), and
+  `AudienzzBannerController.adSize` exposes the current size. It is `null` before delivery, after
+  the slot releases its ad and once the banner is disposed; listeners are notified of every change,
+  including that reset (deferred to the end of the frame when it happens during a build).
+- **New: `AudienzzBanner(sizeToCreative: false)`** keeps the slot at `placeholderHeight` for
+  publishers whose own wrapper owns the layout; the size is still reported.
+- `placeholderHeight` is unchanged as the reservation before the first creative; set it per
+  placement (e.g. `50` for a top banner). It is not a maximum: maximum heights are controlled by
+  the placement's ad configuration sizes.
+- **`RemoteBannerAd` sizing, on both platforms.** The Android plugin now sends `onAdSizeChanged`
+  before `onAdLoaded` whenever a delivery's size changes, as iOS already did — previously an
+  Android `RemoteBannerAd` never received it. New `BannerAd.adSize` and `adSizeListenable` expose
+  the delivered size; it resets to `null` on dispose (listeners are notified, at the end of the
+  frame when that happens during a build), so a reused ad starts clean. `AdWidget` in an open-height parent (`ListView`, `Column`, scroll view)
+  reserves the first configured size and then takes the delivered size; a parent that fixes the
+  size keeps control, unchanged. Diagnostics log `AUDZ banner size` / `AUDZ banner loaded` for
+  every banner.
+- **New ad config field `config.resizeToPrebidCreative` (default off).** When GAM renders a Prebid
+  creative inside a larger GAM creative (a 300x250 bid in a 300x600 creative), the banner is cut
+  to the winning bid's `hb_size` once the Prebid creative rendered (GAM's `Prebid` app event).
+  Only shrinks; a creative GAM served itself keeps GAM's size; every refresh still requests all
+  configured sizes. Implemented in both plugins of this package; the native SDKs do not read it.
+- No native SDK changes; still requires AudienzziOSSDK `~> 0.4.3` and `com.audienzz:sdk:0.3.3`.
+  (The Android plugin in this package changed; the native SDK did not.)
 
 ## 0.3.0
 
