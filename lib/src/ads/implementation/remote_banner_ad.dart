@@ -86,7 +86,6 @@ final class RemoteBannerAd extends BannerAd {
     return _getConfig(configId)?.prebidConfig.placementId ?? '';
   }
 
-  static const _defaultRefreshSeconds = 10;
   static const _defaultPrefetchMargin = 200;
 
   /// Lazy when the ad config says nothing, like every other platform.
@@ -102,10 +101,14 @@ final class RemoteBannerAd extends BannerAd {
     return _getConfig(configId)?.config.lazyLoad ?? _defaultLazyLoad;
   }
 
+  /// The ad config's refresh interval, in milliseconds.
+  ///
+  /// A missing or `null` `refreshTimeSeconds` means **no periodic refresh** for
+  /// this placement, the same as an explicit `0`. It is sent to native as an
+  /// explicit `0` rather than omitted, so neither plugin can fall back to a
+  /// default interval of its own.
   static int _getRefreshTime(String configId) {
-    // Fall back to 10 s when refreshTimeSeconds is absent or null in the remote payload.
-    final seconds = _getConfig(configId)?.config.refreshTimeSeconds ??
-        _defaultRefreshSeconds;
+    final seconds = _getConfig(configId)?.config.refreshTimeSeconds ?? 0;
     return seconds * 1000;
   }
 

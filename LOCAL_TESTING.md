@@ -11,8 +11,8 @@ use 10, and positive integers are capped at 15. Native owns persistence, batchin
 ## Testing eligible-time refresh
 
 The default published Android `0.3.3` / iOS `0.4.3` dependencies include this behavior; no local
-native override is needed. Remote banners use backend `config.refreshTimeSeconds`, default 10 when
-missing/null; explicit backend values remain authoritative and 0 disables periodic refresh.
+native override is needed. Remote banners use backend `config.refreshTimeSeconds`; missing/null or
+0 means no periodic refresh, and explicit positive values remain authoritative.
 
 With the backend interval set to 10 seconds, wait for a banner to finish loading, keep it eligible
 for 6 seconds, scroll it out for 40 seconds, then return. There must be no off-screen request and

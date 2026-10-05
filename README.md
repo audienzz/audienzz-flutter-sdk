@@ -14,8 +14,9 @@ Testing Android with Charles? Use the example's debug build and follow the
 if you also want to inspect remote-configuration requests.
 
 > **Refresh timing:** these native releases count only eligible time. Remote banners use backend
-> `config.refreshTimeSeconds`, defaulting to 10 seconds when missing/null; an explicit backend
-> value of `30` still means 30 eligible seconds. Pauses preserve the remaining interval.
+> `config.refreshTimeSeconds`: an explicit value of `30` means 30 eligible seconds, and a
+> missing/`null` value (or `0`) means **no periodic refresh** for that placement. Pauses preserve
+> the remaining interval.
 
 ## Quick integration (remote config + `pageImpression`)
 
@@ -344,8 +345,8 @@ blocks it. Pausing preserves accrued time. With a 10-second interval, 6 eligible
 by 40 hidden seconds leave 4 eligible seconds before the next request. A fresh interval starts
 after each request completes; time spent loading does not count.
 
-Remote banners read `config.refreshTimeSeconds` from the backend: missing/null defaults to **10
-seconds**, `0` disables periodic refresh, and positive values are honored without the former
+Remote banners read `config.refreshTimeSeconds` from the backend: missing/null or `0` means **no
+periodic refresh** for that placement, and positive values are honored without the former
 30-second minimum. An explicit backend value of `30` still means 30 eligible seconds. Initial
 prefetch, explicit page changes, foreground recovery and interstitial-dismissal recovery keep
 their existing behavior. No publisher timer is needed.

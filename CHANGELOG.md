@@ -1,3 +1,11 @@
+## Unreleased
+
+- **Behavior change: a remote banner without a refresh interval no longer refreshes.** When the ad
+  config's `refreshTimeSeconds` is missing or `null`, the banner now has no periodic refresh (same as
+  `0`) instead of the 10-second fallback introduced in 0.3.0. The interval is sent to native as an
+  explicit `0`, which both pinned native releases treat as "no periodic refresh". Explicit backend
+  values are unchanged. Page-impression and foreground/interstitial recovery reloads still apply.
+
 ## 0.3.0
 
 - Remote banner interval fallback is now 10 seconds when backend `refreshTimeSeconds` is missing/null.
