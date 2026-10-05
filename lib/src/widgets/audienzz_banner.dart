@@ -7,6 +7,7 @@ import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page.dart';
 import 'package:audienzz_sdk_flutter/src/widgets/ad_widget.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 /// A RemoteBanner that owns its own lifetime.
@@ -49,12 +50,28 @@ class AudienzzBannerController extends ChangeNotifier {
   Future<void> resumeAutoRefresh() async => _state?._resume();
 
   /// Size of the creative currently delivered to this slot, in logical pixels,
-  /// or `null` before the first creative arrives (and after the slot retires
-  /// its ad). Listeners are notified whenever a delivery changes it, including
-  /// refreshes that serve a different size.
+  /// or `null` before the first creative arrives, after the slot releases its
+  /// ad and once the banner is disposed. Listeners are notified on every
+  /// change, including the reset to `null` and refreshes that serve a
+  /// different size.
   AdSize? get adSize => _state?._deliveredSize;
 
-  void _sizeChanged() => notifyListeners();
+  bool _disposed = false;
+
+  void _sizeChanged() {
+    // A notification deferred to the end of a frame can land after the owner
+    // has disposed this controller (a parent disposes its controller while the
+    // banner it holds is unmounting). A disposed notifier must not be notified.
+    if (!_disposed) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 }
 
 class AudienzzBanner extends StatefulWidget {
@@ -212,7 +229,30 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
     }
     setState(() => _deliveredSize = size);
     widget.onAdSizeChanged?.call(widget, size);
-    widget.controller?._sizeChanged();
+    _notifySizeListeners(widget.controller);
+  }
+
+  /// Tells [controller]'s listeners that `adSize` changed.
+  ///
+  /// A size reset happens on lifecycle paths — a page releasing the slot
+  /// inside `didChangeDependencies`, a rebuild replacing it, an unmount — that
+  /// run while the framework is building. A wrapper that calls `setState` in
+  /// its listener would throw there, so the notification is deferred to the
+  /// end of the current frame. Outside a build (a platform callback) it is
+  /// delivered at once.
+  void _notifySizeListeners(AudienzzBannerController? controller) {
+    if (controller == null) {
+      return;
+    }
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      controller._sizeChanged();
+    } else {
+      SchedulerBinding.instance
+        ..addPostFrameCallback((_) => controller._sizeChanged())
+        ..ensureVisualUpdate();
+    }
   }
 
   @override
@@ -224,6 +264,10 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
   @override
   void dispose() {
     widget.controller?._detach(this);
+    // Detached first, so a listener reads `adSize == null` from here on.
+    if (_deliveredSize != null) {
+      _notifySizeListeners(widget.controller);
+    }
     _disposed = true;
     final ad = _ad;
     _ad = null;
@@ -250,6 +294,11 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
       // survives the swap and the new controller can clear it.
       oldWidget.controller?._detach(this);
       widget.controller?._attach(this);
+      // The old controller no longer sees this slot's size; the new one does.
+      if (_deliveredSize != null) {
+        _notifySizeListeners(oldWidget.controller);
+        _notifySizeListeners(widget.controller);
+      }
     }
     // Unconditionally: `_syncWithPage` is the single place that decides whether
     // this rebuild is a genuinely different slot. Pre-filtering here would put
@@ -317,8 +366,12 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
       return;
     }
     _ad = null;
+    final hadSize = _deliveredSize != null;
     _deliveredSize = null;
     _sizeLookup++;
+    if (hadSize) {
+      _notifySizeListeners(widget.controller);
+    }
     _ownedSlot = null;
     AudienzzDiagnostics.log('slot', 'retire', {
       'slot': widget.slotKey,

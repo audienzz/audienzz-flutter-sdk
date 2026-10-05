@@ -376,4 +376,194 @@ void main() {
     expect(sizes, ['320x50']);
     await unmount(tester);
   });
+  group('controller listeners see the size reset', () {
+    testWidgets('a page release notifies [50, null] to a setState wrapper',
+        (tester) async {
+      final controller = AudienzzBannerController();
+      final seen = <int?>[];
+      Widget page({required bool active}) => app(
+            AudienzzPage(
+              name: 'article',
+              active: active,
+              child: _SizeWrapper(controller: controller, seen: seen),
+            ),
+          );
+      await tester.pumpWidget(page(active: true));
+      await tester.pumpAndSettle();
+
+      platformSize = () => const AdSize(width: 320, height: 50);
+      await nativeEvent('onAdLoaded');
+      await tester.pumpAndSettle();
+      expect(seen, [50]);
+
+      // The release runs inside didChangeDependencies, i.e. during a build.
+      await tester.pumpWidget(page(active: false));
+      await tester.pumpAndSettle();
+      expect(seen, [50, null]);
+      expect(controller.adSize, isNull);
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'listener setState must not run during build',
+      );
+      await unmount(tester);
+      controller.dispose();
+    });
+
+    testWidgets('unmounting the banner notifies a controller that outlives it',
+        (tester) async {
+      final controller = AudienzzBannerController();
+      final seen = <int?>[];
+      controller.addListener(() => seen.add(controller.adSize?.height));
+      await tester.pumpWidget(
+        app(
+          AudienzzPage(
+            name: 'article',
+            child: AudienzzBanner(
+              adConfigId: 'multi',
+              slotKey: 'top',
+              controller: controller,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      platformSize = () => const AdSize(width: 320, height: 50);
+      await nativeEvent('onAdLoaded');
+      await tester.pumpAndSettle();
+
+      await unmount(tester);
+      expect(seen, [50, null]);
+      expect(tester.takeException(), isNull);
+      controller.dispose();
+    });
+
+    testWidgets('an owner disposing its controller during unmount is safe',
+        (tester) async {
+      await tester.pumpWidget(
+        app(
+          const AudienzzPage(
+            name: 'article',
+            child: _ControllerOwner(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      platformSize = () => const AdSize(width: 320, height: 50);
+      await nativeEvent('onAdLoaded');
+      await tester.pumpAndSettle();
+      expect(slotHeight(tester), 50);
+
+      // The owner disposes the controller in the same unmount that disposes the
+      // banner; the deferred reset must not notify a disposed notifier.
+      await unmount(tester);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+        'swapping controllers resets the old one and informs the new one',
+        (tester) async {
+      final first = AudienzzBannerController();
+      final second = AudienzzBannerController();
+      final firstSeen = <int?>[];
+      final secondSeen = <int?>[];
+      first.addListener(() => firstSeen.add(first.adSize?.height));
+      second.addListener(() => secondSeen.add(second.adSize?.height));
+      Widget page(AudienzzBannerController controller) => app(
+            AudienzzPage(
+              name: 'article',
+              child: AudienzzBanner(
+                adConfigId: 'multi',
+                slotKey: 'top',
+                controller: controller,
+              ),
+            ),
+          );
+      await tester.pumpWidget(page(first));
+      await tester.pumpAndSettle();
+      platformSize = () => const AdSize(width: 320, height: 50);
+      await nativeEvent('onAdLoaded');
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(page(second));
+      await tester.pumpAndSettle();
+      expect(firstSeen, [50, null]);
+      expect(secondSeen, [50]);
+      expect(first.adSize, isNull);
+      expect(second.adSize?.height, 50);
+      expect(loadCount(), 1, reason: 'a controller swap is not a new slot');
+      await unmount(tester);
+      first.dispose();
+      second.dispose();
+    });
+  });
+}
+
+/// A publisher wrapper that sizes itself from the controller with setState.
+class _SizeWrapper extends StatefulWidget {
+  const _SizeWrapper({required this.controller, required this.seen});
+
+  final AudienzzBannerController controller;
+  final List<int?> seen;
+
+  @override
+  State<_SizeWrapper> createState() => _SizeWrapperState();
+}
+
+class _SizeWrapperState extends State<_SizeWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onSize);
+  }
+
+  void _onSize() {
+    widget.seen.add(widget.controller.adSize?.height);
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onSize);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AudienzzBanner(
+        adConfigId: 'multi',
+        slotKey: 'top',
+        controller: widget.controller,
+        sizeToCreative: false,
+      );
+}
+
+/// Owns and disposes its controller, like a typical publisher screen.
+class _ControllerOwner extends StatefulWidget {
+  const _ControllerOwner();
+
+  @override
+  State<_ControllerOwner> createState() => _ControllerOwnerState();
+}
+
+class _ControllerOwnerState extends State<_ControllerOwner> {
+  final controller = AudienzzBannerController();
+
+  @override
+  void initState() {
+    super.initState();
+    controller.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AudienzzBanner(
+        adConfigId: 'multi',
+        slotKey: 'top',
+        controller: controller,
+      );
 }

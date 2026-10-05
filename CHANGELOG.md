@@ -8,13 +8,14 @@
   a newer delivery.
 - **New: read the delivered size.** `AudienzzBanner.onAdSizeChanged(banner, size)` fires on the
   first delivery and whenever the size changes (before the matching `onAdLoaded`), and
-  `AudienzzBannerController.adSize` exposes the current size (`null` before delivery and after the
-  slot releases its ad; listeners are notified on change).
+  `AudienzzBannerController.adSize` exposes the current size. It is `null` before delivery, after
+  the slot releases its ad and once the banner is disposed; listeners are notified of every change,
+  including that reset (deferred to the end of the frame when it happens during a build).
 - **New: `AudienzzBanner(sizeToCreative: false)`** keeps the slot at `placeholderHeight` for
   publishers whose own wrapper owns the layout; the size is still reported.
 - `placeholderHeight` is unchanged as the reservation before the first creative; set it per
-  placement (e.g. `50` for a top banner). Maximum heights are controlled by the placement's ad
-  configuration sizes.
+  placement (e.g. `50` for a top banner). It is not a maximum: maximum heights are controlled by
+  the placement's ad configuration sizes.
 - No native changes; still requires AudienzziOSSDK `~> 0.4.3` and `com.audienzz:sdk:0.3.3`.
 
 ## 0.3.0

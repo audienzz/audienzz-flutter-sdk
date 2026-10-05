@@ -561,14 +561,15 @@ AudienzzBanner(
   the size you expect (e.g. `50` for a top banner). It must be non-zero: lazy loading needs a laid-out
   slot to decide when to request.
 - **Reading the size:** `onAdSizeChanged(banner, size)`, or `AudienzzBannerController.adSize`
-  (a `ChangeNotifier` — listen to it). `adSize` is `null` before the first delivery and after the
-  slot releases its ad.
+  (a `ChangeNotifier` — listen to it). `adSize` is `null` before the first delivery, after the
+  slot releases its ad (e.g. its page is no longer active) and once the banner is disposed;
+  listeners are notified of that reset too, so a wrapper can collapse back.
 - **Your own wrapper owns the layout?** Pass `sizeToCreative: false`. The slot then keeps
   `placeholderHeight`, and you still receive the delivered size through the callback and controller
   to size your wrapper yourself.
 - **Maximum heights** (e.g. a top slot that must never exceed 50 px or 160 px) are set by the
-  placement's ad configuration: only list sizes that fit in its `adSizes`. The SDK shows what was
-  delivered; it does not crop or scale a creative.
+  placement's ad configuration: only list sizes that fit in its `adSizes`. `placeholderHeight` is
+  **not** a maximum — the SDK shows what was delivered; it does not crop or scale a creative.
 
 Migrating a low-level integration that read `getPlatformAdSize()` in `RemoteBannerAd.onAdLoaded`:
 use `onAdSizeChanged` or `controller.adSize` on `AudienzzBanner` instead.
