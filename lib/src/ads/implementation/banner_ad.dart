@@ -209,8 +209,8 @@ class BannerAd extends AdWithView {
       adInstanceManager.getPlatformAdSize(this);
 
   /// Size of the creative currently delivered to this banner, in logical
-  /// pixels, or `null` before the first delivery. Same value on Android and
-  /// iOS; updated on every delivery that changes it.
+  /// pixels, or `null` before the first delivery and after [dispose]. Same
+  /// value on Android and iOS; updated on every delivery that changes it.
   AdSize? get adSize => adSizeListenable.value;
 
   /// Listen to [adSize] — e.g. to size your own wrapper around `AdWidget`.

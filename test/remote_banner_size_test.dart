@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -171,6 +174,59 @@ void main() {
     await ad.dispose();
   });
 
+  test('dispose resets adSize and tells listeners', () async {
+    final ad = await loadedAd();
+    final seen = <int?>[];
+    ad.adSizeListenable.addListener(
+      () => seen.add(ad.adSizeListenable.value?.height),
+    );
+    await deliver(ad, 320, 50);
+    await ad.dispose();
+    expect(ad.adSize, isNull);
+    expect(seen, [50, null]);
+  });
+
+  testWidgets('a reused ad reserves the configured size, not the old creative',
+      (tester) async {
+    final ad = await loadedAd();
+    await deliver(ad, 320, 50);
+    await ad.dispose();
+
+    await ad.load(); // same object, loaded again
+    expect(ad.adSize, isNull);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: ListView(children: [AdWidget(ad: ad)])),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(AdWidget)).height, 250);
+
+    await deliver(ad, 300, 600);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(AdWidget)).height, 600);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await ad.dispose();
+  });
+
+  testWidgets('a dispose during a build notifies a setState listener safely',
+      (tester) async {
+    final ad = await loadedAd();
+    await deliver(ad, 320, 50);
+    final seen = <int?>[];
+    await tester.pumpWidget(
+      MaterialApp(home: _DisposingOwner(ad: ad, seen: seen)),
+    );
+    await tester.pumpAndSettle();
+
+    // The owner disposes the ad in its own dispose(), i.e. during a build.
+    await tester.pumpWidget(const MaterialApp(home: _SizeListener()));
+    await tester.pumpAndSettle();
+    expect(ad.adSize, isNull);
+    expect(tester.takeException(), isNull);
+    expect(_SizeListener.lastSeen, isNull);
+  });
+
   group('AdWidget', () {
     Widget scrollable(Widget child) => MaterialApp(
           home: Scaffold(
@@ -250,4 +306,75 @@ void main() {
       await ad.dispose();
     });
   });
+}
+
+/// Owns an ad, listens to its size from a sibling-free listener that calls
+/// setState, and disposes the ad in its own dispose().
+class _DisposingOwner extends StatefulWidget {
+  const _DisposingOwner({required this.ad, required this.seen});
+
+  final RemoteBannerAd ad;
+  final List<int?> seen;
+
+  @override
+  State<_DisposingOwner> createState() => _DisposingOwnerState();
+}
+
+class _DisposingOwnerState extends State<_DisposingOwner> {
+  @override
+  void initState() {
+    super.initState();
+    _SizeListener.listenTo(widget.ad);
+  }
+
+  @override
+  void dispose() {
+    unawaited(widget.ad.dispose());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+/// Stays mounted across the swap and rebuilds on every size notification.
+class _SizeListener extends StatefulWidget {
+  const _SizeListener();
+
+  static ValueListenable<AdSize?>? _listenable;
+  static int? lastSeen = -1;
+  static final _states = <_SizeListenerState>{};
+
+  static void listenTo(BannerAd ad) {
+    _listenable = ad.adSizeListenable;
+    lastSeen = ad.adSize?.height;
+    _listenable!.addListener(() {
+      lastSeen = _listenable!.value?.height;
+      for (final state in _states) {
+        state.rebuild();
+      }
+    });
+  }
+
+  @override
+  State<_SizeListener> createState() => _SizeListenerState();
+}
+
+class _SizeListenerState extends State<_SizeListener> {
+  @override
+  void initState() {
+    super.initState();
+    _SizeListener._states.add(this);
+  }
+
+  void rebuild() => setState(() {});
+
+  @override
+  void dispose() {
+    _SizeListener._states.remove(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Text('${_SizeListener.lastSeen}');
 }

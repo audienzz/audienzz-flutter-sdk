@@ -21,6 +21,7 @@ import 'package:audienzz_sdk_flutter/src/refresh/smart_refresh_policy.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 final adInstanceManager = AdInstanceManager();
@@ -98,10 +99,15 @@ final class AdInstanceManager {
   /// The creative size currently delivered to each banner, as a listenable so
   /// `AdWidget` and publishers can follow it. Keyed by the ad object, not its
   /// id, so it is released with the ad.
-  final _deliveredSizes = Expando<ValueNotifier<AdSize?>>();
+  final _deliveredSizes = Expando<_DeliveredSize>();
 
-  ValueNotifier<AdSize?> _deliveredSizeOf(BannerAd ad) =>
-      _deliveredSizes[ad] ??= ValueNotifier<AdSize?>(null);
+  _DeliveredSize _deliveredSizeOf(BannerAd ad) =>
+      _deliveredSizes[ad] ??= _DeliveredSize();
+
+  /// Forgets [ad]'s delivered size on dispose, so a disposed ad — and the same
+  /// object loaded again — never reports or reserves the previous creative's
+  /// size before its own first delivery.
+  void _resetDeliveredSize(BannerAd ad) => _deliveredSizes[ad]?.update(null);
 
   /// The size of the creative currently delivered to [ad]; see
   /// [BannerAd.adSizeListenable].
@@ -128,7 +134,7 @@ final class AdInstanceManager {
       'size': '${size.width}x${size.height}',
       'source': source,
     });
-    notifier.value = size;
+    notifier.update(size);
   }
 
   final _interstitialLoads = <int, _InterstitialLoad>{};
@@ -865,6 +871,9 @@ final class AdInstanceManager {
     }
     _adPages.remove(adId);
     _bannerSizes.remove(adId);
+    if (ad is BannerAd) {
+      _resetDeliveredSize(ad);
+    }
     // Ids are allocated monotonically and never reused, so a stale entry cannot be misattributed
     // to a later ad — it simply accumulates for the life of the isolate. Retained bookkeeping for
     // every banner an app ever obscures is the leak.
@@ -963,4 +972,44 @@ final class _InterstitialLoad {
   /// One discard report per load, however many release paths this state
   /// passes through.
   bool discardReported = false;
+}
+
+/// A banner's delivered size. The value changes at once — `adSize` is never
+/// stale — but listeners are told at the end of the frame when the change
+/// happens during a build: a dispose from a widget's `dispose`, a load from
+/// `initState`. A listener that calls `setState` would otherwise throw there.
+final class _DeliveredSize extends ChangeNotifier
+    implements ValueListenable<AdSize?> {
+  AdSize? _value;
+
+  @override
+  AdSize? get value => _value;
+
+  void update(AdSize? next) {
+    final current = _value;
+    final same = identical(current, next) ||
+        (current != null &&
+            next != null &&
+            current.width == next.width &&
+            current.height == next.height);
+    if (same) {
+      return;
+    }
+    _value = next;
+    SchedulerPhase? phase;
+    try {
+      phase = SchedulerBinding.instance.schedulerPhase;
+    } on Object catch (_) {
+      phase = null; // No binding (pure Dart use): nothing can be building.
+    }
+    if (phase == null ||
+        phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      notifyListeners();
+    } else {
+      SchedulerBinding.instance
+        ..addPostFrameCallback((_) => notifyListeners())
+        ..ensureVisualUpdate();
+    }
+  }
 }

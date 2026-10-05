@@ -24,7 +24,8 @@
 - **`RemoteBannerAd` sizing, on both platforms.** The Android plugin now sends `onAdSizeChanged`
   before `onAdLoaded` whenever a delivery's size changes, as iOS already did — previously an
   Android `RemoteBannerAd` never received it. New `BannerAd.adSize` and `adSizeListenable` expose
-  the delivered size. `AdWidget` in an open-height parent (`ListView`, `Column`, scroll view)
+  the delivered size; it resets to `null` on dispose (listeners are notified, at the end of the
+  frame when that happens during a build), so a reused ad starts clean. `AdWidget` in an open-height parent (`ListView`, `Column`, scroll view)
   reserves the first configured size and then takes the delivered size; a parent that fixes the
   size keeps control, unchanged. Diagnostics log `AUDZ banner size` / `AUDZ banner loaded` for
   every banner.

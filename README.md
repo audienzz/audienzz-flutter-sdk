@@ -911,7 +911,7 @@ await AudienzzSdkFlutter.instance.setBlankOnScreenReload(true);
 | `onAdClicked`         | `void Function(BannerAd ad)?`                | Callback when ad is clicked.                                            |
 | `onAdImpression`      | `void Function(BannerAd ad)?`                | Callback when ad is visible for 1s.                                     |
 | `onAdSizeChanged`     | `void Function(BannerAd ad, AdSize size)?`   | Delivered creative size changed (Android + iOS), before `onAdLoaded`.   |
-| `adSize`              | `AdSize?`                                    | Size of the creative currently delivered; `null` before the first one.  |
+| `adSize`              | `AdSize?`                                    | Delivered creative's size; `null` before the first one and after dispose. |
 | `adSizeListenable`    | `ValueListenable<AdSize?>`                   | Listen to `adSize` changes, e.g. to size your own wrapper.              |
 | `getPlatformAdSize()` | `Future<AdSize?>`                            | Gets the ad size assigned on the platform.                              |
 | `load()`              | `Future<void>`                               | Loads the ad.                                                           |
