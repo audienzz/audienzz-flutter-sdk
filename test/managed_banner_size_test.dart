@@ -376,6 +376,55 @@ void main() {
     expect(sizes, ['320x50']);
     await unmount(tester);
   });
+  testWidgets('diagnostics log every delivered size and the reset',
+      (tester) async {
+    final lines = <String>[];
+    final oldEnabled = AudienzzDiagnostics.isEnabled;
+    final oldSink = AudienzzDiagnostics.sink;
+    AudienzzDiagnostics.isEnabled = true;
+    AudienzzDiagnostics.sink = lines.add;
+    addTearDown(() {
+      AudienzzDiagnostics.isEnabled = oldEnabled;
+      AudienzzDiagnostics.sink = oldSink;
+    });
+    List<String> sizeLines() =>
+        lines.where((l) => l.startsWith('AUDZ slot size')).toList();
+    Widget page({required bool active}) => app(
+          AudienzzPage(
+            name: 'article',
+            active: active,
+            child: const AudienzzBanner(adConfigId: 'multi', slotKey: 'top'),
+          ),
+        );
+    await tester.pumpWidget(page(active: true));
+    await tester.pumpAndSettle();
+
+    platformSize = () => const AdSize(width: 320, height: 50);
+    await nativeEvent('onAdLoaded');
+    await tester.pumpAndSettle();
+    await nativeEvent('onAdLoaded'); // refresh, same size
+    await tester.pumpAndSettle();
+    await nativeEvent('onAdSizeChanged', width: 300, height: 250);
+    await tester.pumpAndSettle();
+
+    String sizeLine(String size, String source, {required bool changed}) =>
+        'AUDZ slot size slot=top config=multi size=$size source=$source '
+        'changed=$changed slotHeight=${size.split('x').last}';
+    expect(sizeLines(), [
+      sizeLine('320x50', 'load', changed: true),
+      sizeLine('320x50', 'load', changed: false), // refresh, same size
+      sizeLine('300x250', 'push', changed: true),
+    ]);
+
+    await tester.pumpWidget(page(active: false));
+    await tester.pumpAndSettle();
+    expect(
+      lines.where((l) => l.startsWith('AUDZ slot sizeReset')),
+      ['AUDZ slot sizeReset slot=top config=multi slotHeight=250'],
+    );
+    await unmount(tester);
+  });
+
   group('controller listeners see the size reset', () {
     testWidgets('a page release notifies [50, null] to a setState wrapper',
         (tester) async {

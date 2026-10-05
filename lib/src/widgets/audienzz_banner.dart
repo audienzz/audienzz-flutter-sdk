@@ -217,14 +217,30 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
   /// reservation, cutting off a taller creative and leaving a gap under a
   /// shorter one. A zero or negative size is not a creative size (an inline
   /// adaptive descriptor reports zero before Google fills it) and is ignored.
-  void _adoptSize(AdSize size) {
+  ///
+  /// [source] is `load` for the lookup after a delivery and `push` for a size
+  /// update the platform sends on its own (iOS); it only feeds diagnostics.
+  void _adoptSize(AdSize size, {required String source}) {
     if (size.width <= 0 || size.height <= 0) {
       return;
     }
     final current = _deliveredSize;
-    if (current != null &&
-        current.width == size.width &&
-        current.height == size.height) {
+    final changed = current == null ||
+        current.width != size.width ||
+        current.height != size.height;
+    // One line per delivered creative, refreshes included, so a capture shows
+    // what was served and what height the slot took.
+    AudienzzDiagnostics.log('slot', 'size', {
+      'slot': widget.slotKey,
+      'config': widget.adConfigId,
+      'size': '${size.width}x${size.height}',
+      'source': source,
+      'changed': changed,
+      'slotHeight': widget.sizeToCreative
+          ? size.height
+          : widget.placeholderHeight.round(),
+    });
+    if (!changed) {
       return;
     }
     setState(() => _deliveredSize = size);
@@ -370,6 +386,11 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
     _deliveredSize = null;
     _sizeLookup++;
     if (hadSize) {
+      AudienzzDiagnostics.log('slot', 'sizeReset', {
+        'slot': widget.slotKey,
+        'config': widget.adConfigId,
+        'slotHeight': widget.placeholderHeight.round(),
+      });
       _notifySizeListeners(widget.controller);
     }
     _ownedSlot = null;
@@ -424,7 +445,7 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
         }
         // A pushed size is newer than any lookup still in flight.
         _sizeLookup++;
-        _adoptSize(size);
+        _adoptSize(size, source: 'push');
       },
       onAdLoaded: (loadedAd) async {
         // A response can arrive after this state was disposed, or after the
@@ -443,11 +464,13 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
         } on Object catch (_) {
           // Keep the current height if the lookup fails; the ad still loaded.
         }
-        if (_disposed || _ownerGeneration != owner || !identical(_ad, loadedAd)) {
+        if (_disposed ||
+            _ownerGeneration != owner ||
+            !identical(_ad, loadedAd)) {
           return;
         }
         if (size != null && lookup == _sizeLookup) {
-          _adoptSize(size);
+          _adoptSize(size, source: 'load');
         }
         widget.onAdLoaded?.call(widget);
       },

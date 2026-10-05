@@ -572,6 +572,11 @@ AudienzzBanner(
   placement's ad configuration: only list sizes that fit in its `adSizes`. `placeholderHeight` is
   **not** a maximum — the SDK shows what was delivered; it does not crop or scale a creative.
 
+To verify sizing, call `AudienzzSdkFlutter.instance.setDiagnosticsEnabled(true)`: each delivered
+creative logs `AUDZ slot size slot=… config=… size=320x50 source=load changed=true slotHeight=50`
+(`source=push` for a later iOS size update, `changed=false` for a refresh with the same size), and
+releasing the slot logs `AUDZ slot sizeReset … slotHeight=<placeholderHeight>`.
+
 Migrating a low-level integration that read `getPlatformAdSize()` in `RemoteBannerAd.onAdLoaded`:
 use `onAdSizeChanged` or `controller.adSize` on `AudienzzBanner` instead.
 
