@@ -138,8 +138,9 @@ class ArticlePage extends StatelessWidget {
 
 Keep `slotKey` stable and unique within the page; it identifies the placement, not its numeric
 `au_slot` (the SDK assigns that). Reserve the expected height **before** the ad loads;
-`AudienzzBanner` mounts the placeholder, loads and disposes for you. The backend owns lazy loading
-(default `true`), prefetch distance (default `200dp` / `200pt`) and refresh settings.
+`AudienzzBanner` mounts the placeholder, loads and disposes for you. Once a creative arrives the
+slot resizes to the delivered ad's height — see [Banner size](#banner-size). The backend owns lazy
+loading (default `true`), prefetch distance (default `200dp` / `200pt`) and refresh settings.
 
 ### 5. Show an interstitial
 
@@ -537,16 +538,40 @@ Center(
 )
 ```
 
-#### Adaptive Banner
-`AudienzzBanner` reserves space before loading and adjusts its height when the creative's size
-arrives, including iOS size updates delivered after `onAdLoaded`:
+#### Banner size
+`AudienzzBanner` reserves `placeholderHeight` (default `250`) before loading, then adopts the
+**delivered** creative's height. This applies to every placement — fixed multi-size (e.g.
+`300x250` + `320x50`) and adaptive alike — and again on each refresh that serves a different size,
+including iOS size updates delivered after `onAdLoaded`. Nothing is cut off and no gap is left.
 
 ```dart
 AudienzzBanner(
   adConfigId: 'YOUR_CONFIG_ID',
-  slotKey: 'article-banner',
+  slotKey: 'top-banner',
+  placeholderHeight: 50,   // what you expect here; used only until the ad arrives
+  onAdSizeChanged: (banner, size) {
+    // Logical pixels. Fires on the first delivery and whenever the size changes,
+    // before the matching onAdLoaded.
+    debugPrint('Delivered ${size.width}x${size.height}');
+  },
 )
 ```
+
+- **`placeholderHeight`** is the reservation before the first creative. Set it per placement to
+  the size you expect (e.g. `50` for a top banner). It must be non-zero: lazy loading needs a laid-out
+  slot to decide when to request.
+- **Reading the size:** `onAdSizeChanged(banner, size)`, or `AudienzzBannerController.adSize`
+  (a `ChangeNotifier` — listen to it). `adSize` is `null` before the first delivery and after the
+  slot releases its ad.
+- **Your own wrapper owns the layout?** Pass `sizeToCreative: false`. The slot then keeps
+  `placeholderHeight`, and you still receive the delivered size through the callback and controller
+  to size your wrapper yourself.
+- **Maximum heights** (e.g. a top slot that must never exceed 50 px or 160 px) are set by the
+  placement's ad configuration: only list sizes that fit in its `adSizes`. The SDK shows what was
+  delivered; it does not crop or scale a creative.
+
+Migrating a low-level integration that read `getPlatformAdSize()` in `RemoteBannerAd.onAdLoaded`:
+use `onAdSizeChanged` or `controller.adSize` on `AudienzzBanner` instead.
 
 For a low-level `RemoteBannerAd`, mount `AdWidget` inside a **sized** placeholder before loading.
 Read `getPlatformAdSize()` in `onAdLoaded`, and handle `onAdSizeChanged: (ad, size) { ... }`

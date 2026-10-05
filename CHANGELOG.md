@@ -1,3 +1,22 @@
+## 0.3.1
+
+- **Fix: `AudienzzBanner` now sizes to the delivered creative for every placement.** In 0.3.0 only
+  adaptive placements adopted the delivered height; a fixed multi-size placement (e.g. `300x250` +
+  `320x50`) stayed at `placeholderHeight` (default 250), cutting off taller creatives and leaving a
+  gap under shorter ones. The slot now resizes on every delivery, including refreshes that serve a
+  different size and iOS size updates after `onAdLoaded`. A slow size lookup can no longer override
+  a newer delivery.
+- **New: read the delivered size.** `AudienzzBanner.onAdSizeChanged(banner, size)` fires on the
+  first delivery and whenever the size changes (before the matching `onAdLoaded`), and
+  `AudienzzBannerController.adSize` exposes the current size (`null` before delivery and after the
+  slot releases its ad; listeners are notified on change).
+- **New: `AudienzzBanner(sizeToCreative: false)`** keeps the slot at `placeholderHeight` for
+  publishers whose own wrapper owns the layout; the size is still reported.
+- `placeholderHeight` is unchanged as the reservation before the first creative; set it per
+  placement (e.g. `50` for a top banner). Maximum heights are controlled by the placement's ad
+  configuration sizes.
+- No native changes; still requires AudienzziOSSDK `~> 0.4.3` and `com.audienzz:sdk:0.3.3`.
+
 ## 0.3.0
 
 - Remote banner interval fallback is now 10 seconds when backend `refreshTimeSeconds` is missing/null.

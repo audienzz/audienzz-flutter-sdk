@@ -4,6 +4,7 @@ import 'package:audienzz_sdk_flutter/src/ad_instance_manager.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/remote_banner_ad.dart';
 import 'package:audienzz_sdk_flutter/src/audienzz_diagnostics.dart';
 import 'package:audienzz_sdk_flutter/src/entities/ad_error.dart';
+import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/page/audienzz_page.dart';
 import 'package:audienzz_sdk_flutter/src/widgets/ad_widget.dart';
 import 'package:flutter/widgets.dart';
@@ -46,6 +47,14 @@ class AudienzzBannerController extends ChangeNotifier {
 
   /// Clears the pause set by [stopAutoRefresh].
   Future<void> resumeAutoRefresh() async => _state?._resume();
+
+  /// Size of the creative currently delivered to this slot, in logical pixels,
+  /// or `null` before the first creative arrives (and after the slot retires
+  /// its ad). Listeners are notified whenever a delivery changes it, including
+  /// refreshes that serve a different size.
+  AdSize? get adSize => _state?._deliveredSize;
+
+  void _sizeChanged() => notifyListeners();
 }
 
 class AudienzzBanner extends StatefulWidget {
@@ -53,8 +62,10 @@ class AudienzzBanner extends StatefulWidget {
     required this.adConfigId,
     required this.slotKey,
     this.placeholderHeight = 250,
+    this.sizeToCreative = true,
     this.controller,
     this.onAdLoaded,
+    this.onAdSizeChanged,
     this.onAdFailedToLoad,
     super.key,
   });
@@ -76,9 +87,31 @@ class AudienzzBanner extends StatefulWidget {
   /// the slot must be laid out and sized *before* the viewport check runs, or
   /// lazy loading can never trigger. An integration that mounts its ad view
   /// only after `onAdLoaded` deadlocks for exactly this reason.
+  ///
+  /// Set it per placement to the size you expect (e.g. `50` for a top banner).
+  /// Once a creative is delivered the slot adopts its height, unless
+  /// [sizeToCreative] is `false`.
   final double placeholderHeight;
 
+  /// Whether the slot resizes to the delivered creative's height. Defaults to
+  /// `true` for every banner, fixed-size and adaptive alike, including
+  /// refreshes that deliver a different size.
+  ///
+  /// Pass `false` when your own wrapper owns the layout: the slot then keeps
+  /// [placeholderHeight], and the delivered size is still reported through
+  /// [onAdSizeChanged] and [AudienzzBannerController.adSize].
+  final bool sizeToCreative;
+
+  /// Called after a creative has been received, once the slot has adopted its
+  /// size. Read the size with [onAdSizeChanged] or
+  /// [AudienzzBannerController.adSize].
   final void Function(AudienzzBanner banner)? onAdLoaded;
+
+  /// Called whenever the delivered creative's size changes: on the first
+  /// delivery, on a refresh that serves a different size, and when iOS reports
+  /// a later size update. Logical pixels. Fires before the matching
+  /// [onAdLoaded].
+  final void Function(AudienzzBanner banner, AdSize size)? onAdSizeChanged;
   final void Function(AudienzzBanner banner, AdError? error)? onAdFailedToLoad;
 
   @override
@@ -87,7 +120,13 @@ class AudienzzBanner extends StatefulWidget {
 
 class _AudienzzBannerState extends State<AudienzzBanner> {
   RemoteBannerAd? _ad;
-  double? _renderedHeight;
+
+  /// Size of the creative currently on screen, from the platform.
+  AdSize? _deliveredSize;
+
+  /// Orders size lookups. Each delivery queries the platform asynchronously;
+  /// a slow reply for an earlier delivery must not override a later one.
+  int _sizeLookup = 0;
 
   /// The slot this state currently owns: page instance plus slot key.
   String? _ownedSlot;
@@ -152,6 +191,28 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
     if (_publisherStopped) {
       unawaited(ad.pauseAutoRefresh());
     }
+  }
+
+  /// Adopts the platform-reported size of the current creative.
+  ///
+  /// Every delivered banner goes through here, not only adaptive ones: a
+  /// multi-size placement (e.g. 300x250 + 320x50) otherwise stays at the
+  /// reservation, cutting off a taller creative and leaving a gap under a
+  /// shorter one. A zero or negative size is not a creative size (an inline
+  /// adaptive descriptor reports zero before Google fills it) and is ignored.
+  void _adoptSize(AdSize size) {
+    if (size.width <= 0 || size.height <= 0) {
+      return;
+    }
+    final current = _deliveredSize;
+    if (current != null &&
+        current.width == size.width &&
+        current.height == size.height) {
+      return;
+    }
+    setState(() => _deliveredSize = size);
+    widget.onAdSizeChanged?.call(widget, size);
+    widget.controller?._sizeChanged();
   }
 
   @override
@@ -256,7 +317,8 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
       return;
     }
     _ad = null;
-    _renderedHeight = null;
+    _deliveredSize = null;
+    _sizeLookup++;
     _ownedSlot = null;
     AudienzzDiagnostics.log('slot', 'retire', {
       'slot': widget.slotKey,
@@ -304,11 +366,12 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
       // publisher had already stopped.
       startPublisherPaused: _publisherStopped,
       onAdSizeChanged: (ad, size) {
-        if (_disposed || _ownerGeneration != owner ||
-            !identical(_ad, ad) || !ad.isAdaptiveSize) {
+        if (_disposed || _ownerGeneration != owner || !identical(_ad, ad)) {
           return;
         }
-        setState(() => _renderedHeight = size.height.toDouble());
+        // A pushed size is newer than any lookup still in flight.
+        _sizeLookup++;
+        _adoptSize(size);
       },
       onAdLoaded: (loadedAd) async {
         // A response can arrive after this state was disposed, or after the
@@ -316,27 +379,23 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
         if (_disposed || _ownerGeneration != owner) {
           return;
         }
-        // The inline adaptive descriptor has no height until Google returns a creative.
-        // Read the rendered size after the native callback; reject a retired owner's reply.
-        double? height;
-        if (loadedAd.isAdaptiveSize) {
-          try {
-            final size = await loadedAd.getPlatformAdSize();
-            if (size != null && size.height > 0) {
-              height = size.height.toDouble();
-            }
-          } on Object catch (_) {
-            // Keep the reservation if size lookup fails; the ad still loaded.
-          }
+        // Read the delivered size on EVERY load, refreshes included: a
+        // multi-size placement can serve a different size each time, and
+        // Android reports it only through this lookup. Reject a retired
+        // owner's reply, and a reply overtaken by a later delivery or push.
+        final lookup = ++_sizeLookup;
+        AdSize? size;
+        try {
+          size = await loadedAd.getPlatformAdSize();
+        } on Object catch (_) {
+          // Keep the current height if the lookup fails; the ad still loaded.
         }
         if (_disposed || _ownerGeneration != owner || !identical(_ad, loadedAd)) {
           return;
         }
-        setState(() {
-          if (height != null) {
-            _renderedHeight = height;
-          }
-        });
+        if (size != null && lookup == _sizeLookup) {
+          _adoptSize(size);
+        }
         widget.onAdLoaded?.call(widget);
       },
       onAdFailedToLoad: (failed, error) {
@@ -407,14 +466,18 @@ class _AudienzzBannerState extends State<AudienzzBanner> {
   Widget build(BuildContext context) {
     final ad = _ad;
     // Reserve space before the first request so the lazy viewport check can run.
-    // Fixed slots keep that reservation; adaptive slots adopt Google's returned height.
+    // Once a creative is delivered the slot adopts its height (fixed and
+    // adaptive alike), unless the publisher opted out with
+    // `sizeToCreative: false`.
     // `adIdFor` is null until native has registered the ad. AdWidget asserts on
     // that and throws into the widget tree, so the reservation is shown alone
     // until registration succeeds.
     final registered = ad != null && adInstanceManager.adIdFor(ad) != null;
+    final delivered =
+        widget.sizeToCreative ? _deliveredSize?.height.toDouble() : null;
     return SizedBox(
       width: double.infinity,
-      height: _renderedHeight ?? widget.placeholderHeight,
+      height: delivered ?? widget.placeholderHeight,
       child: registered ? AdWidget(ad: ad) : null,
     );
   }
