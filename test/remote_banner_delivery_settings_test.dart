@@ -138,6 +138,47 @@ void main() {
       }
     });
 
+    test('resizeToPrebidCreative is off unless the ad config turns it on',
+        () async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final channel = MethodChannel(
+        Constants.methodChannelName,
+        StandardMethodCodec(AdMessageCodec()),
+      );
+      final calls = <MethodCall>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        return null;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+      Future<Map<dynamic, dynamic>> loadArgs({bool? flag}) async {
+        final json = config().toJson();
+        if (flag != null) {
+          (json['config'] as Map<String, dynamic>)['resizeToPrebidCreative'] =
+              flag;
+        }
+        // Round-trip as the config cache does, so the field survives it.
+        final cached = RemoteAdConfiguration.fromJson(
+          RemoteAdConfiguration.fromJson(json).toJson(),
+        );
+        AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([cached]);
+        calls.clear();
+        final ad = build();
+        await ad.load();
+        await ad.dispose();
+        return calls.singleWhere((c) => c.method == 'loadBannerAd').arguments
+            as Map;
+      }
+
+      expect(build().resizeToPrebidCreative, isFalse);
+      expect((await loadArgs()).containsKey('resizeToPrebidCreative'), isFalse);
+      final offArgs = await loadArgs(flag: false);
+      expect(offArgs.containsKey('resizeToPrebidCreative'), isFalse);
+      expect((await loadArgs(flag: true))['resizeToPrebidCreative'], isTrue);
+    });
+
     test('a backend eager choice wins over nothing', () {
       seed(lazyLoad: false);
       expect(build().isLazyLoad, isFalse);

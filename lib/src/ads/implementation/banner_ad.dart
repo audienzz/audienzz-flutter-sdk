@@ -52,6 +52,7 @@ class BannerAd extends AdWithView {
     this.prefetchMargin = 200,
     this.pageKey,
     this.startPublisherPaused = false,
+    this.resizeToPrebidCreative = false,
   }) : isLazyLoad = _resolveLazyLoad(isLazyLoad, smartRefresh);
 
   // On Flutter, lazy load relies on smartRefresh's Flutter-side visibility
@@ -119,6 +120,12 @@ class BannerAd extends AdWithView {
   /// create items just before they appear on screen. Use `isLazyLoad = false`
   /// there instead.
   final int prefetchMargin;
+
+  /// Size the banner to the winning Prebid creative (`hb_size`) when that
+  /// creative rendered inside a larger GAM creative. Only shrinks; a creative
+  /// GAM served itself keeps GAM's size. Off by default. A `RemoteBannerAd`
+  /// takes it from the ad config's `resizeToPrebidCreative`.
+  final bool resizeToPrebidCreative;
 
   /// The page this banner belongs to, when the caller knows it better than the
   /// SDK does.
@@ -270,6 +277,7 @@ class BannerAd extends AdWithView {
         isLazyLoad,
         smartRefresh,
         prefetchMargin,
+        resizeToPrebidCreative,
         adFormat,
         apiParameters,
         protocols,

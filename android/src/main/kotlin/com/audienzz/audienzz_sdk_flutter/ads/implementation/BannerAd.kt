@@ -11,6 +11,7 @@ import com.audienzz.audienzz_sdk_flutter.platform_views.PlatformViewWrapper
 import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.admanager.AdManagerAdView
+import com.google.android.gms.ads.admanager.AppEventListener
 import io.flutter.plugin.platform.PlatformView
 import org.audienzz.mobile.AudienzzBannerAdUnit
 import org.audienzz.mobile.AudienzzBannerParameters
@@ -54,6 +55,12 @@ class BannerAd(
      */
     private val headerBidding: Boolean = true,
     private val adaptiveBannerConfig: Map<String, Any?>? = null,
+    /**
+     * Ad config `resizeToPrebidCreative`: when the Prebid creative rendered inside a larger GAM
+     * creative (a 300x250 bid placed in a 300x600 creative), size the view to the winning
+     * `hb_size`. Only shrinks; a creative GAM served itself keeps GAM's size. Off by default.
+     */
+    private val resizeToPrebidCreative: Boolean = false,
 ) : Ad(), FullScreenCoverableAd {
     /**
      * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
@@ -89,6 +96,74 @@ class BannerAd(
         return adView?.adSize
     }
 
+    // ── resizeToPrebidCreative ──────────────────────────────────────────────────────────────
+    //
+    // Two signals per Google load, in either order: Google finished loading (onAdLoaded), and the
+    // Prebid creative rendered (GAM's "Prebid" app event, forwarded by the native handler). Only
+    // when both hold for the CURRENT load is the view shrunk to the winning hb_size. Acting on
+    // the app event alone would read the previous creative's size, and acting without it would
+    // cut a creative GAM served itself.
+
+    /** Called by the instance manager after a shrink that happened after onAdLoaded. */
+    internal var onSizeAdjusted: (() -> Unit)? = null
+
+    private var prebidCreativeSize: AdSize? = null
+    private var prebidRendered = false
+    private var googleLoaded = false
+    private var shrunk = false
+
+    /** A new Google request is starting: forget the previous delivery's signals. */
+    private fun beginGoogleLoad(request: com.google.android.gms.ads.admanager.AdManagerAdRequest) {
+        prebidRendered = false
+        googleLoaded = false
+        prebidCreativeSize = if (resizeToPrebidCreative) {
+            parseSize(request.customTargeting.getString(HB_SIZE_KEY))
+        } else null
+        // A previous shrink narrowed the view to one size. Request every configured size again.
+        val view = adView
+        if (shrunk && view != null && !isAdaptiveSize) {
+            view.setAdSizes(*adSizes.toTypedArray())
+        }
+        shrunk = false
+    }
+
+    /** Called by the instance manager on onAdLoaded, before it reports the size to Dart. */
+    internal fun onGoogleAdLoaded() {
+        googleLoaded = true
+        applyPrebidSize()
+    }
+
+    private fun onPrebidCreativeRendered() {
+        prebidRendered = true
+        if (applyPrebidSize()) onSizeAdjusted?.invoke()
+    }
+
+    /**
+     * Returns true when the view was shrunk to the Prebid creative. The single gate for both
+     * orders: before onAdLoaded the view still holds the PREVIOUS creative's size.
+     */
+    private fun applyPrebidSize(): Boolean {
+        if (!resizeToPrebidCreative || !prebidRendered || !googleLoaded || shrunk) return false
+        val target = prebidCreativeSize ?: return false
+        val view = adView ?: return false
+        val current = view.adSize ?: return false
+        if (current.width <= 0 || current.height <= 0) return false
+        if (target.width == current.width && target.height == current.height) return false
+        // Only ever cut: a Prebid size larger than what GAM delivered is not this case.
+        if (target.width > current.width || target.height > current.height) return false
+        view.setAdSizes(target)
+        shrunk = true
+        return true
+    }
+
+    private fun parseSize(value: String?): AdSize? {
+        val parts = value?.lowercase()?.split('x') ?: return null
+        if (parts.size != 2) return null
+        val width = parts[0].trim().toIntOrNull() ?: return null
+        val height = parts[1].trim().toIntOrNull() ?: return null
+        return if (width > 0 && height > 0) AdSize(width, height) else null
+    }
+
     override fun load() {
         adView = AdManagerAdView(context)
 
@@ -97,6 +172,12 @@ class BannerAd(
         currentAdView?.setAdSizes(*adSizes.toTypedArray())
         currentAdView?.adUnitId = adUnitId
         adListener?.let { currentAdView?.adListener = it }
+        if (resizeToPrebidCreative) {
+            // Installed before the handler, which captures and forwards it on every load.
+            currentAdView?.appEventListener = AppEventListener { name, _ ->
+                if (name.equals(PREBID_APP_EVENT, ignoreCase = true)) onPrebidCreativeRendered()
+            }
+        }
 
         val customBannerParameters = AudienzzBannerParameters()
         customBannerParameters.api = apiParameters
@@ -158,6 +239,7 @@ class BannerAd(
             ) { request, _ ->
                 // Always call loadAd() immediately so onAdLoaded can fire even when the
                 // customer gates AdWidget behind the load callback (legacy pattern).
+                beginGoogleLoad(request)
                 prepareGoogleSize(adView)
                 loadGoogle(adView, request)
                 // Race-condition guard: if loadAd() fired before Flutter embedded the
@@ -276,4 +358,9 @@ class BannerAd(
              field = PlatformViewWrapper(adView)
              return field
          }
+
+    private companion object {
+        const val HB_SIZE_KEY = "hb_size"
+        const val PREBID_APP_EVENT = "Prebid"
+    }
 }

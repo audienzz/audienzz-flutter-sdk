@@ -485,6 +485,8 @@ final class AdInstanceManager {
             'prebidAdSizes': ad.prebidSizes!.toList(),
           // Absent unless off, for the same reason.
           if (!ad.headerBidding) 'headerBidding': false,
+          // Absent unless on: an older plugin ignores it and keeps GAM's size.
+          if (ad.resizeToPrebidCreative) 'resizeToPrebidCreative': true,
           'isAdaptiveSize': ad.isAdaptiveSize,
           if (ad.adaptiveBannerConfig != null)
             'adaptiveBannerConfig': ad.adaptiveBannerConfig!.toJson(),

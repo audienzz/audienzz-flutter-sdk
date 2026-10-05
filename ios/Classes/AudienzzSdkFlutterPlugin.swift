@@ -232,7 +232,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 pageKey: args["pageKey"] as? String,
                 rootViewController: rootViewController,
                 adId: adId,
-                manager: manager
+                manager: manager,
+                // Absent from Dart unless the ad config turns it on.
+                resizeToPrebidCreative: args["resizeToPrebidCreative"] as? Bool ?? false
             )
 
             // Before loadAd: an eager banner requests as soon as it loads, so a

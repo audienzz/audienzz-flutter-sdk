@@ -117,6 +117,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
         }
 
         ads[adId] = ad
+        (ad as? BannerAd)?.onSizeAdjusted = { reportBannerSize(adId) }
         if (interstitialPresentations.isNotEmpty() || pendingReturn) {
             (ad as? FullScreenCoverableAd)?.setFullScreenCovered(true)
         }
@@ -267,6 +268,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
 
             override fun onAdLoaded() {
                 // Size first: Dart then knows the delivered size when onAdLoaded arrives.
+                (ads[adId] as? BannerAd)?.onGoogleAdLoaded()
                 reportBannerSize(adId)
                 onAdLoaded(adId)
                 super.onAdLoaded()

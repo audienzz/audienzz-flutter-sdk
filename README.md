@@ -575,6 +575,13 @@ AudienzzBanner(
 - **Maximum heights** (e.g. a top slot that must never exceed 50 px or 160 px) are set by the
   placement's ad configuration: only list sizes that fit in its `adSizes`. `placeholderHeight` is
   **not** a maximum — the SDK shows what was delivered; it does not crop or scale a creative.
+- **Prebid ad shown inside a bigger GAM creative** (e.g. a 300x250 bid centered in a 300x600 slot)
+  happens when the GAM Prebid line items let a winning bid render in a larger creative. Fix it in
+  GAM (creative-level targeting on `hb_size`), or set the ad config field
+  `config.resizeToPrebidCreative: true` for that placement: when the Prebid creative rendered, the
+  banner is cut to the winning bid's size (`hb_size`). It only ever shrinks, a creative GAM served
+  itself keeps GAM's size, and every refresh still requests all configured sizes. Off by default.
+  Flutter SDK only for now; the native and React Native SDKs ignore the field.
 
 To verify sizing, call `AudienzzSdkFlutter.instance.setDiagnosticsEnabled(true)`. Every banner
 (`AudienzzBanner` or `RemoteBannerAd`) logs `AUDZ banner size adId=… unit=… size=320x50

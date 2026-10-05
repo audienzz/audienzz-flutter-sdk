@@ -121,6 +121,8 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     // Absent from Dart unless header bidding is off.
                     call.argument<Boolean>("headerBidding") ?: true,
                     call.argument<Map<String, Any?>>("adaptiveBannerConfig"),
+                    // Absent from Dart unless the ad config turns it on.
+                    call.argument<Boolean>("resizeToPrebidCreative") ?: false,
                 )
 
                 call.argument<String>("requestSlot")?.let {

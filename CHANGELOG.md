@@ -29,6 +29,11 @@
   reserves the first configured size and then takes the delivered size; a parent that fixes the
   size keeps control, unchanged. Diagnostics log `AUDZ banner size` / `AUDZ banner loaded` for
   every banner.
+- **New ad config field `config.resizeToPrebidCreative` (default off).** When GAM renders a Prebid
+  creative inside a larger GAM creative (a 300x250 bid in a 300x600 creative), the banner is cut
+  to the winning bid's `hb_size` once the Prebid creative rendered (GAM's `Prebid` app event).
+  Only shrinks; a creative GAM served itself keeps GAM's size; every refresh still requests all
+  configured sizes. Implemented in both plugins of this package; the native SDKs do not read it.
 - No native SDK changes; still requires AudienzziOSSDK `~> 0.4.3` and `com.audienzz:sdk:0.3.3`.
   (The Android plugin in this package changed; the native SDK did not.)
 

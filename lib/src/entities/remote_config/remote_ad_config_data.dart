@@ -4,6 +4,7 @@ class RemoteAdConfigData {
     this.refreshTimeSeconds,
     this.prefetchDistanceDp,
     this.lazyLoad,
+    this.resizeToPrebidCreative,
     this.stickyMaxHeight,
     this.stickyTopOffset,
   });
@@ -16,6 +17,7 @@ class RemoteAdConfigData {
       refreshTimeSeconds: json['refreshTimeSeconds'] as int?,
       prefetchDistanceDp: json['prefetchDistanceDp'] as int?,
       lazyLoad: json['lazyLoad'] as bool?,
+      resizeToPrebidCreative: json['resizeToPrebidCreative'] as bool?,
       stickyMaxHeight: json['stickyMaxHeight'] as int?,
       stickyTopOffset: json['stickyTopOffset'] as int?,
     );
@@ -34,6 +36,13 @@ class RemoteAdConfigData {
   /// `null` when absent or null in the remote payload; the SDK default applies.
   final bool? lazyLoad;
 
+  /// When `true`, a banner whose Prebid creative rendered is sized to the
+  /// winning Prebid bid (`hb_size`) instead of the larger GAM creative it was
+  /// rendered in — e.g. a 300x250 Prebid ad that GAM placed in a 300x600
+  /// creative. Only ever shrinks; a creative GAM served itself keeps GAM's
+  /// size. `null` (absent) means off.
+  final bool? resizeToPrebidCreative;
+
   /// Reserved height (dp/pt) for [AudienzzStickyAdWrapper].
   /// `null` falls back to the SDK default (600).
   final int? stickyMaxHeight;
@@ -47,6 +56,8 @@ class RemoteAdConfigData {
         if (refreshTimeSeconds != null) 'refreshTimeSeconds': refreshTimeSeconds,
         if (prefetchDistanceDp != null) 'prefetchDistanceDp': prefetchDistanceDp,
         if (lazyLoad != null) 'lazyLoad': lazyLoad,
+        if (resizeToPrebidCreative != null)
+          'resizeToPrebidCreative': resizeToPrebidCreative,
         if (stickyMaxHeight != null) 'stickyMaxHeight': stickyMaxHeight,
         if (stickyTopOffset != null) 'stickyTopOffset': stickyTopOffset,
       };
