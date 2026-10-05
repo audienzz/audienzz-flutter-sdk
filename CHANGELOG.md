@@ -1,5 +1,10 @@
 ## 0.3.1
 
+- **Behavior change: a remote banner without a refresh interval no longer refreshes.** When the ad
+  config's `refreshTimeSeconds` is missing or `null`, the banner now has no periodic refresh (same as
+  `0`) instead of the 10-second fallback introduced in 0.3.0. The interval is sent to native as an
+  explicit `0`, which both pinned native releases treat as "no periodic refresh". Explicit backend
+  values are unchanged. Page-impression and foreground/interstitial recovery reloads still apply.
 - **Fix: `AudienzzBanner` now sizes to the delivered creative for every placement.** In 0.3.0 only
   adaptive placements adopted the delivered height; a fixed multi-size placement (e.g. `300x250` +
   `320x50`) stayed at `placeholderHeight` (default 250), cutting off taller creatives and leaving a

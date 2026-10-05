@@ -1,12 +1,17 @@
 import 'package:audienzz_sdk_flutter/src/ads/implementation/remote_banner_ad.dart';
+import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_ad_configuration.dart';
+import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Lazy loading and the prefetch margin of a remote banner are backend-driven
 /// only: the ad config's `lazyLoad` and `prefetchDistanceDp`, else the SDK
 /// defaults. There is no publisher argument for either.
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   RemoteAdConfiguration config(
       {bool? lazyLoad, int? prefetchDistanceDp, int? refreshTimeSeconds}) {
     return RemoteAdConfiguration.fromJson({
@@ -64,7 +69,11 @@ void main() {
         reason: 'lazy by default, like every other platform',
       );
       expect(ad.prefetchMargin, 200);
-      expect(ad.refreshTimeInterval, 10000);
+      expect(
+        ad.refreshTimeInterval,
+        0,
+        reason: 'no refreshTimeSeconds means no periodic refresh',
+      );
     });
 
     test('the ad config overrides the sdk defaults', () {
@@ -82,13 +91,51 @@ void main() {
       }
     });
 
-    test('null refresh seconds uses the ten-second fallback', () {
+    test('null refresh seconds disables periodic refresh', () {
       final json = config().toJson();
       (json['config'] as Map<String, dynamic>)['refreshTimeSeconds'] = null;
       AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting(
         [RemoteAdConfiguration.fromJson(json)],
       );
-      expect(build().refreshTimeInterval, 10000);
+      expect(build().refreshTimeInterval, 0);
+    });
+
+    test('native receives an explicit 0, not an omitted interval', () async {
+      // An omitted key would let a plugin apply a default interval of its own.
+      // Both natives treat an explicit 0 as "no periodic refresh".
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final channel = MethodChannel(
+        Constants.methodChannelName,
+        StandardMethodCodec(AdMessageCodec()),
+      );
+      final calls = <MethodCall>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        return null;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+      Map<String, dynamic> withNullSeconds() {
+        final json = config().toJson();
+        (json['config'] as Map<String, dynamic>)['refreshTimeSeconds'] = null;
+        return json;
+      }
+
+      for (final json in [config().toJson(), withNullSeconds()]) {
+        calls.clear();
+        AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting(
+          [RemoteAdConfiguration.fromJson(json)],
+        );
+        final ad = build();
+        await ad.load();
+        final args = calls
+            .singleWhere((c) => c.method == 'loadBannerAd')
+            .arguments as Map;
+        expect(args.containsKey('refreshTimeInterval'), isTrue);
+        expect(args['refreshTimeInterval'], 0);
+        await ad.dispose();
+      }
     });
 
     test('a backend eager choice wins over nothing', () {
