@@ -35,44 +35,17 @@ class RemoteBannerAdLoader extends ChangeNotifier {
 
   RemoteBannerAd? get ad => _ad;
 
-  /// Same line format as `AudienzzBanner`, so one filter covers both samples:
-  /// `AUDZ slot size slot=… config=… size=WxH source=load|push changed=… slotHeight=…`.
-  void _logSize(AdSize? size, String source) {
-    if (size == null) {
-      AudienzzDiagnostics.log('slot', 'size', {
-        'slot': 'regular-$configId',
-        'config': configId,
-        'size': 'unknown',
-        'source': source,
-      });
-      return;
-    }
-    final previous = adSize;
-    AudienzzDiagnostics.log('slot', 'size', {
-      'slot': 'regular-$configId',
-      'config': configId,
-      'size': '${size.width}x${size.height}',
-      'source': source,
-      'changed': previous == null ||
-          previous.width != size.width ||
-          previous.height != size.height,
-      'slotHeight': size.height,
-    });
-  }
-
   void _createAndLoad() {
     _ad = RemoteBannerAd(
       configId: configId,
       onAdSizeChanged: (ad, size) {
         if (_disposed || !identical(_ad, ad)) return;
-        _logSize(size, 'push');
         adSize = size;
         notifyListeners();
       },
       onAdLoaded: (ad) async {
         final size = await ad.getPlatformAdSize();
         if (_disposed || !identical(_ad, ad)) return;
-        _logSize(size, 'load');
         adSize = size;
         isLoaded = true;
         notifyListeners();
@@ -243,8 +216,7 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
     final width = ad.isAdaptiveSize
         ? double.infinity
         : adSize?.width.toDouble() ?? ad.sizes.first.width.toDouble();
-    final height =
-        adSize?.height.toDouble() ?? ad.sizes.first.height.toDouble();
+    final height = adSize?.height.toDouble() ?? ad.sizes.first.height.toDouble();
 
     // NOTE: SmartRefresh is fully managed by the SDK. As long as the ad was
     // created with smartRefresh: true, AdWidget itself pauses auto-refresh when

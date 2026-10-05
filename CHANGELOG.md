@@ -21,7 +21,15 @@
 - `placeholderHeight` is unchanged as the reservation before the first creative; set it per
   placement (e.g. `50` for a top banner). It is not a maximum: maximum heights are controlled by
   the placement's ad configuration sizes.
-- No native changes; still requires AudienzziOSSDK `~> 0.4.3` and `com.audienzz:sdk:0.3.3`.
+- **`RemoteBannerAd` sizing, on both platforms.** The Android plugin now sends `onAdSizeChanged`
+  before `onAdLoaded` whenever a delivery's size changes, as iOS already did — previously an
+  Android `RemoteBannerAd` never received it. New `BannerAd.adSize` and `adSizeListenable` expose
+  the delivered size. `AdWidget` in an open-height parent (`ListView`, `Column`, scroll view)
+  reserves the first configured size and then takes the delivered size; a parent that fixes the
+  size keeps control, unchanged. Diagnostics log `AUDZ banner size` / `AUDZ banner loaded` for
+  every banner.
+- No native SDK changes; still requires AudienzziOSSDK `~> 0.4.3` and `com.audienzz:sdk:0.3.3`.
+  (The Android plugin in this package changed; the native SDK did not.)
 
 ## 0.3.0
 

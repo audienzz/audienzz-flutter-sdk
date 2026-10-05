@@ -5,6 +5,7 @@ import 'package:audienzz_sdk_flutter/src/ads/base/ad_with_view.dart';
 import 'package:audienzz_sdk_flutter/src/ads/implementation/banner_ad.dart';
 import 'package:audienzz_sdk_flutter/src/audienzz_diagnostics.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
+import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/refresh/smart_refresh_policy.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -500,6 +501,42 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
         ],
       );
     }
+    final view = _platformView();
+    final ad = widget.ad;
+    if (ad is! BannerAd) {
+      return view;
+    }
+    return _sizedToCreative(ad, view);
+  }
+
+  /// Sizes a banner to its delivered creative where the parent leaves the size
+  /// open — a `ListView`, a `Column`, a scroll view. Before the first delivery
+  /// it reserves the first configured size, which lazy loading needs: a slot
+  /// without a size never comes into range.
+  ///
+  /// A parent that fixes the size (a `SizedBox`, as `AudienzzBanner` and most
+  /// publisher wrappers use) keeps full control: bounded constraints pass
+  /// through unchanged. The wrapper is always present, so changing between the
+  /// two cases never recreates the platform view.
+  Widget _sizedToCreative(BannerAd ad, Widget view) {
+    return LayoutBuilder(
+      builder: (context, constraints) => ValueListenableBuilder<AdSize?>(
+        valueListenable: ad.adSizeListenable,
+        child: view,
+        builder: (context, delivered, child) {
+          final size = delivered ?? (ad.sizes.isEmpty ? null : ad.sizes.first);
+          return SizedBox(
+            width: constraints.hasBoundedWidth ? null : size?.width.toDouble(),
+            height:
+                constraints.hasBoundedHeight ? null : size?.height.toDouble(),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _platformView() {
     if (defaultTargetPlatform == TargetPlatform.android) {
       return PlatformViewLink(
         key: ValueKey<String>('audienzz-ad-$_adKeySuffix'),

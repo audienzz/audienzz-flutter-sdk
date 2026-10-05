@@ -94,6 +94,43 @@ final class AdInstanceManager {
   int _nextAdId = 0;
   final _loadedAds = <int, Ad>{};
   final _bannerSizes = <int, AdSize>{};
+
+  /// The creative size currently delivered to each banner, as a listenable so
+  /// `AdWidget` and publishers can follow it. Keyed by the ad object, not its
+  /// id, so it is released with the ad.
+  final _deliveredSizes = Expando<ValueNotifier<AdSize?>>();
+
+  ValueNotifier<AdSize?> _deliveredSizeOf(BannerAd ad) =>
+      _deliveredSizes[ad] ??= ValueNotifier<AdSize?>(null);
+
+  /// The size of the creative currently delivered to [ad]; see
+  /// [BannerAd.adSizeListenable].
+  ValueListenable<AdSize?> deliveredSizeListenable(BannerAd ad) =>
+      _deliveredSizeOf(ad);
+
+  /// Records a platform-reported size. Both plugins push the delivered size
+  /// before `onAdLoaded` on every delivery that changes it; a lookup reply is
+  /// recorded too. A zero size is not a creative size.
+  void _recordDeliveredSize(BannerAd ad, AdSize size, String source) {
+    if (size.width <= 0 || size.height <= 0) {
+      return;
+    }
+    final notifier = _deliveredSizeOf(ad);
+    final current = notifier.value;
+    if (current != null &&
+        current.width == size.width &&
+        current.height == size.height) {
+      return;
+    }
+    AudienzzDiagnostics.log('banner', 'size', {
+      'adId': adIdFor(ad),
+      'unit': ad.adUnitId,
+      'size': '${size.width}x${size.height}',
+      'source': source,
+    });
+    notifier.value = size;
+  }
+
   final _interstitialLoads = <int, _InterstitialLoad>{};
 
   /// Banners the publisher has declared covered by something the framework cannot see.
@@ -228,6 +265,14 @@ final class AdInstanceManager {
 
   void _invokeOnAdLoaded(Ad ad, String eventName) {
     if (ad is BannerAd) {
+      // One line per delivery, refreshes included. The size is already known:
+      // both plugins push it before this event.
+      final size = _deliveredSizes[ad]?.value;
+      AudienzzDiagnostics.log('banner', 'loaded', {
+        'adId': adIdFor(ad),
+        'unit': ad.adUnitId,
+        'size': size == null ? 'unknown' : '${size.width}x${size.height}',
+      });
       ad.onAdLoaded.call(ad);
     } else if (ad is RewardedAd) {
       ad.onAdLoaded.call(ad);
@@ -251,6 +296,7 @@ final class AdInstanceManager {
     }
     final size = AdSize(width: width.toInt(), height: height.toInt());
     _bannerSizes[id] = size;
+    _recordDeliveredSize(ad, size, 'push');
     ad.onAdSizeChanged?.call(ad, size);
   }
 
@@ -793,7 +839,11 @@ final class AdInstanceManager {
     );
     // A size event received during this query is newer than its reply.
     final latest = _bannerSizes[adId];
-    return !identical(previous, latest) ? latest : size ?? latest;
+    final result = !identical(previous, latest) ? latest : size ?? latest;
+    if (result != null && adIdFor(ad) == adId) {
+      _recordDeliveredSize(ad, result, 'lookup');
+    }
+    return result;
   }
 
   Future<void> disposeAd(Ad ad) {

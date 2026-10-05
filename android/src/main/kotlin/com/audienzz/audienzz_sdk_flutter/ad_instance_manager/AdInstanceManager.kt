@@ -12,6 +12,7 @@ import com.google.android.gms.ads.AdError
 import io.flutter.plugin.common.MethodChannel
 import com.audienzz.audienzz_sdk_flutter.ads.base.Ad
 import com.audienzz.audienzz_sdk_flutter.ads.base.OverlayAd
+import com.audienzz.audienzz_sdk_flutter.ads.implementation.BannerAd
 import com.audienzz.audienzz_sdk_flutter.ads.implementation.InterstitialAd
 import com.audienzz.audienzz_sdk_flutter.ads.implementation.RewardAd
 import com.google.android.gms.ads.AdListener
@@ -26,6 +27,9 @@ import org.audienzz.mobile.AudienzzPrebidMobile
 
 class AdInstanceManager(private val channel: MethodChannel) {
     private val ads = mutableMapOf<Int, Ad>()
+
+    /** Last banner size sent to Dart per ad, so a refresh with the same size sends nothing. */
+    private val reportedBannerSizes = mutableMapOf<Int, Pair<Int, Int>>()
 
     private var activity: Activity? = null
     private var hostLifecycle: Lifecycle? = null
@@ -125,12 +129,39 @@ class AdInstanceManager(private val channel: MethodChannel) {
 
         ads[adId]?.dispose()
         ads.remove(adId)
+        reportedBannerSizes.remove(adId)
     }
 
     fun disposeAllAds() {
         ads.values.forEach(Ad::dispose)
 
         ads.clear()
+        reportedBannerSizes.clear()
+    }
+
+    /**
+     * Report the delivered banner size to Dart, as the iOS plugin already does.
+     *
+     * Sent before `onAdLoaded`, on every delivery whose size differs from the last one reported,
+     * refreshes included. Without it an Android `RemoteBannerAd` never received `onAdSizeChanged`
+     * and `AdWidget` could not size itself to the creative. A zero size (an adaptive descriptor
+     * before Google fills it) is not a creative size and is not sent.
+     */
+    private fun reportBannerSize(adId: Int) {
+        val size = (ads[adId] as? BannerAd)?.getPlatformAdSize() ?: return
+        val width = size.width
+        val height = size.height
+        if (width <= 0 || height <= 0) return
+        if (reportedBannerSizes[adId] == width to height) return
+        reportedBannerSizes[adId] = width to height
+        invokeOnAdEvent(
+            mapOf<String, Any?>(
+                AD_ID_KEY to adId,
+                EVENT_NAME_KEY to ON_AD_SIZE_CHANGED_EVENT,
+                "width" to width,
+                "height" to height,
+            )
+        )
     }
 
     fun onAdLoaded(adId: Int, responseId: String? = null) {
@@ -235,6 +266,8 @@ class AdInstanceManager(private val channel: MethodChannel) {
             }
 
             override fun onAdLoaded() {
+                // Size first: Dart then knows the delivered size when onAdLoaded arrives.
+                reportBannerSize(adId)
                 onAdLoaded(adId)
                 super.onAdLoaded()
             }
@@ -334,6 +367,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
         private const val ON_AD_EVENT_METHOD = "onAdEvent"
 
         private const val ON_AD_LOADED_EVENT = "onAdLoaded"
+        private const val ON_AD_SIZE_CHANGED_EVENT = "onAdSizeChanged"
         private const val ON_AD_FAILED_TO_LOAD_EVENT = "onAdFailedToLoad"
         private const val ON_AD_CLICKED_EVENT = "onAdClicked"
         private const val ON_AD_OPENED_EVENT = "onAdOpened"
