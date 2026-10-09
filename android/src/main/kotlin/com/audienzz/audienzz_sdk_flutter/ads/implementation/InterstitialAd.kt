@@ -83,13 +83,28 @@ class InterstitialAd(
         }
     }
 
+    /**
+     * The minimum size percentages are only sent when there are no sizes. With them, Prebid Server
+     * replaces `banner.format` with sizes from its own interstitial list, so a placement configured
+     * for 320x480 asked bidders for sizes it never named. Before 0.3.0 a banner-only interstitial
+     * never sent them.
+     */
+    internal val sendsMinSizePercentage: Boolean
+        get() = adSizes.isEmpty()
+
+    private fun adUnitFactory(): AudienzzInterstitialAdUnit =
+        if (sendsMinSizePercentage) {
+            AudienzzInterstitialAdUnit(auConfigId, minSizePercentage.width, minSizePercentage.height)
+        } else {
+            AudienzzInterstitialAdUnit(auConfigId)
+        }
+
     @OptIn(AudienzzBridgeApi::class)
     override fun load() {
         // One ad unit whatever the format: formats and API frameworks are backend-controlled.
-        // The native unit resolves them from the ad config values Dart sent for a remote
-        // interstitial (validated exactly as the native remote interstitial does), and otherwise
-        // requests banner + video with MRAID 1/2/3 + OMID 1.
-        val adUnit = AudienzzInterstitialAdUnit(auConfigId, minSizePercentage.width, minSizePercentage.height)
+        // The native unit resolves them from the values Dart sent (banner unless the ad config
+        // asks for video), validated exactly as the native remote interstitial does.
+        val adUnit = adUnitFactory()
         adUnit.setBackendCapabilities(backendFormat, backendApis)
         adUnit.videoParameters = configureVideoParameters()
 

@@ -87,6 +87,10 @@ Banners, rewarded ads and the Rendering API are unchanged.
 - A placement whose video demand cannot be rendered should be set to `"format": "banner"` in the
   backend. Every interstitial now requests video by default; previously some requested banner
   only (Android's remote interstitial, and apps that chose banner).
+- Flutter sends `banner` when the ad config has no format (or an unknown one), for hand-built and
+  remote interstitials alike, so the native banner + video default does not apply there. Video is
+  opt-in per placement with `video` / `bannerAndVideo`. A Flutter interstitial with sizes also
+  leaves out the minimum size percentages, which made Prebid Server replace those sizes.
 - Bridges: Flutter's remote interstitials read the ad config in Dart and hand the raw values to the
   native SDK through a bridge-only entry point (`@_spi(AudienzzBridge)` on iOS,
   `@AudienzzBridgeApi` on Android); the native SDK validates them. React Native's remote

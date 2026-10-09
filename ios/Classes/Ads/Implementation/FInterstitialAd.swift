@@ -11,8 +11,8 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
     private let auConfigId: String
     private let rootViewController: UIViewController
     private let minSizePercentage: FMinSizePercentage
-    /// The ad config's raw `prebidConfig.format` / `prebidConfig.apis`, for a remote interstitial;
-    /// nil otherwise, and the native SDK then applies its default.
+    /// The interstitial's `prebidConfig.format` (Dart sends `banner` unless the ad config asks for
+    /// video) and the ad config's raw `prebidConfig.apis`; nil means the native default.
     private let backendFormat: String?
     private let backendApis: [Int]?
     private let videoProtocols: [AUVideoProtocols]
@@ -74,50 +74,34 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
         
         loadInterstitialAd(gamRequest: request)
     }
-    
-    //TODO: remove this hack when fixed https://github.com/prebid/prebid-mobile-ios/issues/1135
-    // Merges the #1135 banner.format sizes into the publisher's own
-    // impOrtbConfig instead of overwriting it — a second setImpOrtbConfig call
-    // used to clobber the publisher's deals/floors/first-party data. The
-    // publisher config wins for every key it sets; we only fill in
-    // banner.format when the publisher didn't specify it.
-    private func mergedInterstitialORTBConfig(publisher: String?, sizes: [CGSize]) -> String? {
-        let formats: [[String: Int]] = sizes.map {
-            ["w": Int($0.width), "h": Int($0.height)]
-        }
 
-        var root: [String: Any] = [:]
-        if let publisher = publisher,
-           let data = publisher.data(using: .utf8),
-           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            root = parsed
-        }
-
-        var banner = (root["banner"] as? [String: Any]) ?? [:]
-        if banner["format"] == nil {
-            banner["format"] = formats
-        }
-        root["banner"] = banner
-
-        guard let out = try? JSONSerialization.data(withJSONObject: root),
-              let json = String(data: out, encoding: .utf8) else {
-            // Serialization failed — fall back to the publisher config so at
-            // least the customer's own signals still reach the request.
-            return publisher
-        }
-        return json
+    /// The publisher's interstitial sizes, if any.
+    private var explicitSizes: [CGSize] {
+        (sizes ?? []).map { CGSize(width: $0.width, height: $0.height) }
     }
-    
-    private func loadInterstitialAd(gamRequest: AdManagerRequest) {
-        // One ad unit whatever the format: formats and API frameworks are backend-controlled. The
-        // native view resolves them from the ad config values Dart sent for a remote interstitial
-        // (validated exactly as the native remote interstitial does), and otherwise requests
-        // banner + video with MRAID 1/2/3 + OMID 1.
-        interstitialView = AUInterstitialView(
+
+    /// The minimum size percentages are only sent when there are no sizes. With them, Prebid
+    /// Server replaces `banner.format` with sizes from its own interstitial list, so a placement
+    /// configured for 320x480 asked bidders for sizes it never named. Before 0.3.0 a banner-only
+    /// interstitial never sent them.
+    var sendsMinSizePercentage: Bool { explicitSizes.isEmpty }
+
+    private func makeInterstitialView() -> AUInterstitialView {
+        guard sendsMinSizePercentage else {
+            return AUInterstitialView(configId: auConfigId, isLazyLoad: false)
+        }
+        return AUInterstitialView(
             configId: auConfigId,
             isLazyLoad: false,
             minWidthPerc: minSizePercentage.width.intValue,
             minHeightPerc: minSizePercentage.height.intValue)
+    }
+    
+    private func loadInterstitialAd(gamRequest: AdManagerRequest) {
+        // One ad unit whatever the format: formats and API frameworks are backend-controlled. The
+        // native view resolves them from the values Dart sent (banner unless the ad config asks
+        // for video), validated exactly as the native remote interstitial does.
+        interstitialView = makeInterstitialView()
         interstitialView?.setBackendCapabilities(format: backendFormat, apis: backendApis)
 
         // The video settings Dart sent. Used only when the backend asks for video, and without an
@@ -142,19 +126,14 @@ class FInterstitialAd: FBaseAd, FAd, FAdWithoutView, FDisposableAd, FullScreenCo
             interstitialView?.videoParameters = params
         }
         
+        // Prebid turns these into `banner.format` itself, as the native remote interstitial
+        // relies on. The #1135 workaround that also wrote them into impOrtbConfig sent every
+        // size twice.
         let bannerParameters = AUBannerParameters()
-        if let sizes = sizes {
-            let cgSizes: [CGSize] = sizes.map {
-                CGSize(width: $0.width, height: $0.height)
-            }
-            bannerParameters.adSizes = cgSizes
-
-            //TODO: remove this hack when fixed https://github.com/prebid/prebid-mobile-ios/issues/1135
-            // Merge the sizes into (not over) the publisher's impOrtbConfig.
-            if let merged = mergedInterstitialORTBConfig(publisher: customImpOrtbConfig, sizes: cgSizes) {
-                interstitialView?.setImpOrtbConfig(ortbConfig: merged)
-            }
-        } else if let customImpOrtbConfig = customImpOrtbConfig {
+        if !explicitSizes.isEmpty {
+            bannerParameters.adSizes = explicitSizes
+        }
+        if let customImpOrtbConfig = customImpOrtbConfig {
             interstitialView?.setImpOrtbConfig(ortbConfig: customImpOrtbConfig)
         }
 

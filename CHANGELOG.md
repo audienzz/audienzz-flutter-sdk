@@ -1,3 +1,17 @@
+## Unreleased
+
+- **Fix: interstitials request banner only unless the ad config asks for video.** Since 0.3.0 every
+  Flutter interstitial without a `prebidConfig.format` (all hand-built ones, and remote ones the
+  backend has not configured) asked for banner + video, and that video impression (no player size,
+  VAST 2.0 only) took bids away from 320x480 banner interstitials. Dart now sends `banner` when
+  the format is missing or unknown; `video` / `bannerAndVideo` in the ad config still opt in.
+- **Fix: an interstitial with sizes no longer sends minimum size percentages.** With them, Prebid
+  Server replaced `banner.format` with sizes from its own interstitial list, so a placement
+  configured for 320x480 asked bidders for sizes it never named. They are still sent when no
+  sizes are given. Before 0.3.0 banner interstitials never sent them.
+- **Fix (iOS): interstitial sizes are no longer sent twice.** The workaround for
+  prebid-mobile-ios#1135 duplicated every size in `banner.format`; Prebid already sends them.
+
 ## 0.3.1
 
 - **Behavior change: a remote banner without a refresh interval no longer refreshes.** When the ad

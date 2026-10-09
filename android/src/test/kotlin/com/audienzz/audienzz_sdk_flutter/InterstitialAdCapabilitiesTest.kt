@@ -5,6 +5,7 @@ import com.audienzz.audienzz_sdk_flutter.entities.MinSizePercentage
 import com.audienzz.audienzz_sdk_flutter.entities.VideoBitrate
 import com.audienzz.audienzz_sdk_flutter.entities.VideoDuration
 import android.app.Activity
+import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.admanager.AdManagerInterstitialAd
 import io.mockk.*
 import org.audienzz.mobile.AudienzzBridgeApi
@@ -56,7 +57,11 @@ class InterstitialAdCapabilitiesTest {
     @After
     fun tearDown() = unmockkAll()
 
-    private fun interstitial(format: String?, apis: List<Int>?) = InterstitialAd(
+    private fun interstitial(
+        format: String?,
+        apis: List<Int>?,
+        sizes: List<AdSize> = emptyList(),
+    ) = InterstitialAd(
         adUnitId = "/1/int",
         auConfigId = "p",
         minSizePercentage = MinSizePercentage(80, 60),
@@ -67,7 +72,7 @@ class InterstitialAdCapabilitiesTest {
         videoDuration = VideoDuration(1, 30),
         interstitialPbAdSlot = null,
         gpId = null,
-        adSizes = emptyList(),
+        adSizes = sizes,
         customImpOrtbConfig = null,
         context = RuntimeEnvironment.getApplication(),
         interstitialAdLoadedListener = mockk(relaxed = true),
@@ -86,6 +91,20 @@ class InterstitialAdCapabilitiesTest {
     fun `a hand-built interstitial hands over nothing, so native applies its default`() {
         interstitial(null, null).load()
         assertEquals(listOf<Pair<String?, List<Int>?>>(null to null), handed)
+    }
+
+    /**
+     * With sizes, Prebid Server would otherwise replace `banner.format` with sizes from its own
+     * interstitial list, so a 320x480 placement asked bidders for sizes it never named.
+     */
+    @Test
+    fun `explicit sizes leave out the minimum size percentages`() {
+        assertFalse(interstitial("banner", null, sizes = listOf(AdSize(320, 480))).sendsMinSizePercentage)
+    }
+
+    @Test
+    fun `without sizes the minimum size percentages describe the slot`() {
+        assertTrue(interstitial("banner", null).sendsMinSizePercentage)
     }
 
     /** `video/x-flv` was advertised here without Google's player being able to render it. */
