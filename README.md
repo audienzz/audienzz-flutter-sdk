@@ -575,13 +575,16 @@ AudienzzBanner(
 - **Maximum heights** (e.g. a top slot that must never exceed 50 px or 160 px) are set by the
   placement's ad configuration: only list sizes that fit in its `adSizes`. `placeholderHeight` is
   **not** a maximum — the SDK shows what was delivered; it does not crop or scale a creative.
-- **Prebid ad shown inside a bigger GAM creative** (e.g. a 300x250 bid centered in a 300x600 slot)
-  happens when the GAM Prebid line items let a winning bid render in a larger creative. Fix it in
-  GAM (creative-level targeting on `hb_size`), or set the ad config field
-  `config.resizeToPrebidCreative: true` for that placement: when the Prebid creative rendered, the
-  banner is cut to the winning bid's size (`hb_size`). It only ever shrinks, a creative GAM served
-  itself keeps GAM's size, and every refresh still requests all configured sizes. Off by default.
-  Flutter SDK only for now; the native and React Native SDKs ignore the field.
+- **Prebid ads take their own size.** GAM can render a winning Prebid bid inside a creative of
+  another size: a 300x250 bid in a 300x600 creative (smaller, with a gap, off-centre) or a 300x600
+  bid in a 300x250 creative (cut off). Once the Prebid creative rendered, the banner is sized to the
+  winning bid (`hb_size`), larger or smaller. The SDK recognises a Prebid creative by GAM's
+  `Prebid` app event, or by the `hb_size` in the creative's markup when the line item's creative
+  does not dispatch that event. A creative GAM served itself keeps GAM's size, and
+  every refresh still requests all configured sizes. On by default; set the ad config field
+  `config.resizeToPrebidCreative: false` to keep GAM's size for a placement. The clean fix is still
+  in GAM: creative-level targeting on `hb_size`. Flutter SDK only for now; the native and React
+  Native SDKs keep GAM's size.
 
 To verify sizing, call `AudienzzSdkFlutter.instance.setDiagnosticsEnabled(true)`. Every banner
 (`AudienzzBanner` or `RemoteBannerAd`) logs `AUDZ banner size adId=… unit=… size=320x50

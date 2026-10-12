@@ -485,8 +485,9 @@ final class AdInstanceManager {
             'prebidAdSizes': ad.prebidSizes!.toList(),
           // Absent unless off, for the same reason.
           if (!ad.headerBidding) 'headerBidding': false,
-          // Absent unless on: an older plugin ignores it and keeps GAM's size.
-          if (ad.resizeToPrebidCreative) 'resizeToPrebidCreative': true,
+          // Always explicit, so neither plugin falls back to a default of its
+          // own.
+          'resizeToPrebidCreative': ad.resizeToPrebidCreative,
           'isAdaptiveSize': ad.isAdaptiveSize,
           if (ad.adaptiveBannerConfig != null)
             'adaptiveBannerConfig': ad.adaptiveBannerConfig!.toJson(),
@@ -551,19 +552,30 @@ final class AdInstanceManager {
     }
   }
 
-  /// The ad config's raw `prebidConfig.format` / `prebidConfig.apis`, for a
-  /// remote interstitial only: a hand-built one has no ad config. There is no
-  /// public hook for this, and [RemoteInterstitialAd] cannot be subclassed, so
-  /// an app cannot put its own values here.
-  Map<String, Object>? _backendCapabilities(InterstitialAd ad) {
-    if (ad is! RemoteInterstitialAd) {
-      return null;
-    }
-    final prebid = AudienzzRemoteConfig.instance
-        .remoteConfigFor(ad.configId)
-        ?.prebidConfig;
+  /// The formats the native ad unit accepts in `prebidConfig.format`.
+  static const _interstitialFormats = {'banner', 'video', 'bannerAndVideo'};
+
+  /// The interstitial's format and API frameworks: the ad config's
+  /// `prebidConfig.format` / `prebidConfig.apis` for a remote interstitial
+  /// (a hand-built one has no ad config). There is no public hook for this,
+  /// and [RemoteInterstitialAd] cannot be subclassed, so an app cannot put
+  /// its own values here.
+  ///
+  /// A missing or unknown format is sent as `banner`. Left to native, it
+  /// becomes banner + video, and that video impression (no player size,
+  /// VAST 2.0 only) took bids away from banner-only interstitials that
+  /// requested no video before 0.3.0. Video is opt-in per placement through
+  /// the ad config.
+  Map<String, Object> _backendCapabilities(InterstitialAd ad) {
+    final prebid = ad is RemoteInterstitialAd
+        ? AudienzzRemoteConfig.instance
+            .remoteConfigFor(ad.configId)
+            ?.prebidConfig
+        : null;
+    final format = prebid?.format;
     return {
-      if (prebid?.format != null) 'backendFormat': prebid!.format!,
+      'backendFormat':
+          _interstitialFormats.contains(format) ? format! : 'banner',
       if (prebid?.apis != null) 'backendApis': prebid!.apis!,
     };
   }
@@ -605,11 +617,11 @@ final class AdInstanceManager {
         'auConfigId': ad.auConfigId,
         // Formats and API frameworks are backend-controlled. Read here, when an
         // accepted load is sent, so a config change never touches an ad that
-        // is ready, loading or on screen. Absent means "not configured": the
-        // native SDK applies its default (banner + video, MRAID 1/2/3 + OMID 1)
-        // and validates whatever is sent exactly as its own remote
+        // is ready, loading or on screen. The format is always sent (banner
+        // when unconfigured); absent APIs mean native applies MRAID 1/2/3 +
+        // OMID 1. Native validates both exactly as its own remote
         // interstitial does.
-        ...?_backendCapabilities(ad),
+        ..._backendCapabilities(ad),
         'protocols': ad.protocols.toList(),
         'placement': ad.placement,
         'playbackMethods': ad.playbackMethods.toList(),

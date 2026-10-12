@@ -36,11 +36,12 @@ class RemoteAdConfigData {
   /// `null` when absent or null in the remote payload; the SDK default applies.
   final bool? lazyLoad;
 
-  /// When `true`, a banner whose Prebid creative rendered is sized to the
-  /// winning Prebid bid (`hb_size`) instead of the larger GAM creative it was
-  /// rendered in — e.g. a 300x250 Prebid ad that GAM placed in a 300x600
-  /// creative. Only ever shrinks; a creative GAM served itself keeps GAM's
-  /// size. `null` (absent) means off.
+  /// Whether a banner whose Prebid creative rendered is sized to the winning
+  /// Prebid bid (`hb_size`) instead of the GAM creative it was rendered in,
+  /// e.g. a 300x250 Prebid ad that GAM placed in a 300x600 creative, or a
+  /// 300x600 one placed in a 300x250 creative. A creative GAM served itself
+  /// keeps GAM's size. `null` (absent) means on; `false` opts the placement
+  /// out.
   final bool? resizeToPrebidCreative;
 
   /// Reserved height (dp/pt) for [AudienzzStickyAdWrapper].

@@ -8,11 +8,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// An interstitial's formats and API frameworks are backend-controlled.
 ///
-/// Dart never decides them: a remote interstitial forwards its ad config's
-/// raw `prebidConfig.format` / `prebidConfig.apis` with each ACCEPTED load,
-/// and the native SDK validates them exactly as its own remote interstitial
-/// does. A hand-built interstitial forwards nothing and gets the native
-/// default. These tests pin what crosses the channel, and when.
+/// A remote interstitial forwards its ad config's `prebidConfig.format` /
+/// `prebidConfig.apis` with each ACCEPTED load, and the native SDK validates
+/// them exactly as its own remote interstitial does. Without a valid format
+/// (a hand-built interstitial, or an ad config that has none) Dart sends
+/// `banner`: video is opt-in per placement. These tests pin what crosses the
+/// channel, and when.
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
   final messenger = binding.defaultBinaryMessenger;
@@ -89,7 +90,7 @@ void main() {
     messenger.setMockMethodCallHandler(channel, null);
   });
 
-  test('no interstitial sends a format or API list of its own', () async {
+  test('a hand-built interstitial requests banner only', () async {
     final handBuilt = InterstitialAd(
       adUnitId: '/1/int',
       auConfigId: 'p',
@@ -102,8 +103,8 @@ void main() {
     final payload = loads().single;
     expect(payload.containsKey('adFormat'), isFalse);
     expect(payload.containsKey('apiParameters'), isFalse);
-    expect(payload.containsKey('backendFormat'), isFalse,
-        reason: 'a hand-built interstitial has no ad config: native default',);
+    expect(payload['backendFormat'], 'banner',
+        reason: 'no ad config: banner, not the native banner + video',);
     expect(payload.containsKey('backendApis'), isFalse);
   });
 
@@ -135,13 +136,35 @@ void main() {
     expect(payload.containsKey('adFormat'), isFalse);
   });
 
-  test('an unconfigured remote interstitial forwards nothing', () async {
+  test('an unconfigured remote interstitial requests banner only', () async {
     seed({});
     await start(remote());
 
     final payload = loads().single;
-    expect(payload.containsKey('backendFormat'), isFalse);
+    expect(payload['backendFormat'], 'banner');
     expect(payload.containsKey('backendApis'), isFalse);
+  });
+
+  test('video is requested only when the ad config asks for it', () async {
+    for (final format in ['video', 'bannerAndVideo']) {
+      seed({'format': format});
+      final ad = remote();
+      await start(ad);
+      expect(loads().last['backendFormat'], format);
+      await event(ad, 'onAdClosed');
+    }
+  });
+
+  test('an unknown format falls back to banner, not banner + video',
+      () async {
+    seed({'format': 'BannerAndVideo'});
+    await start(remote());
+
+    expect(
+      loads().single['backendFormat'],
+      'banner',
+      reason: 'formats are case-sensitive; native would add video',
+    );
   });
 
   test('malformed values are dropped without failing the config', () async {
@@ -150,7 +173,7 @@ void main() {
 
     final payload = loads().single;
     expect(payload['adUnitId'], '/1/int', reason: 'the placement still loads');
-    expect(payload.containsKey('backendFormat'), isFalse);
+    expect(payload['backendFormat'], 'banner');
     expect(payload.containsKey('backendApis'), isFalse);
   });
 

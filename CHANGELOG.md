@@ -1,3 +1,33 @@
+## 0.3.2
+
+- **Fix (Android): banners are centered in a full-width slot.** An inline adaptive banner (e.g. a
+  320-wide adaptive config) drew its ad at the left edge, because Google's view was stretched to
+  the slot and its child fills it. Google's view now takes the delivered ad's width inside a
+  centered, top-aligned container (as on iOS); before the first ad it still fills the slot, which
+  lazy loading needs. Each request first widens it to the widest ad that request can return (GAM
+  or Prebid sizes), so a wider ad after a refresh is never cut by the previous ad's width.
+- **Fix: Prebid banners take their own size by default.** When GAM rendered a winning Prebid bid
+  inside a creative of another size, the ad was cut off (bid larger than GAM's creative) or shown
+  smaller and off-centre (bid smaller). Once the Prebid creative rendered, the banner is now sized
+  to the winning bid (`hb_size`) in both directions. `config.resizeToPrebidCreative` now defaults
+  to on (it was off and only shrank); set it to `false` to keep GAM's size. Creatives GAM served
+  itself are unchanged. A Prebid creative is recognised by GAM's `Prebid` app event or, when the
+  line item's creative does not dispatch it (nexx360's do not), by the `hb_size` in its markup
+  (Prebid's `findPrebidCreativeSize`). While that check runs, GAM's size is held back, so the slot
+  goes straight to the right height instead of bouncing (250 → 600 → 250); after 1 s without an
+  answer GAM's size is reported.
+- **Fix: interstitials request banner only unless the ad config asks for video.** Since 0.3.0 every
+  Flutter interstitial without a `prebidConfig.format` (all hand-built ones, and remote ones the
+  backend has not configured) asked for banner + video, and that video impression (no player size,
+  VAST 2.0 only) took bids away from 320x480 banner interstitials. Dart now sends `banner` when
+  the format is missing or unknown; `video` / `bannerAndVideo` in the ad config still opt in.
+- **Fix: an interstitial with sizes no longer sends minimum size percentages.** With them, Prebid
+  Server replaced `banner.format` with sizes from its own interstitial list, so a placement
+  configured for 320x480 asked bidders for sizes it never named. They are still sent when no
+  sizes are given. Before 0.3.0 banner interstitials never sent them.
+- **Fix (iOS): interstitial sizes are no longer sent twice.** The workaround for
+  prebid-mobile-ios#1135 duplicated every size in `banner.format`; Prebid already sends them.
+
 ## 0.3.1
 
 - **Behavior change: a remote banner without a refresh interval no longer refreshes.** When the ad

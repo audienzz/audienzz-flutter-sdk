@@ -1,6 +1,9 @@
 package com.audienzz.audienzz_sdk_flutter.ads.implementation
 
 import android.content.Context
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.core.view.doOnAttach
 import com.audienzz.audienzz_sdk_flutter.ads.base.Ad
 import com.audienzz.audienzz_sdk_flutter.ads.base.FullScreenCoverableAd
@@ -17,6 +20,8 @@ import org.audienzz.mobile.AudienzzBannerAdUnit
 import org.audienzz.mobile.AudienzzBannerParameters
 import org.audienzz.mobile.AudienzzSignals
 import org.audienzz.mobile.AudienzzVideoParameters
+import org.audienzz.mobile.addentum.AudienzzAdViewUtils
+import org.audienzz.mobile.addentum.AudienzzPbFindSizeListener
 import org.audienzz.mobile.api.data.AudienzzAdUnitFormat
 import org.audienzz.mobile.original.AudienzzAdViewHandler
 import org.audienzz.mobile.util.pxToDp
@@ -56,11 +61,12 @@ class BannerAd(
     private val headerBidding: Boolean = true,
     private val adaptiveBannerConfig: Map<String, Any?>? = null,
     /**
-     * Ad config `resizeToPrebidCreative`: when the Prebid creative rendered inside a larger GAM
-     * creative (a 300x250 bid placed in a 300x600 creative), size the view to the winning
-     * `hb_size`. Only shrinks; a creative GAM served itself keeps GAM's size. Off by default.
+     * Ad config `resizeToPrebidCreative`: when the Prebid creative rendered inside a GAM creative
+     * of another size, size the view to the winning `hb_size`. A 300x250 bid in a 300x600 creative
+     * was left smaller and off-centre; a 300x600 bid in a 300x250 one was cut off. A creative GAM
+     * served itself keeps GAM's size. On unless the ad config turns it off.
      */
-    private val resizeToPrebidCreative: Boolean = false,
+    private val resizeToPrebidCreative: Boolean = true,
 ) : Ad(), FullScreenCoverableAd {
     /**
      * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
@@ -86,13 +92,29 @@ class BannerAd(
     var requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext()
 
     private var adView: AdManagerAdView? = null
+
+    /**
+     * What Flutter mounts: the slot, at the size Dart gives it. Google's view sits inside it,
+     * centered horizontally. Google's view centers its own child, but an inline adaptive banner's
+     * child is as wide as the view, with the ad drawn at its left edge, so in a full-width slot
+     * the ad was not centered. Narrowing Google's view to the delivered width fixes that whatever
+     * Google does inside it. Until the first delivery it fills the slot, which lazy loading needs
+     * (the slot has to be measurable before an ad exists). Top-aligned, as on iOS.
+     */
+    private var container: FrameLayout? = null
     private var adViewHandler: AudienzzAdViewHandler? = null
     // Kept as a field so pauseAutoRefresh() / resumeAutoRefresh() can reach it
     // after load() returns. Dart-side visibility detection (RenderBox.localToGlobal)
     // drives these calls via method channel.
     private var bannerAdUnit: AudienzzBannerAdUnit? = null
 
+    /**
+     * The delivered size, or null while the markup probe is still deciding which size this load
+     * shows. Reporting Google's size first made the slot bounce: 250 (reserved) → 600 (GAM's
+     * creative) → 250 (the Prebid bid). Null keeps the slot as it is until the answer.
+     */
     fun getPlatformAdSize(): AdSize? {
+        if (probePending) return null
         return adView?.adSize
     }
 
@@ -100,59 +122,147 @@ class BannerAd(
     //
     // Two signals per Google load, in either order: Google finished loading (onAdLoaded), and the
     // Prebid creative rendered (GAM's "Prebid" app event, forwarded by the native handler). Only
-    // when both hold for the CURRENT load is the view shrunk to the winning hb_size. Acting on
+    // when both hold for the CURRENT load is the view sized to the winning hb_size. Acting on
     // the app event alone would read the previous creative's size, and acting without it would
-    // cut a creative GAM served itself.
+    // resize a creative GAM served itself.
 
-    /** Called by the instance manager after a shrink that happened after onAdLoaded. */
+    /** Called by the instance manager after a resize that happened after onAdLoaded. */
     internal var onSizeAdjusted: (() -> Unit)? = null
+
+    /**
+     * The fallback when this load ended without the "Prebid" app event: the Prebid line item's
+     * creative does not always dispatch it (nexx360's do not). Prebid's own finder reads the
+     * winning size out of the creative's markup (`hb_size`), which a creative GAM served itself
+     * does not contain. Answers the Prebid size, or null when there is none. A seam for tests:
+     * the real one needs a page.
+     */
+    internal var findPrebidCreativeSize: (android.view.View, (AdSize?) -> Unit) -> Unit = { view, answer ->
+        AudienzzAdViewUtils.findPrebidCreativeSize(view, object : AudienzzPbFindSizeListener {
+            override fun success(width: Int, height: Int) {
+                answer(if (width > 0 && height > 0) AdSize(width, height) else null)
+            }
+
+            override fun failure(errorCode: Int) = answer(null)
+        })
+    }
+
+    /** How long a load's size may wait for the probe before Google's size is reported anyway. */
+    internal var probeTimeoutMs = 1_000L
+
+    /** The probe for the current load has not answered yet: its size is not reported. */
+    private var probePending = false
+
+    /** Bumped for every Google request, so a late markup probe cannot act on a newer load. */
+    private var loadGeneration = 0
 
     private var prebidCreativeSize: AdSize? = null
     private var prebidRendered = false
     private var googleLoaded = false
-    private var shrunk = false
+    private var resized = false
 
     /** A new Google request is starting: forget the previous delivery's signals. */
     private fun beginGoogleLoad(request: com.google.android.gms.ads.admanager.AdManagerAdRequest) {
+        loadGeneration++
+        probePending = false
         prebidRendered = false
         googleLoaded = false
         prebidCreativeSize = if (resizeToPrebidCreative) {
             parseSize(request.customTargeting.getString(HB_SIZE_KEY))
         } else null
-        // A previous shrink narrowed the view to one size. Request every configured size again.
+        // A previous resize narrowed the view to one size. Request every configured size again.
         val view = adView
-        if (shrunk && view != null && !isAdaptiveSize) {
+        if (resized && view != null && !isAdaptiveSize) {
             view.setAdSizes(*adSizes.toTypedArray())
         }
-        shrunk = false
+        resized = false
     }
 
     /** Called by the instance manager on onAdLoaded, before it reports the size to Dart. */
     internal fun onGoogleAdLoaded() {
         googleLoaded = true
-        applyPrebidSize()
+        val resized = applyPrebidSize()
+        fitToDeliveredWidth()
+        if (resized || prebidRendered) return
+        probePrebidCreative()
+    }
+
+    /** Narrows Google's view to the delivered ad's width so the container can center it. */
+    internal fun fitToDeliveredWidth() {
+        val width = adView?.adSize?.getWidthInPixels(context)?.takeIf { it > 0 } ?: return
+        setViewWidth(width)
+    }
+
+    /**
+     * Before each Google request: widen Google's view to the widest ad this request can return,
+     * a GAM size (adaptive included) or a Prebid size, which a Prebid resize may switch to. The
+     * previous ad stays centered meanwhile, and the incoming one cannot be cut by the width the
+     * previous one left; [fitToDeliveredWidth] narrows it again once it arrives.
+     */
+    private fun reserveRequestWidth() {
+        val view = adView ?: return
+        val requested = view.adSizes.orEmpty().map { it.width } + prebidSizes.map { it.width }
+        val widestDp = requested.filter { it > 0 }.maxOrNull() ?: return
+        setViewWidth(AdSize(widestDp, 50).getWidthInPixels(context))
+    }
+
+    private fun setViewWidth(width: Int) {
+        val view = adView ?: return
+        val params = view.layoutParams as? FrameLayout.LayoutParams ?: return
+        if (params.width == width) return
+        params.width = width
+        view.layoutParams = params
+    }
+
+    /**
+     * Without the app event: is this load's creative Prebid's? See [findPrebidCreativeSize]. The
+     * load's size is held back until the answer (or [probeTimeoutMs]), then reported once: the
+     * Prebid size, or Google's when the creative is not Prebid's.
+     */
+    private fun probePrebidCreative() {
+        if (!resizeToPrebidCreative || prebidCreativeSize == null) return
+        val view = adView ?: return
+        val generation = loadGeneration
+        probePending = true
+        val settle: (AdSize?) -> Unit = settle@{ size ->
+            if (generation != loadGeneration || !probePending || adView == null) return@settle
+            probePending = false
+            if (size != null) {
+                prebidRendered = true
+                prebidCreativeSize = size
+                applyPrebidSize()
+            }
+            fitToDeliveredWidth()
+            onSizeAdjusted?.invoke()
+        }
+        // Not view.postDelayed: on a view that is not attached yet it waits for the attach.
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ settle(null) }, probeTimeoutMs)
+        findPrebidCreativeSize(view, settle)
     }
 
     private fun onPrebidCreativeRendered() {
         prebidRendered = true
-        if (applyPrebidSize()) onSizeAdjusted?.invoke()
+        val wasPending = probePending
+        probePending = false
+        if (applyPrebidSize() || wasPending) {
+            fitToDeliveredWidth()
+            onSizeAdjusted?.invoke()
+        }
     }
 
     /**
-     * Returns true when the view was shrunk to the Prebid creative. The single gate for both
-     * orders: before onAdLoaded the view still holds the PREVIOUS creative's size.
+     * Returns true when the view was sized to the Prebid creative. The single gate for both
+     * orders: before onAdLoaded the view still holds the PREVIOUS creative's size. Both
+     * directions: smaller fixes the off-centre gap, larger fixes the cut-off creative.
      */
     private fun applyPrebidSize(): Boolean {
-        if (!resizeToPrebidCreative || !prebidRendered || !googleLoaded || shrunk) return false
+        if (!resizeToPrebidCreative || !prebidRendered || !googleLoaded || resized) return false
         val target = prebidCreativeSize ?: return false
         val view = adView ?: return false
         val current = view.adSize ?: return false
         if (current.width <= 0 || current.height <= 0) return false
         if (target.width == current.width && target.height == current.height) return false
-        // Only ever cut: a Prebid size larger than what GAM delivered is not this case.
-        if (target.width > current.width || target.height > current.height) return false
         view.setAdSizes(target)
-        shrunk = true
+        resized = true
         return true
     }
 
@@ -168,6 +278,16 @@ class BannerAd(
         adView = AdManagerAdView(context)
 
         val currentAdView = adView
+        container = FrameLayout(context).apply {
+            addView(
+                currentAdView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    Gravity.CENTER_HORIZONTAL or Gravity.TOP,
+                ),
+            )
+        }
 
         currentAdView?.setAdSizes(*adSizes.toTypedArray())
         currentAdView?.adUnitId = adUnitId
@@ -241,6 +361,7 @@ class BannerAd(
                 // customer gates AdWidget behind the load callback (legacy pattern).
                 beginGoogleLoad(request)
                 prepareGoogleSize(adView)
+                reserveRequestWidth()
                 loadGoogle(adView, request)
                 // Race-condition guard: if loadAd() fired before Flutter embedded the
                 // platform view, GAM's internal invalidate() is a no-op (no window token).
@@ -344,9 +465,11 @@ class BannerAd(
         bannerAdUnit?.stopAutoRefresh()
         bannerAdUnit?.destroy()
         adView?.destroy()
+        container?.removeAllViews()
         adViewHandler = null
         bannerAdUnit = null
         adView = null
+        container = null
     }
 
      override var platformView: PlatformView? = null
@@ -355,7 +478,7 @@ class BannerAd(
                  return null
              }
 
-             field = PlatformViewWrapper(adView)
+             field = PlatformViewWrapper(container)
              return field
          }
 

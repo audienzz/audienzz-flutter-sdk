@@ -138,7 +138,7 @@ void main() {
       }
     });
 
-    test('resizeToPrebidCreative is off unless the ad config turns it on',
+    test('resizeToPrebidCreative is on unless the ad config turns it off',
         () async {
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -172,11 +172,11 @@ void main() {
             as Map;
       }
 
-      expect(build().resizeToPrebidCreative, isFalse);
-      expect((await loadArgs()).containsKey('resizeToPrebidCreative'), isFalse);
-      final offArgs = await loadArgs(flag: false);
-      expect(offArgs.containsKey('resizeToPrebidCreative'), isFalse);
+      expect(build().resizeToPrebidCreative, isTrue);
+      // Always explicit, so neither plugin applies a default of its own.
+      expect((await loadArgs())['resizeToPrebidCreative'], isTrue);
       expect((await loadArgs(flag: true))['resizeToPrebidCreative'], isTrue);
+      expect((await loadArgs(flag: false))['resizeToPrebidCreative'], isFalse);
     });
 
     test('a backend eager choice wins over nothing', () {
