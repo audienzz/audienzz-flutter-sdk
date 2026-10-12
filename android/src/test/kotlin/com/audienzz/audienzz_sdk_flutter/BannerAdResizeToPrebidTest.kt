@@ -278,6 +278,27 @@ class BannerAdResizeToPrebidTest {
         ad.dispose()
     }
 
+    /** A refresh that delivers a wider ad must not render it in the previous ad's width. */
+    @Test
+    fun `each request reserves the widest possible ad, then fits the delivered one`() {
+        val ad = banner(resize = true)
+        ad.load()
+        val density = RuntimeEnvironment.getApplication().resources.displayMetrics.density
+        fun width() = (ad.view().layoutParams as android.widget.FrameLayout.LayoutParams).width
+
+        requireNotNull(handoff)(request("300x250"), null)
+        assertEquals("widest configured size: 320x50", (320 * density).toInt(), width())
+        ad.prebidAppEvent()
+        ad.googleDelivered(300, 600)
+        assertEquals((300 * density).toInt(), width())
+
+        requireNotNull(handoff)(request(null), null) // refresh
+        assertEquals((320 * density).toInt(), width())
+        ad.googleDelivered(320, 50)
+        assertEquals((320 * density).toInt(), width())
+        ad.dispose()
+    }
+
     @Test
     fun `a narrower Prebid creative is sized to its own width`() {
         val ad = banner(resize = true)

@@ -174,8 +174,25 @@ class BannerAd(
 
     /** Narrows Google's view to the delivered ad's width so the container can center it. */
     internal fun fitToDeliveredWidth() {
+        val width = adView?.adSize?.getWidthInPixels(context)?.takeIf { it > 0 } ?: return
+        setViewWidth(width)
+    }
+
+    /**
+     * Before each Google request: widen Google's view to the widest ad this request can return,
+     * a GAM size (adaptive included) or a Prebid size, which a Prebid resize may switch to. The
+     * previous ad stays centered meanwhile, and the incoming one cannot be cut by the width the
+     * previous one left; [fitToDeliveredWidth] narrows it again once it arrives.
+     */
+    private fun reserveRequestWidth() {
         val view = adView ?: return
-        val width = view.adSize?.getWidthInPixels(context)?.takeIf { it > 0 } ?: return
+        val requested = view.adSizes.orEmpty().map { it.width } + prebidSizes.map { it.width }
+        val widestDp = requested.filter { it > 0 }.maxOrNull() ?: return
+        setViewWidth(AdSize(widestDp, 50).getWidthInPixels(context))
+    }
+
+    private fun setViewWidth(width: Int) {
+        val view = adView ?: return
         val params = view.layoutParams as? FrameLayout.LayoutParams ?: return
         if (params.width == width) return
         params.width = width
@@ -318,6 +335,7 @@ class BannerAd(
                 // customer gates AdWidget behind the load callback (legacy pattern).
                 beginGoogleLoad(request)
                 prepareGoogleSize(adView)
+                reserveRequestWidth()
                 loadGoogle(adView, request)
                 // Race-condition guard: if loadAd() fired before Flutter embedded the
                 // platform view, GAM's internal invalidate() is a no-op (no window token).
