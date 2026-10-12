@@ -18,9 +18,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 
 /**
- * Ad config `resizeToPrebidCreative`: a 300x250 Prebid bid that GAM rendered inside a 300x600
- * creative. The view must shrink to `hb_size` only when the Prebid creative rendered (GAM's
- * "Prebid" app event) AND Google finished this load — never for a creative GAM served itself.
+ * Ad config `resizeToPrebidCreative` (on by default): a Prebid bid that GAM rendered inside a
+ * creative of another size. The view must take `hb_size` only when the Prebid creative rendered
+ * (GAM's "Prebid" app event) AND Google finished this load — never for a creative GAM served
+ * itself. Smaller fixes the off-centre gap, larger fixes the cut-off creative.
  */
 @RunWith(RobolectricTestRunner::class)
 class BannerAdResizeToPrebidTest {
@@ -132,7 +133,7 @@ class BannerAdResizeToPrebidTest {
     }
 
     @Test
-    fun `off by default leaves GAM's size and installs no listener`() {
+    fun `turned off leaves GAM's size and installs no listener`() {
         val ad = banner(resize = false)
         ad.load()
         requireNotNull(handoff)(request("300x250"), null)
@@ -177,14 +178,26 @@ class BannerAdResizeToPrebidTest {
     }
 
     @Test
-    fun `never grows past what GAM delivered`() {
+    fun `a larger Prebid creative grows the view instead of being cut off`() {
         val ad = banner(resize = true)
         ad.load()
         requireNotNull(handoff)(request("300x600"), null)
         ad.prebidAppEvent()
         ad.googleDelivered(300, 250)
 
-        assertEquals("300x250", ad.size())
+        assertEquals("300x600", ad.size())
+        ad.dispose()
+    }
+
+    @Test
+    fun `a narrower Prebid creative is sized to its own width`() {
+        val ad = banner(resize = true)
+        ad.load()
+        requireNotNull(handoff)(request("300x50"), null)
+        ad.prebidAppEvent()
+        ad.googleDelivered(320, 50)
+
+        assertEquals("300x50", ad.size())
         ad.dispose()
     }
 }

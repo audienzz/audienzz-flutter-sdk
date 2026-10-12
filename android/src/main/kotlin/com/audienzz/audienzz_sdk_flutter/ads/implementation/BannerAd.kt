@@ -56,11 +56,12 @@ class BannerAd(
     private val headerBidding: Boolean = true,
     private val adaptiveBannerConfig: Map<String, Any?>? = null,
     /**
-     * Ad config `resizeToPrebidCreative`: when the Prebid creative rendered inside a larger GAM
-     * creative (a 300x250 bid placed in a 300x600 creative), size the view to the winning
-     * `hb_size`. Only shrinks; a creative GAM served itself keeps GAM's size. Off by default.
+     * Ad config `resizeToPrebidCreative`: when the Prebid creative rendered inside a GAM creative
+     * of another size, size the view to the winning `hb_size`. A 300x250 bid in a 300x600 creative
+     * was left smaller and off-centre; a 300x600 bid in a 300x250 one was cut off. A creative GAM
+     * served itself keeps GAM's size. On unless the ad config turns it off.
      */
-    private val resizeToPrebidCreative: Boolean = false,
+    private val resizeToPrebidCreative: Boolean = true,
 ) : Ad(), FullScreenCoverableAd {
     /**
      * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
@@ -100,17 +101,17 @@ class BannerAd(
     //
     // Two signals per Google load, in either order: Google finished loading (onAdLoaded), and the
     // Prebid creative rendered (GAM's "Prebid" app event, forwarded by the native handler). Only
-    // when both hold for the CURRENT load is the view shrunk to the winning hb_size. Acting on
+    // when both hold for the CURRENT load is the view sized to the winning hb_size. Acting on
     // the app event alone would read the previous creative's size, and acting without it would
-    // cut a creative GAM served itself.
+    // resize a creative GAM served itself.
 
-    /** Called by the instance manager after a shrink that happened after onAdLoaded. */
+    /** Called by the instance manager after a resize that happened after onAdLoaded. */
     internal var onSizeAdjusted: (() -> Unit)? = null
 
     private var prebidCreativeSize: AdSize? = null
     private var prebidRendered = false
     private var googleLoaded = false
-    private var shrunk = false
+    private var resized = false
 
     /** A new Google request is starting: forget the previous delivery's signals. */
     private fun beginGoogleLoad(request: com.google.android.gms.ads.admanager.AdManagerAdRequest) {
@@ -119,12 +120,12 @@ class BannerAd(
         prebidCreativeSize = if (resizeToPrebidCreative) {
             parseSize(request.customTargeting.getString(HB_SIZE_KEY))
         } else null
-        // A previous shrink narrowed the view to one size. Request every configured size again.
+        // A previous resize narrowed the view to one size. Request every configured size again.
         val view = adView
-        if (shrunk && view != null && !isAdaptiveSize) {
+        if (resized && view != null && !isAdaptiveSize) {
             view.setAdSizes(*adSizes.toTypedArray())
         }
-        shrunk = false
+        resized = false
     }
 
     /** Called by the instance manager on onAdLoaded, before it reports the size to Dart. */
@@ -139,20 +140,19 @@ class BannerAd(
     }
 
     /**
-     * Returns true when the view was shrunk to the Prebid creative. The single gate for both
-     * orders: before onAdLoaded the view still holds the PREVIOUS creative's size.
+     * Returns true when the view was sized to the Prebid creative. The single gate for both
+     * orders: before onAdLoaded the view still holds the PREVIOUS creative's size. Both
+     * directions: smaller fixes the off-centre gap, larger fixes the cut-off creative.
      */
     private fun applyPrebidSize(): Boolean {
-        if (!resizeToPrebidCreative || !prebidRendered || !googleLoaded || shrunk) return false
+        if (!resizeToPrebidCreative || !prebidRendered || !googleLoaded || resized) return false
         val target = prebidCreativeSize ?: return false
         val view = adView ?: return false
         val current = view.adSize ?: return false
         if (current.width <= 0 || current.height <= 0) return false
         if (target.width == current.width && target.height == current.height) return false
-        // Only ever cut: a Prebid size larger than what GAM delivered is not this case.
-        if (target.width > current.width || target.height > current.height) return false
         view.setAdSizes(target)
-        shrunk = true
+        resized = true
         return true
     }
 

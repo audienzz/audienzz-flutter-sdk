@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Fix: Prebid banners take their own size by default.** When GAM rendered a winning Prebid bid
+  inside a creative of another size, the ad was cut off (bid larger than GAM's creative) or shown
+  smaller and off-centre (bid smaller). Once the Prebid creative rendered, the banner is now sized
+  to the winning bid (`hb_size`) in both directions. `config.resizeToPrebidCreative` now defaults
+  to on (it was off and only shrank); set it to `false` to keep GAM's size. Creatives GAM served
+  itself are unchanged.
 - **Fix: interstitials request banner only unless the ad config asks for video.** Since 0.3.0 every
   Flutter interstitial without a `prebidConfig.format` (all hand-built ones, and remote ones the
   backend has not configured) asked for banner + video, and that video impression (no player size,

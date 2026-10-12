@@ -18,12 +18,15 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     private let isAdaptiveSize: Bool
 
     // ── resizeToPrebidCreative ──────────────────────────────────────────────────────────
-    // Ad config flag: when the Prebid creative rendered inside a larger GAM creative (a 300x250
-    // bid in a 300x600 creative), size the banner to the winning hb_size. Only shrinks; a
-    // creative GAM served itself keeps GAM's size. Two signals per Google load, either order:
+    // Ad config flag, on unless the ad config turns it off: when the Prebid creative rendered in a
+    // GAM creative of another size, size the banner to the winning hb_size. A 300x250 bid in a
+    // 300x600 creative was left smaller and off-centre; a 300x600 bid in a 300x250 one was cut
+    // off. A creative GAM served itself keeps GAM's size. Two signals per Google load, either order:
     // GAM's "Prebid" app event, and this load's delivered size. Never act on the event alone
     // before the load: the banner still holds the PREVIOUS creative's size then.
     private let resizeToPrebidCreative: Bool
+    /// Read-only, for tests.
+    internal var resizesToPrebidCreative: Bool { resizeToPrebidCreative }
     private var prebidCreativeSize: CGSize?
     /// The winning Prebid bid's size for the current auction (hb_size). A seam for tests: the
     /// SDK only lets itself set `lastPrebidCreativeSize`.
@@ -261,7 +264,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         rootViewController: UIViewController,
         adId: NSNumber,
         manager: AdInstanceManager,
-        resizeToPrebidCreative: Bool = false
+        resizeToPrebidCreative: Bool = true
     ) {
         self.resizeToPrebidCreative = resizeToPrebidCreative
         self.adUnitId = adUnitId
@@ -486,11 +489,11 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     }
 
     /// The Prebid creative size to use instead of [delivered], resizing GAM's view to it; nil when
-    /// the flag is off, the Prebid creative has not rendered for this load, or it would not cut.
+    /// the flag is off, the Prebid creative has not rendered for this load, or the sizes match.
+    /// Both directions: smaller fixes the off-centre gap, larger fixes the cut-off creative.
     private func prebidAdjusted(_ delivered: CGSize) -> CGSize? {
         guard resizeToPrebidCreative, prebidRendered, let target = prebidCreativeSize,
               target.width > 0, target.height > 0, target != delivered,
-              target.width <= delivered.width, target.height <= delivered.height,
               let banner = bannerViewInstance else { return nil }
         banner.resize(adSizeFor(cgSize: target))
         auBannerView?.setNeedsLayout()
