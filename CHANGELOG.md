@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.2
 
 - **Fix: Prebid banners take their own size by default.** When GAM rendered a winning Prebid bid
   inside a creative of another size, the ad was cut off (bid larger than GAM's creative) or shown
