@@ -17,6 +17,8 @@ import org.audienzz.mobile.AudienzzBannerAdUnit
 import org.audienzz.mobile.AudienzzBannerParameters
 import org.audienzz.mobile.AudienzzSignals
 import org.audienzz.mobile.AudienzzVideoParameters
+import org.audienzz.mobile.addentum.AudienzzAdViewUtils
+import org.audienzz.mobile.addentum.AudienzzPbFindSizeListener
 import org.audienzz.mobile.api.data.AudienzzAdUnitFormat
 import org.audienzz.mobile.original.AudienzzAdViewHandler
 import org.audienzz.mobile.util.pxToDp
@@ -108,6 +110,25 @@ class BannerAd(
     /** Called by the instance manager after a resize that happened after onAdLoaded. */
     internal var onSizeAdjusted: (() -> Unit)? = null
 
+    /**
+     * The fallback when this load ended without the "Prebid" app event: the Prebid line item's
+     * creative does not always dispatch it (nexx360's do not). Prebid's own finder reads the
+     * winning size out of the creative's markup (`hb_size`), which a creative GAM served itself
+     * does not contain. Calls back only on a match. A seam for tests: the real one needs a page.
+     */
+    internal var findPrebidCreativeSize: (android.view.View, (AdSize) -> Unit) -> Unit = { view, found ->
+        AudienzzAdViewUtils.findPrebidCreativeSize(view, object : AudienzzPbFindSizeListener {
+            override fun success(width: Int, height: Int) {
+                if (width > 0 && height > 0) found(AdSize(width, height))
+            }
+
+            override fun failure(errorCode: Int) = Unit
+        })
+    }
+
+    /** Bumped for every Google request, so a late markup probe cannot act on a newer load. */
+    private var loadGeneration = 0
+
     private var prebidCreativeSize: AdSize? = null
     private var prebidRendered = false
     private var googleLoaded = false
@@ -115,6 +136,7 @@ class BannerAd(
 
     /** A new Google request is starting: forget the previous delivery's signals. */
     private fun beginGoogleLoad(request: com.google.android.gms.ads.admanager.AdManagerAdRequest) {
+        loadGeneration++
         prebidRendered = false
         googleLoaded = false
         prebidCreativeSize = if (resizeToPrebidCreative) {
@@ -131,7 +153,21 @@ class BannerAd(
     /** Called by the instance manager on onAdLoaded, before it reports the size to Dart. */
     internal fun onGoogleAdLoaded() {
         googleLoaded = true
-        applyPrebidSize()
+        if (applyPrebidSize() || prebidRendered) return
+        probePrebidCreative()
+    }
+
+    /** Without the app event: is this load's creative Prebid's? See [findPrebidCreativeSize]. */
+    private fun probePrebidCreative() {
+        if (!resizeToPrebidCreative || prebidCreativeSize == null) return
+        val view = adView ?: return
+        val generation = loadGeneration
+        findPrebidCreativeSize(view) { size ->
+            if (generation != loadGeneration || prebidRendered || adView == null) return@findPrebidCreativeSize
+            prebidRendered = true
+            prebidCreativeSize = size
+            if (applyPrebidSize()) onSizeAdjusted?.invoke()
+        }
     }
 
     private fun onPrebidCreativeRendered() {

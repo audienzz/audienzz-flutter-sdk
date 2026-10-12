@@ -5,7 +5,9 @@
   smaller and off-centre (bid smaller). Once the Prebid creative rendered, the banner is now sized
   to the winning bid (`hb_size`) in both directions. `config.resizeToPrebidCreative` now defaults
   to on (it was off and only shrank); set it to `false` to keep GAM's size. Creatives GAM served
-  itself are unchanged.
+  itself are unchanged. A Prebid creative is recognised by GAM's `Prebid` app event or, when the
+  line item's creative does not dispatch it (nexx360's do not), by the `hb_size` in its markup
+  (Prebid's `findPrebidCreativeSize`).
 - **Fix: interstitials request banner only unless the ad config asks for video.** Since 0.3.0 every
   Flutter interstitial without a `prebidConfig.format` (all hand-built ones, and remote ones the
   backend has not configured) asked for banner + video, and that video impression (no player size,

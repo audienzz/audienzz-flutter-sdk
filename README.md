@@ -578,7 +578,9 @@ AudienzzBanner(
 - **Prebid ads take their own size.** GAM can render a winning Prebid bid inside a creative of
   another size: a 300x250 bid in a 300x600 creative (smaller, with a gap, off-centre) or a 300x600
   bid in a 300x250 creative (cut off). Once the Prebid creative rendered, the banner is sized to the
-  winning bid (`hb_size`), larger or smaller. A creative GAM served itself keeps GAM's size, and
+  winning bid (`hb_size`), larger or smaller. The SDK recognises a Prebid creative by GAM's
+  `Prebid` app event, or by the `hb_size` in the creative's markup when the line item's creative
+  does not dispatch that event. A creative GAM served itself keeps GAM's size, and
   every refresh still requests all configured sizes. On by default; set the ad config field
   `config.resizeToPrebidCreative: false` to keep GAM's size for a placement. The clean fix is still
   in GAM: creative-level targeting on `hb_size`. Flutter SDK only for now; the native and React

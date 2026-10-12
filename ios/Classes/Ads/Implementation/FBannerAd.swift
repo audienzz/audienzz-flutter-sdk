@@ -1,6 +1,7 @@
 import Flutter
 import GoogleMobileAds
 import AudienzziOSSDK
+import class PrebidMobile.AdViewUtils
 
 class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPlatformView, BannerViewDelegate, AppEventDelegate {
     var requestContext = AUAdRequestContext()
@@ -35,6 +36,17 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     }
     private var prebidRendered = false
     private var googleLoaded = false
+    /// Bumped for every Google request, so a late markup probe cannot act on a newer load.
+    private var loadGeneration = 0
+    /// The fallback when this load ended without the "Prebid" app event: the Prebid line item's
+    /// creative does not always dispatch it (nexx360's do not). Prebid's own finder reads the
+    /// winning size out of the creative's markup (`hb_size`), which a creative GAM served itself
+    /// does not contain. Calls back only on a match. A seam for tests: the real one needs a page.
+    internal lazy var findPrebidCreativeSize: (UIView, @escaping (CGSize) -> Void) -> Void = { view, found in
+        AdViewUtils.findPrebidCreativeSize(view, success: { size in
+            if size.width > 0, size.height > 0 { found(size) }
+        }, failure: { _ in })
+    }
     private let isLazyLoad: Bool
     private let smartRefresh: Bool
     /// The viewport gate resolved by Dart. v2 is the directional rule; v1 is
@@ -483,6 +495,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
 
     /// A new Google request is starting: forget the previous delivery's signals.
     private func beginGoogleLoad() {
+        loadGeneration += 1
         prebidRendered = false
         googleLoaded = false
         prebidCreativeSize = resizeToPrebidCreative ? currentPrebidCreativeSize() : nil
@@ -522,6 +535,23 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
             report(size: target)
         }
         manager?.onAdLoaded(ad: self)
+        if !prebidRendered { probePrebidCreative() }
+    }
+
+    /// Without the app event: is this load's creative Prebid's? See `findPrebidCreativeSize`.
+    private func probePrebidCreative() {
+        guard resizeToPrebidCreative, prebidCreativeSize != nil, let banner = bannerViewInstance else { return }
+        let generation = loadGeneration
+        findPrebidCreativeSize(banner) { [weak self] size in
+            guard let self, generation == self.loadGeneration, !self.prebidRendered,
+                  self.auBannerView != nil else { return }
+            self.prebidRendered = true
+            self.prebidCreativeSize = size
+            if let delivered = self.renderedSize ?? self.bannerViewInstance?.adSize.size,
+               let target = self.prebidAdjusted(delivered) {
+                self.report(size: target)
+            }
+        }
     }
 
     func bannerView(_ bannerView: BannerView, didFailToReceiveAdWithError error: any Error) {

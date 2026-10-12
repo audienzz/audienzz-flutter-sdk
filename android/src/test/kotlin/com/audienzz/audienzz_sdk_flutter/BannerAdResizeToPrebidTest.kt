@@ -28,9 +28,13 @@ class BannerAdResizeToPrebidTest {
 
     private var handoff: ((AdManagerAdRequest, AudienzzResultCode?) -> Unit)? = null
 
+    /** The pending markup probes, in order: each answers with what the creative's page holds. */
+    private val probes = mutableListOf<(AdSize) -> Unit>()
+
     @Before
     fun setUp() {
         handoff = null
+        probes.clear()
         mockkConstructor(AudienzzAdViewHandler::class)
         every { anyConstructed<AudienzzAdViewHandler>().setScreen(any()) } just Runs
         every { anyConstructed<AudienzzAdViewHandler>().load(any(), any(), any(), any()) } answers {
@@ -69,6 +73,7 @@ class BannerAdResizeToPrebidTest {
     ).apply {
         adUnitFactory = { _, _, _, _ -> mockk<AudienzzBannerAdUnit>(relaxed = true) }
         loadGoogle = { _, _ -> }
+        findPrebidCreativeSize = { _, found -> probes += found }
     }
 
     private fun BannerAd.view() = platformView!!.view as AdManagerAdView
@@ -187,6 +192,69 @@ class BannerAdResizeToPrebidTest {
 
         assertEquals("300x600", ad.size())
         ad.dispose()
+    }
+
+    /** nexx360's line items render Prebid creatives without dispatching the app event. */
+    @Test
+    fun `without the app event the creative's Prebid markup still resizes the view`() {
+        val ad = banner(resize = true)
+        var adjusted = 0
+        ad.onSizeAdjusted = { adjusted++ }
+        ad.load()
+        requireNotNull(handoff)(request("300x250"), null)
+        ad.googleDelivered(300, 600)
+        assertEquals("probed once, after the load", 1, probes.size)
+
+        probes.single()(AdSize(300, 250))
+
+        assertEquals("300x250", ad.size())
+        assertEquals(1, adjusted)
+        ad.dispose()
+    }
+
+    @Test
+    fun `a creative without Prebid markup keeps GAM's size`() {
+        val ad = banner(resize = true)
+        ad.load()
+        requireNotNull(handoff)(request("300x250"), null)
+        ad.googleDelivered(300, 600) // the probe never answers: no hb_size in the page
+
+        assertEquals("300x600", ad.size())
+        ad.dispose()
+    }
+
+    @Test
+    fun `a late probe answer cannot resize the next load`() {
+        val ad = banner(resize = true)
+        ad.load()
+        requireNotNull(handoff)(request("300x250"), null)
+        ad.googleDelivered(300, 600)
+        val stale = probes.single()
+
+        requireNotNull(handoff)(request("300x250"), null) // refresh
+        ad.googleDelivered(300, 600)
+        stale(AdSize(300, 250))
+
+        assertEquals("300x600", ad.size())
+        ad.dispose()
+    }
+
+    @Test
+    fun `the app event makes the markup probe unnecessary, and off means no probe`() {
+        val on = banner(resize = true)
+        on.load()
+        requireNotNull(handoff)(request("300x250"), null)
+        on.prebidAppEvent()
+        on.googleDelivered(300, 600)
+        on.dispose()
+
+        val off = banner(resize = false)
+        off.load()
+        requireNotNull(handoff)(request("300x250"), null)
+        off.googleDelivered(300, 600)
+        off.dispose()
+
+        assertEquals(0, probes.size)
     }
 
     @Test
