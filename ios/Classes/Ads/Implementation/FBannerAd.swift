@@ -41,12 +41,18 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     /// The fallback when this load ended without the "Prebid" app event: the Prebid line item's
     /// creative does not always dispatch it (nexx360's do not). Prebid's own finder reads the
     /// winning size out of the creative's markup (`hb_size`), which a creative GAM served itself
-    /// does not contain. Calls back only on a match. A seam for tests: the real one needs a page.
-    internal lazy var findPrebidCreativeSize: (UIView, @escaping (CGSize) -> Void) -> Void = { view, found in
+    /// does not contain. Answers the Prebid size, or nil. A seam for tests: the real one needs a page.
+    internal lazy var findPrebidCreativeSize: (UIView, @escaping (CGSize?) -> Void) -> Void = { view, answer in
         AdViewUtils.findPrebidCreativeSize(view, success: { size in
-            if size.width > 0, size.height > 0 { found(size) }
-        }, failure: { _ in })
+            answer(size.width > 0 && size.height > 0 ? size : nil)
+        }, failure: { _ in answer(nil) })
     }
+    /// How long a load's size may wait for the probe before GAM's size is reported anyway.
+    internal var probeTimeout: TimeInterval = 1
+    /// The probe for the current load has not answered yet: its size is not reported.
+    private var probePending = false
+    /// GAM's size for this load, held back until it is known whether it is the one to show.
+    private var heldSize: CGSize?
     private let isLazyLoad: Bool
     private let smartRefresh: Bool
     /// The viewport gate resolved by Dart. v2 is the directional rule; v1 is
@@ -420,6 +426,12 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         auBannerView?.requestContext = requestContext
         auBannerView?.onAdSizeChanged = { [weak self] size in
             guard let self, self.auBannerView != nil, size.width > 0, size.height > 0 else { return }
+            // Not yet known whether this load shows the Prebid creative: hold GAM's size back
+            // instead of reporting it and then the Prebid size (the slot bounced 250 → 600 → 250).
+            if self.holdsSize {
+                self.heldSize = size
+                return
+            }
             // This load's own size: safe to correct when the Prebid creative already rendered.
             let effective = self.prebidAdjusted(size) ?? size
             self.report(size: effective)
@@ -458,6 +470,8 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     // MARK: - Size
 
     func getPlatformAdSize() -> FAdSize? {
+        // Deciding between GAM's size and the Prebid size: nothing to read yet.
+        if probePending { return nil }
         guard let size = renderedSize ?? bannerViewInstance?.adSize.size,
               size.width > 0, size.height > 0 else { return nil }
         return FAdSize(width: Int(size.width), height: Int(size.height))
@@ -496,6 +510,8 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     /// A new Google request is starting: forget the previous delivery's signals.
     private func beginGoogleLoad() {
         loadGeneration += 1
+        probePending = false
+        heldSize = nil
         prebidRendered = false
         googleLoaded = false
         prebidCreativeSize = resizeToPrebidCreative ? currentPrebidCreativeSize() : nil
@@ -518,6 +534,12 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     func adView(_ banner: BannerView, didReceiveAppEvent name: String, with info: String?) {
         guard name.caseInsensitiveCompare("Prebid") == .orderedSame else { return }
         prebidRendered = true
+        // The probe was still deciding: the event settles it.
+        if probePending {
+            probePending = false
+            settleHeldSize()
+            return
+        }
         // After this load completed: correct the size already reported. Before it, the size
         // callback for this load applies the correction instead.
         guard googleLoaded, let delivered = renderedSize ?? bannerViewInstance?.adSize.size,
@@ -529,29 +551,48 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
 
     func bannerViewDidReceiveAd(_ bannerView: BannerView) {
         googleLoaded = true
-        // The app event may have landed after this load's size callback but before this one.
-        if let delivered = renderedSize ?? bannerViewInstance?.adSize.size,
-           let target = prebidAdjusted(delivered) {
-            report(size: target)
+        if !prebidRendered, resizeToPrebidCreative, prebidCreativeSize != nil {
+            // Before onAdLoaded, so a size lookup Dart makes on it sees nothing yet.
+            probePrebidCreative()
+        } else {
+            // The app event may have landed after this load's size callback but before this one.
+            settleHeldSize()
         }
         manager?.onAdLoaded(ad: self)
-        if !prebidRendered { probePrebidCreative() }
     }
 
-    /// Without the app event: is this load's creative Prebid's? See `findPrebidCreativeSize`.
+    /// GAM's size for this load is held back while it is not known whether the Prebid creative
+    /// rendered: before the load completes without the app event, and while the probe runs.
+    private var holdsSize: Bool {
+        resizeToPrebidCreative && prebidCreativeSize != nil && !prebidRendered && (!googleLoaded || probePending)
+    }
+
+    /// Reports this load's size once: the Prebid size when the Prebid creative rendered, GAM's otherwise.
+    private func settleHeldSize() {
+        let held = heldSize
+        heldSize = nil
+        guard let delivered = held ?? renderedSize ?? bannerViewInstance?.adSize.size else { return }
+        report(size: prebidAdjusted(delivered) ?? delivered)
+    }
+
+    /// Without the app event: is this load's creative Prebid's? See `findPrebidCreativeSize`. The
+    /// load's size is held back until the answer (or `probeTimeout`), then reported once.
     private func probePrebidCreative() {
-        guard resizeToPrebidCreative, prebidCreativeSize != nil, let banner = bannerViewInstance else { return }
+        guard let banner = bannerViewInstance else { settleHeldSize(); return }
         let generation = loadGeneration
-        findPrebidCreativeSize(banner) { [weak self] size in
-            guard let self, generation == self.loadGeneration, !self.prebidRendered,
+        probePending = true
+        let settle: (CGSize?) -> Void = { [weak self] size in
+            guard let self, generation == self.loadGeneration, self.probePending,
                   self.auBannerView != nil else { return }
-            self.prebidRendered = true
-            self.prebidCreativeSize = size
-            if let delivered = self.renderedSize ?? self.bannerViewInstance?.adSize.size,
-               let target = self.prebidAdjusted(delivered) {
-                self.report(size: target)
+            self.probePending = false
+            if let size {
+                self.prebidRendered = true
+                self.prebidCreativeSize = size
             }
+            self.settleHeldSize()
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + probeTimeout) { settle(nil) }
+        findPrebidCreativeSize(banner, settle)
     }
 
     func bannerView(_ bannerView: BannerView, didFailToReceiveAdWithError error: any Error) {

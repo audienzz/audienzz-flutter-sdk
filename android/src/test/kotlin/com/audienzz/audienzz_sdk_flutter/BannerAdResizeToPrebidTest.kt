@@ -29,7 +29,7 @@ class BannerAdResizeToPrebidTest {
     private var handoff: ((AdManagerAdRequest, AudienzzResultCode?) -> Unit)? = null
 
     /** The pending markup probes, in order: each answers with what the creative's page holds. */
-    private val probes = mutableListOf<(AdSize) -> Unit>()
+    private val probes = mutableListOf<(AdSize?) -> Unit>()
 
     @Before
     fun setUp() {
@@ -91,7 +91,8 @@ class BannerAdResizeToPrebidTest {
 
     private fun BannerAd.prebidAppEvent() = view().appEventListener!!.onAppEvent("Prebid", "")
 
-    private fun BannerAd.size() = getPlatformAdSize()!!.let { "${it.width}x${it.height}" }
+    /** "pending" while the markup probe decides the size: nothing is reported then. */
+    private fun BannerAd.size() = getPlatformAdSize()?.let { "${it.width}x${it.height}" } ?: "pending"
 
     @Test
     fun `Prebid event before onAdLoaded shrinks without a separate size report`() {
@@ -118,7 +119,7 @@ class BannerAdResizeToPrebidTest {
         requireNotNull(handoff)(request("300x250"), null)
 
         ad.googleDelivered(300, 600)
-        assertEquals("300x600", ad.size())
+        assertEquals("GAM's 300x600 is never reported", "pending", ad.size())
         ad.prebidAppEvent()
 
         assertEquals("300x250", ad.size())
@@ -133,6 +134,7 @@ class BannerAdResizeToPrebidTest {
         ad.load()
         requireNotNull(handoff)(request("300x250"), null)
         ad.googleDelivered(300, 600)
+        probes.single()(null) // no hb_size in the page
 
         assertEquals("300x600", ad.size())
         ad.dispose()
@@ -162,6 +164,7 @@ class BannerAdResizeToPrebidTest {
         requireNotNull(handoff)(request("300x250"), null) // refresh
         assertEquals(configured, ad.view().adSizes!!.toList())
         ad.googleDelivered(300, 600) // no Prebid event for this load
+        probes.single()(null)
         assertEquals("300x600", ad.size())
         ad.dispose()
     }
@@ -172,6 +175,7 @@ class BannerAdResizeToPrebidTest {
         ad.load()
         requireNotNull(handoff)(request("300x250"), null)
         ad.googleDelivered(300, 600) // GAM's own creative, no Prebid event: stays 300x600
+        probes.single()(null)
 
         requireNotNull(handoff)(request("300x250"), null) // refresh
         ad.view().setAdSizes(AdSize(300, 600)) // the old 300x600 is still on screen
@@ -214,12 +218,37 @@ class BannerAdResizeToPrebidTest {
     }
 
     @Test
-    fun `a creative without Prebid markup keeps GAM's size`() {
+    fun `the size is held back until the probe answers, then reported once`() {
         val ad = banner(resize = true)
+        var adjusted = 0
+        ad.onSizeAdjusted = { adjusted++ }
         ad.load()
         requireNotNull(handoff)(request("300x250"), null)
-        ad.googleDelivered(300, 600) // the probe never answers: no hb_size in the page
+        ad.googleDelivered(300, 600)
 
+        assertEquals("no 300x600 bounce before the answer", "pending", ad.size())
+        assertEquals(0, adjusted)
+        probes.single()(null) // not a Prebid creative
+        assertEquals("300x600", ad.size())
+        assertEquals(1, adjusted)
+        ad.dispose()
+    }
+
+    @Test
+    fun `a probe that never answers falls back to GAM's size`() {
+        val ad = banner(resize = true)
+        var adjusted = 0
+        ad.onSizeAdjusted = { adjusted++ }
+        ad.load()
+        requireNotNull(handoff)(request("300x250"), null)
+        ad.googleDelivered(300, 600)
+        assertEquals("pending", ad.size())
+
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper())
+            .idleFor(java.time.Duration.ofMillis(ad.probeTimeoutMs))
+        assertEquals("300x600", ad.size())
+        assertEquals(1, adjusted)
+        probes.single()(AdSize(300, 250)) // too late: the size is settled
         assertEquals("300x600", ad.size())
         ad.dispose()
     }
@@ -235,7 +264,9 @@ class BannerAdResizeToPrebidTest {
         requireNotNull(handoff)(request("300x250"), null) // refresh
         ad.googleDelivered(300, 600)
         stale(AdSize(300, 250))
+        assertEquals("the stale answer settles nothing", "pending", ad.size())
 
+        probes.last()(null)
         assertEquals("300x600", ad.size())
         ad.dispose()
     }

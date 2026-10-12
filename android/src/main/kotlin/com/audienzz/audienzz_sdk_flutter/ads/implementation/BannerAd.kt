@@ -108,7 +108,13 @@ class BannerAd(
     // drives these calls via method channel.
     private var bannerAdUnit: AudienzzBannerAdUnit? = null
 
+    /**
+     * The delivered size, or null while the markup probe is still deciding which size this load
+     * shows. Reporting Google's size first made the slot bounce: 250 (reserved) → 600 (GAM's
+     * creative) → 250 (the Prebid bid). Null keeps the slot as it is until the answer.
+     */
     fun getPlatformAdSize(): AdSize? {
+        if (probePending) return null
         return adView?.adSize
     }
 
@@ -127,17 +133,24 @@ class BannerAd(
      * The fallback when this load ended without the "Prebid" app event: the Prebid line item's
      * creative does not always dispatch it (nexx360's do not). Prebid's own finder reads the
      * winning size out of the creative's markup (`hb_size`), which a creative GAM served itself
-     * does not contain. Calls back only on a match. A seam for tests: the real one needs a page.
+     * does not contain. Answers the Prebid size, or null when there is none. A seam for tests:
+     * the real one needs a page.
      */
-    internal var findPrebidCreativeSize: (android.view.View, (AdSize) -> Unit) -> Unit = { view, found ->
+    internal var findPrebidCreativeSize: (android.view.View, (AdSize?) -> Unit) -> Unit = { view, answer ->
         AudienzzAdViewUtils.findPrebidCreativeSize(view, object : AudienzzPbFindSizeListener {
             override fun success(width: Int, height: Int) {
-                if (width > 0 && height > 0) found(AdSize(width, height))
+                answer(if (width > 0 && height > 0) AdSize(width, height) else null)
             }
 
-            override fun failure(errorCode: Int) = Unit
+            override fun failure(errorCode: Int) = answer(null)
         })
     }
+
+    /** How long a load's size may wait for the probe before Google's size is reported anyway. */
+    internal var probeTimeoutMs = 1_000L
+
+    /** The probe for the current load has not answered yet: its size is not reported. */
+    private var probePending = false
 
     /** Bumped for every Google request, so a late markup probe cannot act on a newer load. */
     private var loadGeneration = 0
@@ -150,6 +163,7 @@ class BannerAd(
     /** A new Google request is starting: forget the previous delivery's signals. */
     private fun beginGoogleLoad(request: com.google.android.gms.ads.admanager.AdManagerAdRequest) {
         loadGeneration++
+        probePending = false
         prebidRendered = false
         googleLoaded = false
         prebidCreativeSize = if (resizeToPrebidCreative) {
@@ -199,25 +213,37 @@ class BannerAd(
         view.layoutParams = params
     }
 
-    /** Without the app event: is this load's creative Prebid's? See [findPrebidCreativeSize]. */
+    /**
+     * Without the app event: is this load's creative Prebid's? See [findPrebidCreativeSize]. The
+     * load's size is held back until the answer (or [probeTimeoutMs]), then reported once: the
+     * Prebid size, or Google's when the creative is not Prebid's.
+     */
     private fun probePrebidCreative() {
         if (!resizeToPrebidCreative || prebidCreativeSize == null) return
         val view = adView ?: return
         val generation = loadGeneration
-        findPrebidCreativeSize(view) { size ->
-            if (generation != loadGeneration || prebidRendered || adView == null) return@findPrebidCreativeSize
-            prebidRendered = true
-            prebidCreativeSize = size
-            if (applyPrebidSize()) {
-                fitToDeliveredWidth()
-                onSizeAdjusted?.invoke()
+        probePending = true
+        val settle: (AdSize?) -> Unit = settle@{ size ->
+            if (generation != loadGeneration || !probePending || adView == null) return@settle
+            probePending = false
+            if (size != null) {
+                prebidRendered = true
+                prebidCreativeSize = size
+                applyPrebidSize()
             }
+            fitToDeliveredWidth()
+            onSizeAdjusted?.invoke()
         }
+        // Not view.postDelayed: on a view that is not attached yet it waits for the attach.
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ settle(null) }, probeTimeoutMs)
+        findPrebidCreativeSize(view, settle)
     }
 
     private fun onPrebidCreativeRendered() {
         prebidRendered = true
-        if (applyPrebidSize()) {
+        val wasPending = probePending
+        probePending = false
+        if (applyPrebidSize() || wasPending) {
             fitToDeliveredWidth()
             onSizeAdjusted?.invoke()
         }

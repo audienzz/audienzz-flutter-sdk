@@ -13,7 +13,9 @@
   to on (it was off and only shrank); set it to `false` to keep GAM's size. Creatives GAM served
   itself are unchanged. A Prebid creative is recognised by GAM's `Prebid` app event or, when the
   line item's creative does not dispatch it (nexx360's do not), by the `hb_size` in its markup
-  (Prebid's `findPrebidCreativeSize`).
+  (Prebid's `findPrebidCreativeSize`). While that check runs, GAM's size is held back, so the slot
+  goes straight to the right height instead of bouncing (250 → 600 → 250); after 1 s without an
+  answer GAM's size is reported.
 - **Fix: interstitials request banner only unless the ad config asks for video.** Since 0.3.0 every
   Flutter interstitial without a `prebidConfig.format` (all hand-built ones, and remote ones the
   backend has not configured) asked for banner + video, and that video impression (no player size,

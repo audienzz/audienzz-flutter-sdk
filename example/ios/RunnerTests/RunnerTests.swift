@@ -232,7 +232,7 @@ final class RunnerTests: XCTestCase {
 
     // MARK: resizeToPrebidCreative — a 300x250 Prebid bid rendered in a 300x600 GAM creative
 
-    private var probes: [(CGSize) -> Void] = []
+    private var probes: [(CGSize?) -> Void] = []
 
     private func prebidResizeBanner(enabled: Bool, adId: NSNumber,
                                     prebidSize: CGSize = CGSize(width: 300, height: 250)) -> FBannerAd {
@@ -284,8 +284,10 @@ final class RunnerTests: XCTestCase {
         try XCTUnwrap(native.onLoadRequest)(AdManagerRequest())
         try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 300, height: 600))
         ad.bannerViewDidReceiveAd(google)
+        XCTAssertEqual(reportedHeights(), [], "GAM's 300x600 is held back, never reported")
+        XCTAssertNil(ad.getPlatformAdSize(), "nothing to read while undecided")
         ad.adView(google, didReceiveAppEvent: "Prebid", with: nil)
-        XCTAssertEqual(reportedHeights(), [600, 250])
+        XCTAssertEqual(reportedHeights(), [250])
     }
 
     func testGamOwnCreativeAndDisabledFlagKeepGamSize() throws {
@@ -298,6 +300,7 @@ final class RunnerTests: XCTestCase {
             if !enabled { ad.adView(google, didReceiveAppEvent: "Prebid", with: nil) }
             try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 300, height: 600))
             ad.bannerViewDidReceiveAd(google)
+            if enabled { probes.last?(nil) } // no hb_size in the page
             XCTAssertEqual(reportedHeights(), [600], "enabled=\(enabled)")
             ad.dispose()
         }
@@ -341,10 +344,31 @@ final class RunnerTests: XCTestCase {
         try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 300, height: 600))
         ad.bannerViewDidReceiveAd(google)
         XCTAssertEqual(probes.count, 1, "probed once, after the load")
-        XCTAssertEqual(reportedHeights(), [600])
+        XCTAssertEqual(reportedHeights(), [], "no 300x600 bounce before the answer")
 
         probes[0](CGSize(width: 300, height: 250))
-        XCTAssertEqual(reportedHeights(), [600, 250])
+        XCTAssertEqual(reportedHeights(), [250])
+    }
+
+    func testAProbeThatNeverAnswersFallsBackToGamSize() throws {
+        let ad = prebidResizeBanner(enabled: true, adId: 59)
+        defer { ad.dispose() }
+        ad.probeTimeout = 0.05
+        let native = try XCTUnwrap(ad.auBannerView)
+        let google = AdManagerBannerView(adSize: adSizeFor(cgSize: CGSize(width: 300, height: 600)))
+        probes.removeAll()
+        messenger.calls.removeAll()
+        try XCTUnwrap(native.onLoadRequest)(AdManagerRequest())
+        try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 300, height: 600))
+        ad.bannerViewDidReceiveAd(google)
+        XCTAssertEqual(reportedHeights(), [])
+
+        let settled = expectation(description: "timeout")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
+        wait(for: [settled], timeout: 2)
+        XCTAssertEqual(reportedHeights(), [600])
+        probes.first?(CGSize(width: 300, height: 250)) // too late: settled
+        XCTAssertEqual(reportedHeights(), [600])
     }
 
     func testALateProbeAnswerCannotResizeTheNextLoad() throws {
