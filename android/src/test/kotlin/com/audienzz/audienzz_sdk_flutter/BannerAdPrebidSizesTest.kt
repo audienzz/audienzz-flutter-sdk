@@ -112,7 +112,13 @@ class BannerAdPrebidSizesTest {
         container.addView(view)
         val density = context.resources.displayMetrics.density
         for (width in listOf(280, 360)) {
-            container.layout(0, 0, (width * density).toInt(), (250 * density).toInt())
+            val px = (width * density).toInt()
+            val height = (250 * density).toInt()
+            container.measure(
+                android.view.View.MeasureSpec.makeMeasureSpec(px, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(height, android.view.View.MeasureSpec.EXACTLY),
+            )
+            container.layout(0, 0, px, height)
             requireNotNull(handoff)(com.google.android.gms.ads.admanager.AdManagerAdRequest.Builder().build(), null)
         }
         assertEquals(listOf(280, 360), widths)
@@ -125,7 +131,7 @@ class BannerAdPrebidSizesTest {
         val ad = banner(listOf("300x250"), null, adaptive = true,
             adaptiveConfig = mapOf("widthStrategy" to "CUSTOM", "customWidth" to 280.0, "maxHeight" to 180.0))
         ad.load()
-        val view = ad.platformView!!.view as com.google.android.gms.ads.admanager.AdManagerAdView
+        val view = (ad.platformView!!.view as android.view.ViewGroup).getChildAt(0) as com.google.android.gms.ads.admanager.AdManagerAdView
         ad.prepareGoogleSize(view)
         assertEquals(AdSize.getInlineAdaptiveBannerAdSize(280, 180), view.adSizes!!.first())
         ad.dispose()
@@ -137,7 +143,7 @@ class BannerAdPrebidSizesTest {
             adaptiveConfig = mapOf("type" to "ANCHORED", "widthStrategy" to "CUSTOM",
                 "customWidth" to 320.0, "includeReservationSizes" to false))
         ad.load()
-        val view = ad.platformView!!.view as com.google.android.gms.ads.admanager.AdManagerAdView
+        val view = (ad.platformView!!.view as android.view.ViewGroup).getChildAt(0) as com.google.android.gms.ads.admanager.AdManagerAdView
         ad.prepareGoogleSize(view)
         assertEquals(listOf(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
             RuntimeEnvironment.getApplication(), 320)), view.adSizes!!.toList())

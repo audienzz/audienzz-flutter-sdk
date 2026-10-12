@@ -76,7 +76,8 @@ class BannerAdResizeToPrebidTest {
         findPrebidCreativeSize = { _, found -> probes += found }
     }
 
-    private fun BannerAd.view() = platformView!!.view as AdManagerAdView
+    private fun BannerAd.view() =
+        (platformView!!.view as android.view.ViewGroup).getChildAt(0) as AdManagerAdView
 
     private fun request(hbSize: String?) = AdManagerAdRequest.Builder().apply {
         if (hbSize != null) addCustomTargeting("hb_size", hbSize)
@@ -255,6 +256,26 @@ class BannerAdResizeToPrebidTest {
         off.dispose()
 
         assertEquals(0, probes.size)
+    }
+
+    /** An inline adaptive banner's child fills Google's view: in a full-width slot the ad was left. */
+    @Test
+    fun `Google's view takes the delivered width and is centered in the slot`() {
+        val ad = banner(resize = true)
+        ad.load()
+        val slot = ad.platformView!!.view as android.widget.FrameLayout
+        val params = ad.view().layoutParams as android.widget.FrameLayout.LayoutParams
+        assertEquals("fills the slot before an ad exists", android.view.ViewGroup.LayoutParams.MATCH_PARENT, params.width)
+        assertEquals(android.view.Gravity.CENTER_HORIZONTAL, params.gravity and android.view.Gravity.HORIZONTAL_GRAVITY_MASK)
+
+        requireNotNull(handoff)(request("300x250"), null)
+        ad.prebidAppEvent()
+        ad.googleDelivered(300, 600)
+
+        val density = RuntimeEnvironment.getApplication().resources.displayMetrics.density
+        assertEquals((300 * density).toInt(), (ad.view().layoutParams as android.widget.FrameLayout.LayoutParams).width)
+        assertEquals(slot, ad.view().parent)
+        ad.dispose()
     }
 
     @Test

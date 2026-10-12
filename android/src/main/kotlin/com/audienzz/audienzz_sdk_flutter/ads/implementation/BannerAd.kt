@@ -1,6 +1,9 @@
 package com.audienzz.audienzz_sdk_flutter.ads.implementation
 
 import android.content.Context
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.core.view.doOnAttach
 import com.audienzz.audienzz_sdk_flutter.ads.base.Ad
 import com.audienzz.audienzz_sdk_flutter.ads.base.FullScreenCoverableAd
@@ -89,6 +92,16 @@ class BannerAd(
     var requestContext = org.audienzz.mobile.targeting.AudienzzAdRequestContext()
 
     private var adView: AdManagerAdView? = null
+
+    /**
+     * What Flutter mounts: the slot, at the size Dart gives it. Google's view sits inside it,
+     * centered horizontally. Google's view centers its own child, but an inline adaptive banner's
+     * child is as wide as the view, with the ad drawn at its left edge, so in a full-width slot
+     * the ad was not centered. Narrowing Google's view to the delivered width fixes that whatever
+     * Google does inside it. Until the first delivery it fills the slot, which lazy loading needs
+     * (the slot has to be measurable before an ad exists). Top-aligned, as on iOS.
+     */
+    private var container: FrameLayout? = null
     private var adViewHandler: AudienzzAdViewHandler? = null
     // Kept as a field so pauseAutoRefresh() / resumeAutoRefresh() can reach it
     // after load() returns. Dart-side visibility detection (RenderBox.localToGlobal)
@@ -153,8 +166,20 @@ class BannerAd(
     /** Called by the instance manager on onAdLoaded, before it reports the size to Dart. */
     internal fun onGoogleAdLoaded() {
         googleLoaded = true
-        if (applyPrebidSize() || prebidRendered) return
+        val resized = applyPrebidSize()
+        fitToDeliveredWidth()
+        if (resized || prebidRendered) return
         probePrebidCreative()
+    }
+
+    /** Narrows Google's view to the delivered ad's width so the container can center it. */
+    internal fun fitToDeliveredWidth() {
+        val view = adView ?: return
+        val width = view.adSize?.getWidthInPixels(context)?.takeIf { it > 0 } ?: return
+        val params = view.layoutParams as? FrameLayout.LayoutParams ?: return
+        if (params.width == width) return
+        params.width = width
+        view.layoutParams = params
     }
 
     /** Without the app event: is this load's creative Prebid's? See [findPrebidCreativeSize]. */
@@ -166,13 +191,19 @@ class BannerAd(
             if (generation != loadGeneration || prebidRendered || adView == null) return@findPrebidCreativeSize
             prebidRendered = true
             prebidCreativeSize = size
-            if (applyPrebidSize()) onSizeAdjusted?.invoke()
+            if (applyPrebidSize()) {
+                fitToDeliveredWidth()
+                onSizeAdjusted?.invoke()
+            }
         }
     }
 
     private fun onPrebidCreativeRendered() {
         prebidRendered = true
-        if (applyPrebidSize()) onSizeAdjusted?.invoke()
+        if (applyPrebidSize()) {
+            fitToDeliveredWidth()
+            onSizeAdjusted?.invoke()
+        }
     }
 
     /**
@@ -204,6 +235,16 @@ class BannerAd(
         adView = AdManagerAdView(context)
 
         val currentAdView = adView
+        container = FrameLayout(context).apply {
+            addView(
+                currentAdView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    Gravity.CENTER_HORIZONTAL or Gravity.TOP,
+                ),
+            )
+        }
 
         currentAdView?.setAdSizes(*adSizes.toTypedArray())
         currentAdView?.adUnitId = adUnitId
@@ -380,9 +421,11 @@ class BannerAd(
         bannerAdUnit?.stopAutoRefresh()
         bannerAdUnit?.destroy()
         adView?.destroy()
+        container?.removeAllViews()
         adViewHandler = null
         bannerAdUnit = null
         adView = null
+        container = null
     }
 
      override var platformView: PlatformView? = null
@@ -391,7 +434,7 @@ class BannerAd(
                  return null
              }
 
-             field = PlatformViewWrapper(adView)
+             field = PlatformViewWrapper(container)
              return field
          }
 

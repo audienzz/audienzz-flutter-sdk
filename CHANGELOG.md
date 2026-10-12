@@ -1,5 +1,10 @@
 ## 0.3.2
 
+- **Fix (Android): banners are centered in a full-width slot.** An inline adaptive banner (e.g. a
+  320-wide adaptive config) drew its ad at the left edge, because Google's view was stretched to
+  the slot and its child fills it. Google's view now takes the delivered ad's width inside a
+  centered, top-aligned container (as on iOS); before the first ad it still fills the slot, which
+  lazy loading needs.
 - **Fix: Prebid banners take their own size by default.** When GAM rendered a winning Prebid bid
   inside a creative of another size, the ad was cut off (bid larger than GAM's creative) or shown
   smaller and off-centre (bid smaller). Once the Prebid creative rendered, the banner is now sized
