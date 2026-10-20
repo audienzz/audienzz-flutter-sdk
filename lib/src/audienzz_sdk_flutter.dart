@@ -141,7 +141,9 @@ final class AudienzzSdkFlutter {
 
     return adInstanceManager.initialize(
       companyId: config?.ortb.schain?.sellerId ?? '1',
-      publisherId: publisherId,
+      // Native reports this as analytics `sdk_id`: the config's own `sdkId`,
+      // else the id the app passed.
+      publisherId: config?.sdkId ?? publisherId,
       environment: environment,
       prebidServerUrl: config?.prebidServer.url,
       // Flutter fetches the publisher config in Dart, so the native SDK never sees it and cannot
