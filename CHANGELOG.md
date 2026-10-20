@@ -1,3 +1,12 @@
+## Unreleased
+
+- Remote config is fetched from ws-sdk-config `sdks/{sdkId}` (and `sdks/{sdkId}/ad-configs`)
+  instead of `publishers/{id}`. Same response; a server without the new route (HTTP 404) falls
+  back to the old one.
+- Analytics `sdk_id` is the remote config's `sdkId`; without one it is the id passed to
+  `initializeRemote`. The rename from `publisher_id` and the new `placementVisible` event come
+  from the native SDKs, so they need the native release that adds them.
+
 ## 0.3.2
 
 - **Fix (Android): banners are centered in a full-width slot.** An inline adaptive banner (e.g. a
