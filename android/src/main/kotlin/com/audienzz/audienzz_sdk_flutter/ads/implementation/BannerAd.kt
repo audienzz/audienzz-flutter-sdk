@@ -67,6 +67,12 @@ class BannerAd(
      * served itself keeps GAM's size. On unless the ad config turns it off.
      */
     private val resizeToPrebidCreative: Boolean = true,
+    /**
+     * Ad config `gamConfig.includeFluid`: also ask GAM for the fluid size, next to [adSizes] (e.g.
+     * fluid GAM native styles). Prebid is unaffected. A fluid ad spans the slot and its height,
+     * which only the creative knows, is measured and reported to Dart like any delivered size.
+     */
+    private val includeFluid: Boolean = false,
 ) : Ad(), FullScreenCoverableAd {
     /**
      * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
@@ -75,6 +81,18 @@ class BannerAd(
      * because the ad unit is built from the first size and an empty list would crash.
      */
     private val prebidSizes: List<AdSize> = prebidAdSizes?.takeIf { it.isNotEmpty() } ?: adSizes
+
+    /** What GAM is asked for: [adSizes], then the fluid size when [includeFluid]. */
+    private val gamSizes: List<AdSize> = if (includeFluid) adSizes + AdSize.FLUID else adSizes
+
+    /**
+     * The delivered fluid ad's own height in pixels, measured without the slot's height limit (see
+     * [SlotLayout]); 0 until known, and for a fixed-size delivery.
+     */
+    private var fluidHeightPx = 0
+
+    private val fluidDelivered: Boolean
+        get() = adView?.adSize == AdSize.FLUID
 
     internal var loadGoogle: (AdManagerAdView, com.google.android.gms.ads.admanager.AdManagerAdRequest) -> Unit =
         { view, request -> view.loadAd(request) }
@@ -101,7 +119,32 @@ class BannerAd(
      * Google does inside it. Until the first delivery it fills the slot, which lazy loading needs
      * (the slot has to be measurable before an ad exists). Top-aligned, as on iOS.
      */
-    private var container: FrameLayout? = null
+    private var container: SlotLayout? = null
+
+    /**
+     * The slot Flutter sizes. A fluid ad is as tall as its creative, but a child measured inside
+     * a slot of fixed height is capped at that height, so its real height would never be known.
+     * After the normal pass this measures Google's view once more without the cap, records that
+     * height, and reports it when it changes; Dart then resizes the slot to it.
+     */
+    private inner class SlotLayout(context: Context) : FrameLayout(context) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            val view = adView ?: return
+            if (!fluidDelivered || measuredWidth <= 0) return
+            val exactWidth = MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY)
+            view.measure(exactWidth, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            val natural = view.measuredHeight
+            // Back to the slot's own height for this layout pass.
+            view.measure(exactWidth, MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
+            if (natural > 0 && natural != fluidHeightPx) {
+                fluidHeightPx = natural
+                // Not from inside a measure pass: reporting resizes the slot. Not View.post,
+                // which waits for an attach that may not have happened yet.
+                android.os.Handler(android.os.Looper.getMainLooper()).post { onSizeAdjusted?.invoke() }
+            }
+        }
+    }
     private var adViewHandler: AudienzzAdViewHandler? = null
     // Kept as a field so pauseAutoRefresh() / resumeAutoRefresh() can reach it
     // after load() returns. Dart-side visibility detection (RenderBox.localToGlobal)
@@ -115,7 +158,16 @@ class BannerAd(
      */
     fun getPlatformAdSize(): AdSize? {
         if (probePending) return null
+        if (fluidDelivered) return fluidSize()
         return adView?.adSize
+    }
+
+    /** A delivered fluid ad: the slot's width and the creative's measured height, in dp. */
+    private fun fluidSize(): AdSize? {
+        val width = container?.width?.takeIf { it > 0 } ?: return null
+        val height = fluidHeightPx.takeIf { it > 0 } ?: return null
+        val resources = context.resources
+        return AdSize(resources.pxToDp(width), resources.pxToDp(height))
     }
 
     // ── resizeToPrebidCreative ──────────────────────────────────────────────────────────────
@@ -166,13 +218,14 @@ class BannerAd(
         probePending = false
         prebidRendered = false
         googleLoaded = false
+        fluidHeightPx = 0
         prebidCreativeSize = if (resizeToPrebidCreative) {
             parseSize(request.customTargeting.getString(HB_SIZE_KEY))
         } else null
         // A previous resize narrowed the view to one size. Request every configured size again.
         val view = adView
         if (resized && view != null && !isAdaptiveSize) {
-            view.setAdSizes(*adSizes.toTypedArray())
+            view.setAdSizes(*gamSizes.toTypedArray())
         }
         resized = false
     }
@@ -188,6 +241,11 @@ class BannerAd(
 
     /** Narrows Google's view to the delivered ad's width so the container can center it. */
     internal fun fitToDeliveredWidth() {
+        // A fluid ad takes its width from Google's view, so that view spans the slot.
+        if (fluidDelivered) {
+            setViewWidth(ViewGroup.LayoutParams.MATCH_PARENT)
+            return
+        }
         val width = adView?.adSize?.getWidthInPixels(context)?.takeIf { it > 0 } ?: return
         setViewWidth(width)
     }
@@ -200,6 +258,11 @@ class BannerAd(
      */
     private fun reserveRequestWidth() {
         val view = adView ?: return
+        // A request that may return a fluid ad needs the whole slot: that ad is as wide as the view.
+        if (includeFluid) {
+            setViewWidth(ViewGroup.LayoutParams.MATCH_PARENT)
+            return
+        }
         val requested = view.adSizes.orEmpty().map { it.width } + prebidSizes.map { it.width }
         val widestDp = requested.filter { it > 0 }.maxOrNull() ?: return
         setViewWidth(AdSize(widestDp, 50).getWidthInPixels(context))
@@ -278,7 +341,7 @@ class BannerAd(
         adView = AdManagerAdView(context)
 
         val currentAdView = adView
-        container = FrameLayout(context).apply {
+        container = SlotLayout(context).apply {
             addView(
                 currentAdView,
                 FrameLayout.LayoutParams(
@@ -289,7 +352,7 @@ class BannerAd(
             )
         }
 
-        currentAdView?.setAdSizes(*adSizes.toTypedArray())
+        currentAdView?.setAdSizes(*gamSizes.toTypedArray())
         currentAdView?.adUnitId = adUnitId
         adListener?.let { currentAdView?.adListener = it }
         if (resizeToPrebidCreative) {
@@ -448,7 +511,8 @@ class BannerAd(
         // Preserve legacy defaults, but respect explicit backend delivery choices.
         val reservations = if (adaptiveBannerConfig?.get("includeReservationSizes") == false)
             emptyList() else adSizes
-        view.setAdSizes(adaptive, *reservations.toTypedArray())
+        val fluid = if (includeFluid) listOf(AdSize.FLUID) else emptyList()
+        view.setAdSizes(adaptive, *(reservations + fluid).toTypedArray())
     }
 
     override fun dispose() {

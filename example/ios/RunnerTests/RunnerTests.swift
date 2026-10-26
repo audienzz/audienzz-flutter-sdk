@@ -230,6 +230,61 @@ final class RunnerTests: XCTestCase {
         XCTAssertEqual(messenger.calls.count, 1, "A retired banner must not notify Dart")
     }
 
+    // MARK: includeFluid — GAM's fluid size next to the fixed sizes; Prebid keeps its own
+
+    private func fluidBanner(includeFluid: Bool, adId: NSNumber) -> (FBannerAd, () -> AdManagerBannerView?) {
+        let ad = FBannerAd(adUnitId: "/96628199/multi-size", auConfigId: "test",
+            sizes: [FAdSize(width: 300, height: 250), FAdSize(width: 320, height: 50)],
+            isAdaptiveSize: false, isLazyLoad: true,
+            smartRefresh: false, prefetchMarginPoints: 0, refreshTimeInterval: nil,
+            adFormat: .banner, apiParameters: [], videoProtocols: [], videoPlacement: .InBanner,
+            videoPlaybackMethods: [], videoBitrate: FVideoBitrate(min: 0, max: 0),
+            videoDuration: FVideoDuration(min: 0, max: 0), pbAdSlot: nil, gpId: nil,
+            customImpOrtbConfig: nil, pageKey: "route-1", rootViewController: UIViewController(),
+            adId: adId, manager: manager, includeFluid: includeFluid)
+        ad.pauseAutoRefresh() // No live auctions: drive the installed callbacks directly.
+        var google: AdManagerBannerView?
+        ad.loadGoogle = { view, _ in google = view }
+        ad.load()
+        return (ad, { google })
+    }
+
+    private func requestsFluid(_ google: AdManagerBannerView) -> Bool {
+        (google.validAdSizes ?? []).contains { isAdSizeFluid(size: adSizeFor(nsValue: $0)) }
+    }
+
+    func testFluidIsRequestedOnlyWhenTheAdConfigAsks() throws {
+        for includeFluid in [false, true] {
+            let (ad, google) = fluidBanner(includeFluid: includeFluid, adId: includeFluid ? 61 : 60)
+            defer { ad.dispose() }
+            try XCTUnwrap(ad.auBannerView?.onLoadRequest)(AdManagerRequest())
+            let view = try XCTUnwrap(google())
+            XCTAssertEqual(requestsFluid(view), includeFluid)
+            XCTAssertEqual(view.validAdSizes?.count, includeFluid ? 3 : 2, "the fixed sizes stay")
+            XCTAssertEqual(ad.auBannerView?.fillsWidthWithAdSubview, includeFluid,
+                           "a fluid ad takes its width from Google's view, so that view spans the slot")
+        }
+    }
+
+    func testFluidCreativeReportsTheSlotWidthAndTheCreativeHeight() throws {
+        let (ad, google) = fluidBanner(includeFluid: true, adId: 62)
+        defer { ad.dispose() }
+        let native = try XCTUnwrap(ad.auBannerView)
+        native.frame = CGRect(x: 0, y: 0, width: 390, height: 250) // Flutter sizes the slot.
+        try XCTUnwrap(native.onLoadRequest)(AdManagerRequest())
+        let view = try XCTUnwrap(google())
+        messenger.calls.removeAll()
+        // What the SDK hands on for a fluid creative: the slot's width, the creative's height
+        // (its own tests in audienzz-ios-sdk#68 cover how it gets there from Google's callbacks).
+        try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 390, height: 410))
+        ad.bannerViewDidReceiveAd(view)
+        XCTAssertEqual(reportedHeights(), [410])
+        XCTAssertEqual(ad.getPlatformAdSize()?.width, 390)
+        XCTAssertEqual(ad.getPlatformAdSize()?.height, 410)
+        native.layoutIfNeeded()
+        XCTAssertEqual(view.frame.width, 390, "Google's view spans the slot")
+    }
+
     // MARK: resizeToPrebidCreative — a 300x250 Prebid bid rendered in a 300x600 GAM creative
 
     private var probes: [(CGSize?) -> Void] = []

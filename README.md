@@ -585,6 +585,11 @@ AudienzzBanner(
   `config.resizeToPrebidCreative: false` to keep GAM's size for a placement. The clean fix is still
   in GAM: creative-level targeting on `hb_size`. Flutter SDK only for now; the native and React
   Native SDKs keep GAM's size.
+- **Fluid GAM ads** (e.g. fluid GAM native styles): with `gamConfig.includeFluid: true` in the ad
+  config, the banner also asks GAM for the fluid size next to its fixed sizes; Prebid keeps its
+  fixed sizes. A fluid ad spans the slot's width and is as tall as its creative; that height arrives
+  through `onAdSizeChanged` like any delivered size, so give the slot a width (`AudienzzBanner`
+  already spans it) and keep `sizeToCreative` on, or size your wrapper from the callback.
 
 To verify sizing, call `AudienzzSdkFlutter.instance.setDiagnosticsEnabled(true)`. Every banner
 (`AudienzzBanner` or `RemoteBannerAd`) logs `AUDZ banner size adId=… unit=… size=320x50

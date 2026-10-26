@@ -57,7 +57,11 @@ target 'Runner' do
     Pod::UI.puts "[Audienzz] using LOCAL iOS SDK at #{audienzz_local_ios_sdk}".yellow
     pod 'AudienzziOSSDK', :path => audienzz_local_ios_sdk
   else
-    pod 'AudienzziOSSDK', '~> 0.4.3'
+    # TEMPORARY: the iOS SDK PR this branch needs (gamConfig.includeFluid; public
+    # AUAdView.fillsWidthWithAdSubview), audienzz/audienzz-ios-sdk#68. Back to the
+    # released version (and the plugin podspec bumped to it) once it ships.
+    pod 'AudienzziOSSDK', :git => 'https://github.com/audienzz/audienzz-ios-sdk.git',
+                          :branch => 'feature/gam-include-fluid'
   end
 
   # AudienzziOSSDK 0.4.3 builds against STOCK PrebidMobile (no fork). Pin 3.3.1+

@@ -234,7 +234,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 adId: adId,
                 manager: manager,
                 // Absent from Dart unless the ad config turns it on.
-                resizeToPrebidCreative: args["resizeToPrebidCreative"] as? Bool ?? true
+                resizeToPrebidCreative: args["resizeToPrebidCreative"] as? Bool ?? true,
+                // Absent from Dart unless the ad config turns it on.
+                includeFluid: args["includeFluid"] as? Bool ?? false
             )
 
             // Before loadAd: an eager banner requests as soon as it loads, so a

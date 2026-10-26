@@ -54,6 +54,7 @@ final class RemoteBannerAd extends BannerAd {
           // config turns it on for this placement.
           resizeToPrebidCreative:
               _getConfig(configId)?.config.resizeToPrebidCreative ?? true,
+          includeFluid: _getConfig(configId)?.gamConfig.includeFluid ?? false,
           // Always enable smart refresh for remote-config banners: count refresh time only
           // while eligible, pausing off-screen and resuming the remainder on return.
           smartRefresh: true,
