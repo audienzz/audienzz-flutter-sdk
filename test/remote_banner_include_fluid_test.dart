@@ -36,9 +36,19 @@ void main() {
         onAdFailedToLoad: (_, __) {},
       );
 
-  tearDown(
-    () => AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting(null),
-  );
+  // Exercise the real ad config value, not the temporary mock.
+  setUp(() => RemoteBannerAd.mockIncludeFluid = false);
+
+  tearDown(() {
+    AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting(null);
+    RemoteBannerAd.mockIncludeFluid = true;
+  });
+
+  test('temporary mock: fluid is requested when the ad config omits it', () {
+    RemoteBannerAd.mockIncludeFluid = true;
+    AudienzzRemoteConfig.instance.setAdUnitConfigsForTesting([parse()]);
+    expect(build().includeFluid, isTrue);
+  });
 
   group('parsing', () {
     test('absent is off', () {
