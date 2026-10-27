@@ -108,35 +108,69 @@ class BannerAdFluidTest {
         assertEquals(ViewGroup.LayoutParams.MATCH_PARENT, ad.view().layoutParams.width)
     }
 
-    @Test
-    fun `on - a fixed creative is still narrowed to its width`() {
-        val ad = banner(includeFluid = true).apply { load() }
+    /** Google delivered: reports [reported], while the creative it rendered is [contentPx] tall. */
+    private fun BannerAd.delivered(reported: AdSize, contentPx: Int) {
         handoff!!(AdManagerAdRequest.Builder().build(), AudienzzResultCode.SUCCESS)
-        ad.view().setAdSizes(AdSize(320, 50))
-        ad.onGoogleAdLoaded()
+        view().setAdSizes(reported)
+        view().addView(
+            View(RuntimeEnvironment.getApplication()),
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, contentPx),
+        )
+        onGoogleAdLoaded()
+    }
+
+    @Test
+    fun `a fixed creative is narrowed to its width and keeps its size`() {
+        val ad = banner(includeFluid = true).apply { load() }
+        ad.delivered(AdSize(320, 50), contentPx = 50)
         assertEquals(AdSize(320, 50).getWidthInPixels(RuntimeEnvironment.getApplication()), ad.view().layoutParams.width)
+        ad.layOut(360, 50)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
         assertEquals(AdSize(320, 50), ad.getPlatformAdSize())
     }
 
     @Test
-    fun `fluid ad - full width, and its measured height is reported once known`() {
+    fun `a creative taller than Google reports gets its measured height, not a cut slot`() {
+        // Seen on a device: Google reported 320x50 for a 427 dp fluid creative.
         val ad = banner(includeFluid = true).apply { load() }
-        handoff!!(AdManagerAdRequest.Builder().build(), AudienzzResultCode.SUCCESS)
-        ad.view().setAdSizes(AdSize.FLUID)
-        ad.onGoogleAdLoaded()
+        ad.delivered(AdSize(320, 50), contentPx = 427)
+        assertNull("held until measured, not reported as 320x50 first", ad.getPlatformAdSize())
+        ad.layOut(360, 50)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(AdSize(320, 427), ad.getPlatformAdSize())
+        assertEquals(1, reports)
+    }
+
+    @Test
+    fun `a creative shorter than Google reports does not get a huge slot`() {
+        // Seen on a device: Google reported 300x600 for a 303 dp creative.
+        val ad = banner(includeFluid = true).apply { load() }
+        ad.delivered(AdSize(300, 600), contentPx = 303)
+        ad.layOut(360, 600)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(AdSize(300, 303), ad.getPlatformAdSize())
+    }
+
+    @Test
+    fun `fluid ad - full width, measured height`() {
+        val ad = banner(includeFluid = true).apply { load() }
+        ad.delivered(AdSize.FLUID, contentPx = 410)
         assertEquals(ViewGroup.LayoutParams.MATCH_PARENT, ad.view().layoutParams.width)
-
-        // Height unknown until the creative is measured: nothing to report yet.
-        ad.layOut(360, 250)
-        assertNull("no creative height yet", ad.getPlatformAdSize())
-
-        // The creative is 410 tall — taller than the 250 the slot reserved.
-        val creative = View(RuntimeEnvironment.getApplication())
-        ad.view().addView(creative, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 410))
         ad.layOut(360, 250)
         org.robolectric.shadows.ShadowLooper.idleMainLooper()
-
         assertEquals("the slot's height must not cap it", AdSize(360, 410), ad.getPlatformAdSize())
+        assertEquals(1, reports)
+    }
+
+    @Test
+    fun `never measured - Google's size stands in after the timeout`() {
+        val ad = banner(includeFluid = true).apply { load(); probeTimeoutMs = 50 }
+        handoff!!(AdManagerAdRequest.Builder().build(), AudienzzResultCode.SUCCESS)
+        ad.view().setAdSizes(AdSize(300, 250))
+        ad.onGoogleAdLoaded()
+        assertNull(ad.getPlatformAdSize())
+        org.robolectric.shadows.ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+        assertEquals(AdSize(300, 250), ad.getPlatformAdSize())
         assertEquals(1, reports)
     }
 }

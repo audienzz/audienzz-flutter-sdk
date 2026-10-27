@@ -86,10 +86,15 @@ class BannerAd(
     private val gamSizes: List<AdSize> = if (includeFluid) adSizes + AdSize.FLUID else adSizes
 
     /**
-     * The delivered fluid ad's own height in pixels, measured without the slot's height limit (see
-     * [SlotLayout]); 0 until known, and for a fixed-size delivery.
+     * With [includeFluid]: the delivered creative's own height in pixels, measured without the
+     * slot's height limit (see [SlotLayout]); 0 until known. Google does not report a fluid ad as
+     * fluid: on a device it reported 320x50 for a 427 dp creative and 300x600 for a 303 dp one, so
+     * the slot is sized from this measurement, not from the reported size.
      */
-    private var fluidHeightPx = 0
+    private var contentHeightPx = 0
+
+    /** This load's creative was not measured within [probeTimeoutMs]: report Google's size. */
+    private var measureTimedOut = false
 
     private val fluidDelivered: Boolean
         get() = adView?.adSize == AdSize.FLUID
@@ -131,14 +136,16 @@ class BannerAd(
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             val view = adView ?: return
-            if (!fluidDelivered || measuredWidth <= 0) return
-            val exactWidth = MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY)
-            view.measure(exactWidth, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            if (!includeFluid || !googleLoaded || view.measuredWidth <= 0) return
+            // Google's view keeps the width it was laid out with (full width, or the delivered ad's).
+            val viewWidth = MeasureSpec.makeMeasureSpec(view.measuredWidth, MeasureSpec.EXACTLY)
+            view.measure(viewWidth, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
             val natural = view.measuredHeight
+
             // Back to the slot's own height for this layout pass.
-            view.measure(exactWidth, MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
-            if (natural > 0 && natural != fluidHeightPx) {
-                fluidHeightPx = natural
+            view.measure(viewWidth, MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
+            if (natural > 0 && natural != contentHeightPx) {
+                contentHeightPx = natural
                 // Not from inside a measure pass: reporting resizes the slot. Not View.post,
                 // which waits for an attach that may not have happened yet.
                 android.os.Handler(android.os.Looper.getMainLooper()).post { onSizeAdjusted?.invoke() }
@@ -158,16 +165,27 @@ class BannerAd(
      */
     fun getPlatformAdSize(): AdSize? {
         if (probePending) return null
-        if (fluidDelivered) return fluidSize()
+        if (includeFluid) return measuredSize()
         return adView?.adSize
     }
 
-    /** A delivered fluid ad: the slot's width and the creative's measured height, in dp. */
-    private fun fluidSize(): AdSize? {
-        val width = container?.width?.takeIf { it > 0 } ?: return null
-        val height = fluidHeightPx.takeIf { it > 0 } ?: return null
+    /**
+     * With [includeFluid]: the width Google's view has and the creative's measured height, in dp.
+     * Falls back to Google's reported size until the creative has been measured (a fluid one, which
+     * reports no size, gives nothing until then).
+     */
+    private fun measuredSize(): AdSize? {
+        val view = adView ?: return null
+        val reported = view.adSize?.takeIf { it.width > 0 && it.height > 0 }
+        // Not measured yet: hold the report rather than send Google's size and then the real one
+        // (the slot jumped 50 -> 427). After [probeTimeoutMs] the reported size stands in.
+        val height = contentHeightPx.takeIf { it > 0 }
+            ?: return if (measureTimedOut) reported else null
+        val widthPx = if (fluidDelivered) container?.width else view.width
         val resources = context.resources
-        return AdSize(resources.pxToDp(width), resources.pxToDp(height))
+        val widthDp = widthPx?.takeIf { it > 0 }?.let { resources.pxToDp(it) }
+            ?: reported?.width ?: return null
+        return AdSize(widthDp, resources.pxToDp(height))
     }
 
     // ── resizeToPrebidCreative ──────────────────────────────────────────────────────────────
@@ -218,7 +236,8 @@ class BannerAd(
         probePending = false
         prebidRendered = false
         googleLoaded = false
-        fluidHeightPx = 0
+        contentHeightPx = 0
+        measureTimedOut = false
         prebidCreativeSize = if (resizeToPrebidCreative) {
             parseSize(request.customTargeting.getString(HB_SIZE_KEY))
         } else null
@@ -233,6 +252,14 @@ class BannerAd(
     /** Called by the instance manager on onAdLoaded, before it reports the size to Dart. */
     internal fun onGoogleAdLoaded() {
         googleLoaded = true
+        if (includeFluid && contentHeightPx == 0) {
+            val generation = loadGeneration
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (generation != loadGeneration || contentHeightPx > 0 || adView == null) return@postDelayed
+                measureTimedOut = true
+                onSizeAdjusted?.invoke()
+            }, probeTimeoutMs)
+        }
         val resized = applyPrebidSize()
         fitToDeliveredWidth()
         if (resized || prebidRendered) return
