@@ -45,6 +45,15 @@ does not replace native code. A missing local artifact fails dependency resoluti
 Direct Gradle source substitution is not used: native and wrapper builds use different Android
 Gradle plugin versions. Remove the property to return to the published dependency.
 
+## Unreleased: the example's iOS SDK comes from a pull request
+
+On this branch the example Podfile installs `AudienzziOSSDK` from the branch of
+audienzz/audienzz-ios-sdk#68 (`feature/gam-include-fluid`), which `gamConfig.includeFluid` needs.
+Run `pod install` (with `LANG=en_US.UTF-8` if CocoaPods complains about the encoding) after
+pulling; `AUDIENZZ_IOS_SDK_PATH` still overrides it. Switch back to the released version once that
+PR ships. Android uses the published SDK: the plugin builds its own Google view and needs nothing
+from audienzz/audienzz-android-sdk#29.
+
 ## iOS — optional local development pod
 
 The example Podfile defaults to the published `AudienzziOSSDK ~> 0.4.3`. To test native edits:

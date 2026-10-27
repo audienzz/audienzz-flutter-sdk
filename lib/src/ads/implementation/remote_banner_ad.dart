@@ -6,6 +6,7 @@ import 'package:audienzz_sdk_flutter/src/entities/ad_size.dart';
 import 'package:audienzz_sdk_flutter/src/entities/remote_config/remote_ad_configuration.dart';
 import 'package:audienzz_sdk_flutter/src/remote_config/audienzz_remote_config.dart';
 import 'package:audienzz_sdk_flutter/src/utils/ad_size_mapper.dart';
+import 'package:flutter/foundation.dart';
 
 final class RemoteBannerAd extends BannerAd {
   RemoteBannerAd({
@@ -54,12 +55,22 @@ final class RemoteBannerAd extends BannerAd {
           // config turns it on for this placement.
           resizeToPrebidCreative:
               _getConfig(configId)?.config.resizeToPrebidCreative ?? true,
+          includeFluid:
+              (_getConfig(configId)?.gamConfig.includeFluid ?? false) ||
+                  mockIncludeFluid,
           // Always enable smart refresh for remote-config banners: count refresh time only
           // while eligible, pausing off-screen and resuming the remainder on return.
           smartRefresh: true,
         );
 
   final String configId;
+
+  /// TEMPORARY MOCK — remove before release. The backend does not send
+  /// `gamConfig.includeFluid` yet, so every remote banner requests GAM's fluid
+  /// size for testing, as the native SDK branches do. Tests switch it off to
+  /// exercise the real config value.
+  @visibleForTesting
+  static bool mockIncludeFluid = true;
 
   static RemoteAdConfiguration? _getConfig(String configId) {
     return AudienzzRemoteConfig.instance.remoteConfigFor(configId);

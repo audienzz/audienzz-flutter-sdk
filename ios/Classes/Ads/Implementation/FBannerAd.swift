@@ -26,6 +26,11 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     // GAM's "Prebid" app event, and this load's delivered size. Never act on the event alone
     // before the load: the banner still holds the PREVIOUS creative's size then.
     private let resizeToPrebidCreative: Bool
+
+    /// Ad config `gamConfig.includeFluid`: also ask GAM for the fluid size, next to `sizes` (e.g.
+    /// fluid GAM native styles). Prebid is unaffected. A fluid ad spans the slot; the SDK takes only
+    /// its height from Google and reports it through `onAdSizeChanged`, like any delivered size.
+    private let includeFluid: Bool
     /// Read-only, for tests.
     internal var resizesToPrebidCreative: Bool { resizeToPrebidCreative }
     private var prebidCreativeSize: CGSize?
@@ -282,9 +287,11 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         rootViewController: UIViewController,
         adId: NSNumber,
         manager: AdInstanceManager,
-        resizeToPrebidCreative: Bool = true
+        resizeToPrebidCreative: Bool = true,
+        includeFluid: Bool = false
     ) {
         self.resizeToPrebidCreative = resizeToPrebidCreative
+        self.includeFluid = includeFluid
         self.adUnitId = adUnitId
         self.sizes = sizes
         self.prebidSizes = prebidSizes
@@ -335,6 +342,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         for cgSize in cgSizes {
             validAdSizes.append(nsValue(for: adSizeFor(cgSize: cgSize)))
         }
+        if includeFluid {
+            validAdSizes.append(nsValue(for: AdSizeFluid))
+        }
 
         bannerViewInstance!.validAdSizes = validAdSizes
 
@@ -376,6 +386,8 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         if let pageKey { auBannerView?.setScreen(pageKey) }
         auBannerView?.frame = CGRect(origin: .zero, size: CGSize(width: mainSize.width, height: mainSize.height))
         auBannerView?.backgroundColor = .clear
+        // A fluid ad takes its width from Google's view, so that view spans the slot.
+        auBannerView?.fillsWidthWithAdSubview = includeFluid
         // Flutter owns viewport/cover reporting: UIKit cannot see Flutter's scroll clips or
         // painted overlays. Keep the native viewport gate off and feed the SDK-owned refresh
         // controller through the host pause/resume API instead.
@@ -496,7 +508,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         // GAM takes the adaptive descriptor from adSize and reservation sizes from this list.
         banner.validAdSizes = sizes.map {
             nsValue(for: adSizeFor(cgSize: CGSize(width: $0.width, height: $0.height)))
-        }
+        } + (includeFluid ? [nsValue(for: AdSizeFluid)] : [])
     }
 
     // MARK: - resizeToPrebidCreative

@@ -1,3 +1,18 @@
+## Unreleased
+
+- **Fluid GAM size for remote banners.** An ad config can set `gamConfig.includeFluid: true`. The
+  banner then also asks GAM for the fluid size next to its fixed `gamConfig.adSizes`, so fluid
+  creatives such as GAM native styles can serve into the same slot. Prebid is unaffected and keeps
+  bidding on `prebidConfig.adSizes`. A fluid ad spans the slot's width; its height is measured
+  (Android) or taken from Google (iOS) and reported through `onAdSizeChanged`, so `AudienzzBanner`
+  and `AdWidget` size to it. On Android, Google does not report a fluid creative as fluid (a 427 dp
+  creative came back as 320x50, a 303 dp one as 300x600), so with fluid on every delivery is sized
+  from its measured height; the size is held until then, falling back to Google's after 1 s. Off when absent or not a JSON boolean. Same behaviour as the native
+  SDKs (audienzz/audienzz-android-sdk#29, audienzz/audienzz-ios-sdk#68).
+- **iOS requires the iOS SDK with `AUAdView.fillsWidthWithAdSubview`** (audienzz-ios-sdk#68). Until
+  it is released, the example app installs it from that PR's branch; the plugin podspec must be
+  bumped to the release before this ships. Android needs no native change.
+
 ## 0.3.2
 
 - **Fix (Android): banners are centered in a full-width slot.** An inline adaptive banner (e.g. a
