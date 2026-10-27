@@ -86,8 +86,8 @@ class BannerAd(
     private val gamSizes: List<AdSize> = if (includeFluid) adSizes + AdSize.FLUID else adSizes
 
     /**
-     * With [includeFluid]: the delivered creative's own height in pixels, measured without the
-     * slot's height limit (see [SlotLayout]); 0 until known. Google does not report a fluid ad as
+     * With [includeFluid]: the height Google laid the delivered creative out at, in pixels (see
+     * [SlotLayout]); 0 until known. Google does not report a fluid ad as
      * fluid: on a device it reported 320x50 for a 427 dp creative and 300x600 for a 303 dp one, so
      * the slot is sized from this measurement, not from the reported size.
      */
@@ -127,29 +127,32 @@ class BannerAd(
     private var container: SlotLayout? = null
 
     /**
-     * The slot Flutter sizes. A fluid ad is as tall as its creative, but a child measured inside
-     * a slot of fixed height is capped at that height, so its real height would never be known.
-     * After the normal pass this measures Google's view once more without the cap, records that
-     * height, and reports it when it changes; Dart then resizes the slot to it.
+     * The slot Flutter sizes. With [includeFluid] it reads, after every layout pass, the height
+     * Google laid the creative's own view out at — the innermost view of Google's banner. Google
+     * gives that view the creative's height even when its parents are shorter (a fluid creative in
+     * a 50 dp slot was laid out 427 dp tall), so it is known before Dart has resized the slot.
+     * Not a fresh measure: asked without a height limit, a web view answers with its scrollable
+     * page height (759 dp for a creative Google laid out at 480 dp), which left a gap below the ad.
      */
     private inner class SlotLayout(context: Context) : FrameLayout(context) {
-        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+            super.onLayout(changed, left, top, right, bottom)
             val view = adView ?: return
-            if (!includeFluid || !googleLoaded || view.measuredWidth <= 0) return
-            // Google's view keeps the width it was laid out with (full width, or the delivered ad's).
-            val viewWidth = MeasureSpec.makeMeasureSpec(view.measuredWidth, MeasureSpec.EXACTLY)
-            view.measure(viewWidth, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-            val natural = view.measuredHeight
-
-            // Back to the slot's own height for this layout pass.
-            view.measure(viewWidth, MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
-            if (natural > 0 && natural != contentHeightPx) {
-                contentHeightPx = natural
-                // Not from inside a measure pass: reporting resizes the slot. Not View.post,
+            if (!includeFluid || !googleLoaded) return
+            val creative = innermostView(view)?.height ?: return
+            if (creative > 0 && creative != contentHeightPx) {
+                contentHeightPx = creative
+                // Not from inside a layout pass: reporting resizes the slot. Not View.post,
                 // which waits for an attach that may not have happened yet.
                 android.os.Handler(android.os.Looper.getMainLooper()).post { onSizeAdjusted?.invoke() }
             }
+        }
+
+        /** The first-child chain's last view: the creative itself. Null without one. */
+        private fun innermostView(view: android.view.View): android.view.View? {
+            var current = (view as? ViewGroup)?.takeIf { it.childCount > 0 }?.getChildAt(0) ?: return null
+            while (current is ViewGroup && current.childCount > 0) current = current.getChildAt(0)
+            return current
         }
     }
     private var adViewHandler: AudienzzAdViewHandler? = null
