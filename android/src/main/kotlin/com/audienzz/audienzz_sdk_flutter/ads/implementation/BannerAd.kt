@@ -288,11 +288,11 @@ class BannerAd(
      */
     private fun reserveRequestWidth() {
         val view = adView ?: return
-        // A request that may return a fluid ad needs the whole slot: that ad is as wide as the view.
-        if (includeFluid) {
-            setViewWidth(ViewGroup.LayoutParams.MATCH_PARENT)
-            return
-        }
+        // The previous ad is still on screen until the next one arrives. Widening Google's view to
+        // the whole slot here (to make room for a fluid ad) re-flowed a fluid creative still showing
+        // out to the screen edges right before every refresh. Google reports fluid creatives at a
+        // fixed width anyway, and a true fluid size is widened on delivery (fitToDeliveredWidth).
+        if (fluidDelivered) return
         val requested = view.adSizes.orEmpty().map { it.width } + prebidSizes.map { it.width }
         val widestDp = requested.filter { it > 0 }.maxOrNull() ?: return
         setViewWidth(AdSize(widestDp, 50).getWidthInPixels(context))

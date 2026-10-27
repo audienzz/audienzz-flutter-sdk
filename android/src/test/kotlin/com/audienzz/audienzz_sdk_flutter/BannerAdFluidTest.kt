@@ -102,8 +102,21 @@ class BannerAdFluidTest {
     }
 
     @Test
-    fun `on - a request reserves the whole slot`() {
+    fun `on - a refresh does not stretch the ad on screen to the slot`() {
+        // Seen on a device: widening to the whole slot before each request re-flowed the fluid
+        // creative still showing out to the screen edges. Reserve the widest configured size.
         val ad = banner(includeFluid = true).apply { load() }
+        handoff!!(AdManagerAdRequest.Builder().build(), AudienzzResultCode.SUCCESS)
+        assertEquals(
+            AdSize(320, 50).getWidthInPixels(RuntimeEnvironment.getApplication()),
+            ad.view().layoutParams.width,
+        )
+    }
+
+    @Test
+    fun `on - a full-width fluid ad on screen keeps its width through the next request`() {
+        val ad = banner(includeFluid = true).apply { load() }
+        ad.delivered(AdSize.FLUID, contentPx = 410)
         handoff!!(AdManagerAdRequest.Builder().build(), AudienzzResultCode.SUCCESS)
         assertEquals(ViewGroup.LayoutParams.MATCH_PARENT, ad.view().layoutParams.width)
     }
