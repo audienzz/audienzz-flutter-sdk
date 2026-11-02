@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'audienzz_sdk_flutter'
-  s.version          = '0.3.2'
+  s.version          = '0.3.3'
   s.summary          = 'Flutter wrapper for Audienzz Mobile SDK'
   s.description      = <<-DESC
 Flutter wrapper for Audienzz Mobile SDK
@@ -15,7 +15,7 @@ Flutter wrapper for Audienzz Mobile SDK
   # PrebidMobile's UserUniqueID(uniqueId:) (3.3.1+); GMAS 13 raises the min iOS
   # deployment target to 15. 0.4.3 builds against stock PrebidMobile (no fork).
   s.dependency 'Google-Mobile-Ads-SDK', '~> 13.0'
-  s.dependency 'AudienzziOSSDK', '~> 0.4.3'
+  s.dependency 'AudienzziOSSDK', '~> 0.4.5'
   s.platform = :ios, '15.0'
 
   # Flutter.framework does not contain a i386 slice.
