@@ -1213,7 +1213,7 @@ for page resets, automatic slot ordering and request-count semantics. No new pub
 
 ### Analytics environments and publisher identity
 
-Remote initialization supplies the ws-sdk-config `publisher_id` automatically (including Flutter).
+Remote initialization supplies the ws-sdk-config id automatically: analytics sends the remote config's `sdkId` (as `sdk_id` from the native release that renames `publisher_id`).
 The collector resolves company and website IDs. Analytics defaults to `environment=production`;
 set `test` or `staging` before initializing a non-production app. Our examples use `test`.
 See [the analytics contract](docs/analytics-contract.md) for configuration, currency provenance,
