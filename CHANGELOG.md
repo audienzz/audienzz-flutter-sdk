@@ -9,6 +9,13 @@
   creative came back as 320x50, a 303 dp one as 300x600), so with fluid on every delivery is sized
   from its measured height; the size is held until then, falling back to Google's after 1 s. Off when absent or not a JSON boolean. Same behaviour as the native
   SDKs (audienzz/audienzz-android-sdk#29, audienzz/audienzz-ios-sdk#68).
+- **Pager ads for paged screens (ePaper).** New `AudienzzPagerAds` (wraps a `PageView`, given its
+  `PageController` and the ad slots) and `AudienzzPagerAd` (shows a slot's ad in its tile). A slot
+  requests its remote-config banner once the reader is within its preload distance of the slot's
+  page, instead of when the screen opens or when the tile is built, and keeps it across tile
+  rebuilds. The distance is the ad config's new `config.preloadDistancePages`, 2 when absent. Ads
+  are tied to the enclosing `AudienzzPage`: released when it is inactive, re-requested near the
+  reader on return. Dart only; no native change.
 - **iOS requires the iOS SDK with `AUAdView.fillsWidthWithAdSubview`** (audienzz-ios-sdk#68). Until
   it is released, the example app installs it from that PR's branch; the plugin podspec must be
   bumped to the release before this ships. Android needs no native change.
