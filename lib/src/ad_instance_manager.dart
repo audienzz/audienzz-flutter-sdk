@@ -102,11 +102,19 @@ final class AdInstanceManager {
   /// to show the new creative.
   final _keptNatively = <int>{};
 
+  /// Banners that have delivered a creative. Native keeps only a delivered
+  /// creative across pages: a slot whose requests only failed is released and
+  /// requests again on return like any other banner.
+  final _deliveredCreative = <int>{};
+
   /// Whether native keeps [ad]'s creative when its page is left and returned
-  /// to, so there is no re-auction to repaint (see `AdWidget`).
+  /// to, so there is no re-auction to repaint (see `AdWidget`): native
+  /// confirmed it keeps ads, and this one has a creative to keep.
   bool isKeptNatively(Ad ad) {
     final adId = adIdFor(ad);
-    return adId != null && _keptNatively.contains(adId);
+    return adId != null &&
+        _keptNatively.contains(adId) &&
+        _deliveredCreative.contains(adId);
   }
 
   /// The creative size currently delivered to each banner, as a listenable so
@@ -292,6 +300,10 @@ final class AdInstanceManager {
         'unit': ad.adUnitId,
         'size': size == null ? 'unknown' : '${size.width}x${size.height}',
       });
+      final adId = adIdFor(ad);
+      if (adId != null) {
+        _deliveredCreative.add(adId);
+      }
       ad.onAdLoaded.call(ad);
     } else if (ad is RewardedAd) {
       ad.onAdLoaded.call(ad);
@@ -910,6 +922,7 @@ final class AdInstanceManager {
     _adPages.remove(adId);
     _bannerSizes.remove(adId);
     _keptNatively.remove(adId);
+    _deliveredCreative.remove(adId);
     if (ad is BannerAd) {
       _resetDeliveredSize(ad);
     }

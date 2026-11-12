@@ -167,10 +167,16 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
   /// the ads it holds over time (page reactivation, config change).
   final _requestOwners = <String, Object>{};
 
-  /// Slot identities whose ad could not even be set up (no remote
-  /// configuration yet). Not retried on every scroll tick; cleared when the
-  /// page becomes active again.
+  /// Slot identities whose ad could not be set up although its remote
+  /// configuration exists (no sizes, a platform error). Not retried until the
+  /// page becomes active again or the slot changes: retrying on every scroll
+  /// tick would repeat the same failure.
   final _setupFailed = <String>{};
+
+  /// Slot identities whose ad could not be set up because their remote
+  /// configuration does not exist (yet). Retried once it does (a late remote
+  /// config refresh), not on every scroll tick before that.
+  final _missingConfig = <String>{};
 
   /// Whether the page was active at the last sync, to notice a return.
   bool _pageActive = false;
@@ -268,8 +274,9 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
       return;
     }
     if (!_pageActive) {
-      // A placement without configuration gets another chance on return.
+      // A placement that could not be set up gets another chance on return.
       _setupFailed.clear();
+      _missingConfig.clear();
       _pageActive = true;
     }
     final slots = {for (final slot in widget.slots) slot.slotKey: slot};
@@ -333,13 +340,15 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
       }
       final identity = _identity(scope, slot);
       if (_setupFailed.contains(identity)) {
-        // Retried as soon as its configuration exists (a late remote config
-        // refresh), not on every scroll tick before that.
+        continue;
+      }
+      if (_missingConfig.contains(identity)) {
+        // Retried as soon as its configuration exists.
         if (AudienzzRemoteConfig.instance.remoteConfigFor(slot.adConfigId) ==
             null) {
           continue;
         }
-        _setupFailed.remove(identity);
+        _missingConfig.remove(identity);
       }
       final distance = AudienzzGalleryAds.preloadDistanceFor(slot.adConfigId);
       // A hair of tolerance: a settled PageView can report 3.9999999 for 4.
@@ -371,12 +380,29 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
       'page': scope.page.id,
     });
     bool current(Object ad) => !_disposed && identical(_ads[key]?.ad, ad);
+    // A deferred callback still describes this slot: its ad is still the
+    // slot's ad, or (a setup failure, which drops the ad) the slot has not been
+    // given another ad nor changed page or ad config since.
+    bool stillDescribes(Object ad) {
+      if (_disposed) {
+        return false;
+      }
+      final owned = _ads[key];
+      if (owned != null) {
+        return identical(owned.ad, ad);
+      }
+      final scope = _scope;
+      final now = widget.slots.where((s) => s.slotKey == key).firstOrNull;
+      return scope != null && now != null && _identity(scope, now) == identity;
+    }
+
     final ad = preloadRemoteBannerAd(
       configId: slot.adConfigId,
       pageKey: scope.page.id,
       onAdSizeChanged: (ad, size) {
         if (current(ad)) {
-          _notify(() => widget.onAdSizeChanged?.call(key, size));
+          _notify(ad, stillDescribes,
+              () => widget.onAdSizeChanged?.call(key, size));
         }
       },
       onAdLoaded: (ad) {
@@ -388,7 +414,7 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
         unawaited(
           ad.getPlatformAdSize().then<void>((_) {}, onError: (Object _) {}),
         );
-        _notify(() => widget.onAdLoaded?.call(key));
+        _notify(ad, stillDescribes, () => widget.onAdLoaded?.call(key));
       },
       onAdFailedToLoad: (ad, error) {
         if (!current(ad)) {
@@ -398,9 +424,10 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
         // scheduler still owns the slot; it stays. Only a setup failure (no
         // remote configuration) leaves nothing registered, and is dropped.
         if (adInstanceManager.adIdFor(ad) == null) {
-          _dropSetupFailure(key, identity);
+          _dropSetupFailure(key, identity, slot.adConfigId);
         }
-        _notify(() => widget.onAdFailedToLoad?.call(key, error));
+        _notify(ad, stillDescribes,
+            () => widget.onAdFailedToLoad?.call(key, error));
       },
     );
     adInstanceManager.bindRequestSlot(
@@ -430,15 +457,19 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
         _changed();
       }).catchError((Object _) {
         if (current(ad)) {
-          _dropSetupFailure(key, identity);
+          _dropSetupFailure(key, identity, slot.adConfigId);
         }
       }),
     );
   }
 
-  void _dropSetupFailure(String key, String identity) {
+  void _dropSetupFailure(String key, String identity, String adConfigId) {
     _ads.remove(key);
-    _setupFailed.add(identity);
+    if (AudienzzRemoteConfig.instance.remoteConfigFor(adConfigId) == null) {
+      _missingConfig.add(identity);
+    } else {
+      _setupFailed.add(identity);
+    }
     _changed();
   }
 
@@ -475,14 +506,19 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
   /// `load()`, which runs while this widget builds or while the pager lays out
   /// a scroll; a callback that rebuilds the host (dropping the ad tile with
   /// `setState`) would be rejected there, so it is delivered at the end of the
-  /// frame instead — and dropped if this widget is gone by then.
-  void _notify(void Function() callback) {
+  /// frame instead — and dropped if by then it no longer describes its slot
+  /// ([stillDescribes]: this widget is gone, or the slot holds another ad).
+  void _notify(
+    Object ad,
+    bool Function(Object ad) stillDescribes,
+    void Function() callback,
+  ) {
     final phase = SchedulerBinding.instance.schedulerPhase;
     if (phase == SchedulerPhase.persistentCallbacks ||
         phase == SchedulerPhase.midFrameMicrotasks) {
       SchedulerBinding.instance
         ..addPostFrameCallback((_) {
-          if (!_disposed) {
+          if (stillDescribes(ad)) {
             callback();
           }
         })

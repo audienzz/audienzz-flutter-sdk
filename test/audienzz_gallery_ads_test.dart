@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
@@ -417,6 +419,9 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(epaper(controller));
     await tester.pumpAndSettle();
+    // Native keeps only a delivered creative.
+    await nativeEvent(loads().single['adId'] as int, 'onAdLoaded', height: 250);
+    await tester.pumpAndSettle();
     Key? viewKey() => tester.widget(find.byType(PlatformViewLink)).key;
     final before = viewKey();
     final pageKey = loads().single['pageKey'] as String;
@@ -430,6 +435,110 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(viewKey(), before);
+  });
+
+  testWidgets('a kept slot that has no creative yet is rebuilt on return',
+      (tester) async {
+    // Its first request did not fill: native releases it and requests again
+    // on return like any banner, so the new creative needs a fresh view.
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return call.method == 'loadBannerAd'
+          ? {'keepsAdAcrossPages': call.arguments['keepsAdAcrossPages'] == true}
+          : null;
+    });
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(epaper(controller));
+    await tester.pumpAndSettle();
+    await nativeEvent(loads().single['adId'] as int, 'onAdFailedToLoad');
+    await tester.pumpAndSettle();
+    Key? viewKey() => tester.widget(find.byType(PlatformViewLink)).key;
+    final before = viewKey();
+    await messenger.handlePlatformMessage(
+      channel.name,
+      channel.codec.encodeMethodCall(
+        MethodCall('onPageImpression', {'name': loads().single['pageKey']}),
+      ),
+      (_) {},
+    );
+    await tester.pumpAndSettle();
+    expect(viewKey(), isNot(before));
+  });
+
+  testWidgets('a callback deferred past a slot change is dropped',
+      (tester) async {
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    final loaded = <String>[];
+    var gallerySlots = slots;
+    var fireDuringBuild = false;
+    late StateSetter rebuildHost;
+    late int firstAdId;
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          rebuildHost = setState;
+          if (fireDuringBuild) {
+            fireDuringBuild = false;
+            // The first ad's load lands while the host rebuilds, so the
+            // gallery defers the callback to the end of the frame — by which
+            // time this same build has given the slot another ad config.
+            unawaited(nativeEvent(firstAdId, 'onAdLoaded', height: 250));
+          }
+          return epaper(
+            controller,
+            gallerySlots: gallerySlots,
+            onAdLoaded: loaded.add,
+          );
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    firstAdId = loads().single['adId'] as int;
+
+    rebuildHost(() {
+      fireDuringBuild = true;
+      gallerySlots = const [
+        AudienzzGalleryAdSlot(slotKey: 'ad-1', adConfigId: 'b', pageIndex: 4),
+      ];
+    });
+    await tester.pumpAndSettle();
+    expect(loadedUnits(), ['/1234/a', '/1234/b'], reason: 'the slot changed');
+    expect(loaded, isEmpty, reason: "the replaced ad's load is not the slot's");
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a setup failure with a config is not retried on every scroll',
+      (tester) async {
+    var attempts = 0;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'loadBannerAd') {
+        attempts++;
+        throw PlatformException(code: 'failed', message: 'native refused');
+      }
+      return null;
+    });
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(epaper(controller));
+    await tester.pumpAndSettle();
+    expect(attempts, 1);
+    await goTo(tester, controller, 5);
+    await goTo(tester, controller, 4);
+    await goTo(tester, controller, 3);
+    expect(
+      attempts,
+      1,
+      reason: 'the config exists: retrying repeats the failure',
+    );
+
+    await tester.pumpWidget(epaper(controller, active: false));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(epaper(controller));
+    await tester.pumpAndSettle();
+    expect(attempts, 2, reason: 'another chance on a page return');
   });
 
   group('config.refreshOnBack', () {
