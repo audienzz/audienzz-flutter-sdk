@@ -109,8 +109,8 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     }
     // A kept ad is not re-auctioned on its page's return, so there is no new
     // creative to repaint, and rebuilding the platform view would only flash.
-    final ad = widget.ad;
-    if (ad is BannerAd && ad.keepsAdAcrossPages) {
+    // Only when native confirmed it: an older native SDK reloads anyway.
+    if (adInstanceManager.isKeptNatively(widget.ad)) {
       return;
     }
     final epoch = adInstanceManager.pageEpoch.value;

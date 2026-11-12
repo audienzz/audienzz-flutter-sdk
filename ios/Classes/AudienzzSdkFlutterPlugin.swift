@@ -252,7 +252,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 bannerAd.requestContext = AUAdRequestContext.forSlot(slot, pageKey: args["pageKey"] as? String)
             }
             manager.loadAd(ad: bannerAd)
-            result(nil)
+            // Whether the native SDK keeps the ad across page returns; Dart rebuilds the view on a
+            // return only when it does not.
+            result(["keepsAdAcrossPages": bannerAd.auBannerView?.keepsAdAcrossPages ?? false])
 
         case "loadRewardedAd":
             guard let args = call.arguments as? [String: Any],

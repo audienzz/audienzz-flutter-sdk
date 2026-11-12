@@ -142,23 +142,32 @@ class BannerAd(
     private inner class SlotLayout(context: Context) : FrameLayout(context) {
         override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
             super.onLayout(changed, left, top, right, bottom)
-            val view = adView ?: return
-            if (!includeFluid || !googleLoaded) return
-            val creative = innermostView(view)?.height ?: return
-            if (creative > 0 && creative != contentHeightPx) {
-                contentHeightPx = creative
-                // Not from inside a layout pass: reporting resizes the slot. Not View.post,
-                // which waits for an attach that may not have happened yet.
-                android.os.Handler(android.os.Looper.getMainLooper()).post { onSizeAdjusted?.invoke() }
-            }
+            sampleFluidHeight()
         }
+    }
 
-        /** The first-child chain's last view: the creative itself. Null without one. */
-        private fun innermostView(view: android.view.View): android.view.View? {
-            var current = (view as? ViewGroup)?.takeIf { it.childCount > 0 }?.getChildAt(0) ?: return null
-            while (current is ViewGroup && current.childCount > 0) current = current.getChildAt(0)
-            return current
+    /**
+     * With [includeFluid], after a delivery: reads the height Google laid the creative's own view
+     * out at and reports it when it changed. Called after every layout pass, and when the load
+     * completes — Google may lay the creative out before its load callback, with no layout after.
+     */
+    internal fun sampleFluidHeight() {
+        val view = adView ?: return
+        if (!includeFluid || !googleLoaded) return
+        val creative = innermostView(view)?.height ?: return
+        if (creative > 0 && creative != contentHeightPx) {
+            contentHeightPx = creative
+            // Not from inside a layout pass: reporting resizes the slot. Not View.post, which waits
+            // for an attach that may not have happened yet.
+            android.os.Handler(android.os.Looper.getMainLooper()).post { onSizeAdjusted?.invoke() }
         }
+    }
+
+    /** The first-child chain's last view: the creative itself. Null without one. */
+    private fun innermostView(view: android.view.View): android.view.View? {
+        var current = (view as? ViewGroup)?.takeIf { it.childCount > 0 }?.getChildAt(0) ?: return null
+        while (current is ViewGroup && current.childCount > 0) current = current.getChildAt(0)
+        return current
     }
     private var adViewHandler: AudienzzAdViewHandler? = null
     // Kept as a field so pauseAutoRefresh() / resumeAutoRefresh() can reach it
@@ -260,10 +269,15 @@ class BannerAd(
     /** Called by the instance manager on onAdLoaded, before it reports the size to Dart. */
     internal fun onGoogleAdLoaded() {
         googleLoaded = true
+        // The creative may already be laid out, with no layout pass to follow.
+        sampleFluidHeight()
         if (includeFluid && contentHeightPx == 0) {
+            container?.requestLayout()
             val generation = loadGeneration
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                if (generation != loadGeneration || contentHeightPx > 0 || adView == null) return@postDelayed
+                if (generation != loadGeneration || adView == null) return@postDelayed
+                sampleFluidHeight()
+                if (contentHeightPx > 0) return@postDelayed
                 measureTimedOut = true
                 onSizeAdjusted?.invoke()
             }, probeTimeoutMs)
@@ -447,7 +461,7 @@ class BannerAd(
             // makes page-scoped release/recreate work for Flutter at all.
             handler.setScreen(pageKey)
             // Before handler.load(), which is where the ad joins its page.
-            if (keepsAdAcrossPages) applyKeepsAdAcrossPages(handler)
+            if (keepsAdAcrossPages) keepsAdAcrossPagesApplied = applyKeepsAdAcrossPages(handler)
             // Before handler.load(): an eager banner requests inside that call, so a pause the
             // publisher installed before this ad existed has to be in place first.
             if (publisherPaused || fullScreenCovered) {
@@ -590,6 +604,10 @@ class BannerAd(
      * missing and the ad keeps today's behaviour (reloaded on page return). Replace with
      * `handler.keepsAdAcrossPages = true` once re-pinned.
      */
+    /** The native SDK took [keepsAdAcrossPages]; reported to Dart from `loadBannerAd`. */
+    var keepsAdAcrossPagesApplied = false
+        private set
+
     internal fun applyKeepsAdAcrossPages(handler: AudienzzAdViewHandler): Boolean =
         runCatching {
             handler.javaClass

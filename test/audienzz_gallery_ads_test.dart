@@ -2,6 +2,7 @@ import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:audienzz_sdk_flutter/src/constants/constants.dart';
 import 'package:audienzz_sdk_flutter/src/message_codec/ad_message_codec.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -150,6 +151,10 @@ void main() {
       expect(parse(1.5).preloadDistancePages, isNull);
       expect(parse('2').preloadDistancePages, isNull);
       expect(parse(true).preloadDistancePages, isNull);
+      expect(parse(double.infinity).preloadDistancePages, isNull);
+      expect(parse(2147483647).preloadDistancePages, 2147483647);
+      expect(parse(2147483648).preloadDistancePages, isNull, reason: 'native bound');
+      expect(parse(1e309).preloadDistancePages, isNull);
     });
 
     test('kept in the cached copy', () {
@@ -401,6 +406,13 @@ void main() {
 
   testWidgets('a native page re-report does not rebuild a kept ad view',
       (tester) async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      // The plugin confirms the native SDK keeps the ad.
+      return call.method == 'loadBannerAd'
+          ? {'keepsAdAcrossPages': call.arguments['keepsAdAcrossPages'] == true}
+          : null;
+    });
     final controller = PageController(initialPage: 4);
     addTearDown(controller.dispose);
     await tester.pumpWidget(epaper(controller));
@@ -487,6 +499,86 @@ void main() {
       await tester.pumpAndSettle();
       expect(viewKey(), isNot(before));
     });
+  });
+
+  testWidgets('without native confirmation the view is rebuilt on return',
+      (tester) async {
+    // An older native SDK (or plugin) cannot keep the ad: native reloads it on
+    // return, so the platform view must be rebuilt to show the new creative.
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(epaper(controller));
+    await tester.pumpAndSettle();
+    Key? viewKey() => tester.widget(find.byType(PlatformViewLink)).key;
+    final before = viewKey();
+    await messenger.handlePlatformMessage(
+      channel.name,
+      channel.codec.encodeMethodCall(
+        MethodCall('onPageImpression', {'name': loads().single['pageKey']}),
+      ),
+      (_) {},
+    );
+    await tester.pumpAndSettle();
+    expect(viewKey(), isNot(before));
+  });
+
+  testWidgets('a missing-config callback may rebuild the host safely',
+      (tester) async {
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    final phases = <SchedulerPhase>[];
+    var slots = const <AudienzzGalleryAdSlot>[];
+    late StateSetter rebuildHost;
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          rebuildHost = setState;
+          return epaper(
+            controller,
+            gallerySlots: slots,
+            // The documented use: drop the ad tile by rebuilding the host.
+            onAdFailedToLoad: (_, __) {
+              phases.add(SchedulerBinding.instance.schedulerPhase);
+              rebuildHost(() {});
+            },
+          );
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    // The host adds a slot without configuration on the reader's page: the
+    // gallery requests it while rebuilding, i.e. during build.
+    rebuildHost(() {
+      slots = const [
+        AudienzzGalleryAdSlot(slotKey: 'x', adConfigId: 'none', pageIndex: 4),
+      ];
+    });
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(phases, hasLength(1));
+    expect(phases.single, isNot(SchedulerPhase.persistentCallbacks));
+  });
+
+  testWidgets('a config that arrives later is picked up while scrolling',
+      (tester) async {
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    final failed = <String>[];
+    const late = [
+      AudienzzGalleryAdSlot(slotKey: 'x', adConfigId: 'late', pageIndex: 4),
+    ];
+    await tester.pumpWidget(
+      epaper(controller, gallerySlots: late, onAdFailedToLoad: (k, _) => failed.add(k)),
+    );
+    await tester.pumpAndSettle();
+    expect(loads(), isEmpty);
+    await goTo(tester, controller, 5);
+    expect(loads(), isEmpty, reason: 'not retried before the config exists');
+    expect(failed, ['x'], reason: 'reported once');
+
+    setConfigs([configJson('a'), configJson('b'), configJson('late')]);
+    await goTo(tester, controller, 4);
+    expect(loadedUnits(), ['/1234/late']);
   });
 
   testWidgets('refresh comes from the ad config, as for a RemoteBanner',

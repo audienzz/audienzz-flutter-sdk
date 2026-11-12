@@ -328,9 +328,18 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
     }
     var created = false;
     for (final slot in widget.slots) {
-      if (_ads.containsKey(slot.slotKey) ||
-          _setupFailed.contains(_identity(scope, slot))) {
+      if (_ads.containsKey(slot.slotKey)) {
         continue;
+      }
+      final identity = _identity(scope, slot);
+      if (_setupFailed.contains(identity)) {
+        // Retried as soon as its configuration exists (a late remote config
+        // refresh), not on every scroll tick before that.
+        if (AudienzzRemoteConfig.instance.remoteConfigFor(slot.adConfigId) ==
+            null) {
+          continue;
+        }
+        _setupFailed.remove(identity);
       }
       final distance = AudienzzGalleryAds.preloadDistanceFor(slot.adConfigId);
       // A hair of tolerance: a settled PageView can report 3.9999999 for 4.
@@ -367,7 +376,7 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
       pageKey: scope.page.id,
       onAdSizeChanged: (ad, size) {
         if (current(ad)) {
-          widget.onAdSizeChanged?.call(key, size);
+          _notify(() => widget.onAdSizeChanged?.call(key, size));
         }
       },
       onAdLoaded: (ad) {
@@ -379,7 +388,7 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
         unawaited(
           ad.getPlatformAdSize().then<void>((_) {}, onError: (Object _) {}),
         );
-        widget.onAdLoaded?.call(key);
+        _notify(() => widget.onAdLoaded?.call(key));
       },
       onAdFailedToLoad: (ad, error) {
         if (!current(ad)) {
@@ -391,7 +400,7 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
         if (adInstanceManager.adIdFor(ad) == null) {
           _dropSetupFailure(key, identity);
         }
-        widget.onAdFailedToLoad?.call(key, error);
+        _notify(() => widget.onAdFailedToLoad?.call(key, error));
       },
     );
     adInstanceManager.bindRequestSlot(
@@ -460,6 +469,27 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
           .catchError((Object _) {}),
     );
     unawaited(ad.dispose().catchError((Object _) {}));
+  }
+
+  /// Delivers a publisher callback. A missing configuration fails inside
+  /// `load()`, which runs while this widget builds or while the pager lays out
+  /// a scroll; a callback that rebuilds the host (dropping the ad tile with
+  /// `setState`) would be rejected there, so it is delivered at the end of the
+  /// frame instead — and dropped if this widget is gone by then.
+  void _notify(void Function() callback) {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks) {
+      SchedulerBinding.instance
+        ..addPostFrameCallback((_) {
+          if (!_disposed) {
+            callback();
+          }
+        })
+        ..ensureVisualUpdate();
+      return;
+    }
+    callback();
   }
 
   /// Rebuilds the tiles. Deferred to the end of the frame when it lands

@@ -81,6 +81,10 @@ class BannerAdKeepsAdAcrossPagesTest {
         val ad = banner(keeps = true)
         ad.load()
         verify(exactly = 1) { anyConstructed<AudienzzAdViewHandler>().load(any(), any(), any(), any()) }
+        val supported = runCatching {
+            AudienzzAdViewHandler::class.java.getMethod("setKeepsAdAcrossPages", Boolean::class.javaPrimitiveType)
+        }.isSuccess
+        assertEquals("reported to Dart as applied only if the SDK took it", supported, ad.keepsAdAcrossPagesApplied)
     }
 
     @Test

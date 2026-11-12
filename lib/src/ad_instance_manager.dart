@@ -96,6 +96,19 @@ final class AdInstanceManager {
   final _loadedAds = <int, Ad>{};
   final _bannerSizes = <int, AdSize>{};
 
+  /// Banners whose native SDK confirmed it keeps their ad across page returns
+  /// (`keepsAdAcrossPages`). Asking is not enough: with an Android SDK that
+  /// lacks it, native still reloads on return, and the view has to be rebuilt
+  /// to show the new creative.
+  final _keptNatively = <int>{};
+
+  /// Whether native keeps [ad]'s creative when its page is left and returned
+  /// to, so there is no re-auction to repaint (see `AdWidget`).
+  bool isKeptNatively(Ad ad) {
+    final adId = adIdFor(ad);
+    return adId != null && _keptNatively.contains(adId);
+  }
+
   /// The creative size currently delivered to each banner, as a listenable so
   /// `AdWidget` and publishers can follow it. Keyed by the ad object, not its
   /// id, so it is released with the ad.
@@ -470,7 +483,7 @@ final class AdInstanceManager {
     }
 
     try {
-      await methodChannel.invokeMethod<void>(
+      final reply = await methodChannel.invokeMethod<Object?>(
         'loadBannerAd',
         {
           'adId': adId,
@@ -520,6 +533,12 @@ final class AdInstanceManager {
           if (ad.impOrtbConfig != null) 'impOrtbConfig': ad.impOrtbConfig,
         },
       );
+      // Plugins that predate the reply answer null: not kept.
+      if (reply is Map &&
+          reply['keepsAdAcrossPages'] == true &&
+          adIdFor(ad) == adId) {
+        _keptNatively.add(adId);
+      }
     } on PlatformException catch (e) {
       _handleLoadChannelFailure(adId, ad, e);
     }
@@ -890,6 +909,7 @@ final class AdInstanceManager {
     }
     _adPages.remove(adId);
     _bannerSizes.remove(adId);
+    _keptNatively.remove(adId);
     if (ad is BannerAd) {
       _resetDeliveredSize(ad);
     }

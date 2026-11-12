@@ -71,11 +71,19 @@ class RemoteAdConfigData {
   /// the ad across leaving and returning.
   final bool refreshOnBack;
 
+  /// Same bounds as the native SDKs (a 32-bit Int): a larger number, or a
+  /// non-finite one (`1e309` decodes to infinity), is treated as absent.
+  static const _maxInt32 = 2147483647;
+
   static int? _nonNegativeInt(Object? value) {
     if (value is int) {
-      return value >= 0 ? value : null;
+      return value >= 0 && value <= _maxInt32 ? value : null;
     }
-    if (value is double && value >= 0 && value == value.roundToDouble()) {
+    if (value is double &&
+        value.isFinite &&
+        value >= 0 &&
+        value <= _maxInt32 &&
+        value == value.roundToDouble()) {
       return value.toInt();
     }
     return null;
