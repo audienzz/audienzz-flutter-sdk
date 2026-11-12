@@ -509,6 +509,75 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a slot removed while the page is away drops its ad and callbacks',
+      (tester) async {
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    final loaded = <String>[];
+    var gallerySlots = slots;
+    var active = true;
+    var fireDuringBuild = false;
+    late StateSetter rebuildHost;
+    late int adId;
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          rebuildHost = setState;
+          if (fireDuringBuild) {
+            fireDuringBuild = false;
+            unawaited(nativeEvent(adId, 'onAdLoaded', height: 250));
+          }
+          return epaper(
+            controller,
+            gallerySlots: gallerySlots,
+            active: active,
+            onAdLoaded: loaded.add,
+          );
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    adId = loads().single['adId'] as int;
+    rebuildHost(() => active = false);
+    await tester.pumpAndSettle();
+    expect(calls.where((c) => c.method == 'disposeAd'), isEmpty,
+        reason: 'kept while the page is away');
+
+    // The host drops the slot while the page is away; its ad's load lands
+    // during that very rebuild.
+    rebuildHost(() {
+      fireDuringBuild = true;
+      gallerySlots = const [];
+    });
+    await tester.pumpAndSettle();
+    expect(loaded, isEmpty, reason: 'the slot is gone');
+    expect(calls.where((c) => c.method == 'disposeAd'), hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a failed slot removed and added again gets a fresh attempt',
+      (tester) async {
+    var attempts = 0;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'loadBannerAd') {
+        attempts++;
+        throw PlatformException(code: 'failed', message: 'native refused');
+      }
+      return null;
+    });
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(epaper(controller));
+    await tester.pumpAndSettle();
+    expect(attempts, 1);
+    await tester.pumpWidget(epaper(controller, gallerySlots: const []));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(epaper(controller));
+    await tester.pumpAndSettle();
+    expect(attempts, 2);
+  });
+
   testWidgets('a setup failure with a config is not retried on every scroll',
       (tester) async {
     var attempts = 0;

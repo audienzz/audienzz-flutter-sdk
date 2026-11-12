@@ -259,6 +259,22 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
       _retireAll(reason: 'noPage');
       return;
     }
+    // Reconciled whatever the page state: a slot the host removed or changed
+    // while the page is away must not keep its ad (nor have its callbacks
+    // delivered), and a failure belongs to the slot identity that had it — a
+    // slot removed and added again gets a fresh attempt.
+    final slots = {for (final slot in widget.slots) slot.slotKey: slot};
+    final identities = {
+      for (final slot in widget.slots) _identity(scope, slot),
+    };
+    _setupFailed.retainWhere(identities.contains);
+    _missingConfig.retainWhere(identities.contains);
+    for (final key in _ads.keys.toList()) {
+      final slot = slots[key];
+      if (slot == null || _ads[key]!.identity != _identity(scope, slot)) {
+        _retire(key, reason: slot == null ? 'slotRemoved' : 'slotChanged');
+      }
+    }
     if (!scope.isActive) {
       // The ads stay: native pauses them while their page is away and resumes
       // them on return without a new auction (`keepsAdAcrossPages`). Nothing
@@ -278,13 +294,6 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
       _setupFailed.clear();
       _missingConfig.clear();
       _pageActive = true;
-    }
-    final slots = {for (final slot in widget.slots) slot.slotKey: slot};
-    for (final key in _ads.keys.toList()) {
-      final slot = slots[key];
-      if (slot == null || _ads[key]!.identity != _identity(scope, slot)) {
-        _retire(key, reason: slot == null ? 'slotRemoved' : 'slotChanged');
-      }
     }
     _evaluate();
     // A PageView attaches to its controller during its first layout, after
@@ -380,20 +389,20 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
       'page': scope.page.id,
     });
     bool current(Object ad) => !_disposed && identical(_ads[key]?.ad, ad);
-    // A deferred callback still describes this slot: its ad is still the
-    // slot's ad, or (a setup failure, which drops the ad) the slot has not been
-    // given another ad nor changed page or ad config since.
+    // A deferred callback still describes this slot: the slot still exists
+    // with the same page and ad config, and its ad is still this one (or none:
+    // a setup failure drops the ad, and the host still has to hear about it).
     bool stillDescribes(Object ad) {
       if (_disposed) {
         return false;
       }
-      final owned = _ads[key];
-      if (owned != null) {
-        return identical(owned.ad, ad);
-      }
       final scope = _scope;
       final now = widget.slots.where((s) => s.slotKey == key).firstOrNull;
-      return scope != null && now != null && _identity(scope, now) == identity;
+      if (scope == null || now == null || _identity(scope, now) != identity) {
+        return false;
+      }
+      final owned = _ads[key];
+      return owned == null || identical(owned.ad, ad);
     }
 
     final ad = preloadRemoteBannerAd(
