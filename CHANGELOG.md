@@ -28,6 +28,19 @@
   it is released, the example app installs it from that PR's branch; the plugin podspec must be
   bumped to the release before this ships. Android needs no native change.
 
+## 0.3.3
+
+- Native SDKs updated to Android `0.3.5` and iOS `0.4.5`: new `placementVisible` analytics event,
+  analytics `publisher_id` renamed `sdk_id`, the iOS IDFA is read off the main thread (fixes app
+  hangs), new iOS GAM key `isIFAavailable`, and Android analytics `consent_string` is no longer
+  missing on the first page of a session.
+- Remote config is fetched from ws-sdk-config `sdks/{sdkId}` (and `sdks/{sdkId}/ad-configs`)
+  instead of `publishers/{id}`. Same response; a server without the new route (HTTP 404) falls
+  back to the old one.
+- Analytics `sdk_id` is the remote config's `sdkId`; without one it is the id passed to
+  `initializeRemote`. The rename from `publisher_id` and the new `placementVisible` event come
+  from the native SDKs updated above.
+
 ## 0.3.2
 
 - **Fix (Android): banners are centered in a full-width slot.** An inline adaptive banner (e.g. a

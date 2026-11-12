@@ -1,8 +1,8 @@
 Audienzz SDK Flutter
 ========
 
-> **Native dependencies:** Android `com.audienzz:sdk:0.3.3` (Maven Central) and
-> iOS `AudienzziOSSDK ~> 0.4.3` (CocoaPods). The library and examples use these published
+> **Native dependencies:** Android `com.audienzz:sdk:0.3.5` (Maven Central) and
+> iOS `AudienzziOSSDK ~> 0.4.5` (CocoaPods). The library and examples use these published
 > releases by default, including analytics batching, foreground/interstitial page continuity,
 > cold-start attribution and one `viewability.start` per creative.
 >
@@ -185,7 +185,7 @@ Flutter `SafeArea` protects app content, but cannot inset Google's separate full
 See the [system-bar checks](LOCAL_TESTING.md#interstitial-status-bar-and-close-button) for limits
 and device verification.
 
-**Android release dependency:** Android `0.3.3`, selected by this bridge, includes the native
+**Android release dependency:** Android `0.3.3` and newer (this bridge selects `0.3.5`) include the native
 foreground-tracking fix for translucent Google ad activities. See
 [verification steps](LOCAL_TESTING.md#android-interstitial-return-regression).
 
@@ -1208,7 +1208,7 @@ License
 
 `AdWidget` sends its visibility/overlay/unmount state through a separate internal channel operation (`setBannerViewportVisible`). Publishers should let `AdWidget` manage visibility and use the public pause API only for their own pause policy. Both native plugin implementations preserve these independent reasons.
 
-Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.3 and iOS 0.4.3; both are published and selected by this bridge.
+Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.3 and iOS 0.4.3 or newer; this bridge selects Android 0.3.5 and iOS 0.4.5.
 
 
 ## Interstitial lifecycle and migration
@@ -1277,7 +1277,7 @@ for page resets, automatic slot ordering and request-count semantics. No new pub
 
 ### Analytics environments and publisher identity
 
-Remote initialization supplies the ws-sdk-config `publisher_id` automatically (including Flutter).
+Remote initialization supplies the ws-sdk-config id automatically: analytics sends the remote config's `sdkId` (as `sdk_id` from the native release that renames `publisher_id`).
 The collector resolves company and website IDs. Analytics defaults to `environment=production`;
 set `test` or `staging` before initializing a non-production app. Our examples use `test`.
 See [the analytics contract](docs/analytics-contract.md) for configuration, currency provenance,

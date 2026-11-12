@@ -8,6 +8,7 @@ class RemotePublisherConfiguration {
     required this.id,
     required this.prebidServer,
     required this.ortb,
+    this.sdkId,
     this.android,
     this.ios,
     this.ppidEnabled,
@@ -18,6 +19,7 @@ class RemotePublisherConfiguration {
   factory RemotePublisherConfiguration.fromJson(Map<String, dynamic> json) {
     return RemotePublisherConfiguration(
       id: json['id'] as int,
+      sdkId: _readSdkId(json['sdkId']),
       prebidServer: PrebidServer.fromJson(
         json['prebidServer'] as Map<String, dynamic>,
       ),
@@ -34,6 +36,16 @@ class RemotePublisherConfiguration {
     );
   }
 
+  /// A string or a number; blank or anything else → null.
+  static String? _readSdkId(Object? value) {
+    final text = value is String
+        ? value.trim()
+        : value is int
+            ? '$value'
+            : null;
+    return text == null || text.isEmpty ? null : text;
+  }
+
   static int? _readBatchSize(Object? value) {
     final number = value is int
         ? value
@@ -47,6 +59,10 @@ class RemotePublisherConfiguration {
   final int? analyticsBatchSize;
 
   final int id;
+
+  /// The id analytics reports as `sdk_id`. Absent from older configs → the id
+  /// the app passed.
+  final String? sdkId;
   final PrebidServer prebidServer;
   final Ortb ortb;
   final AndroidConfig? android;
@@ -65,6 +81,7 @@ class RemotePublisherConfiguration {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        if (sdkId != null) 'sdkId': sdkId,
         'prebidServer': prebidServer.toJson(),
         'ortb': ortb.toJson(),
         if (android != null) 'android': android!.toJson(),
