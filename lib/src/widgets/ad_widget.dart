@@ -107,6 +107,12 @@ final class _AdWidgetState extends State<AdWidget> with WidgetsBindingObserver {
     if (adPage == null || adPage != adInstanceManager.lastReportedPage) {
       return;
     }
+    // A kept ad is not re-auctioned on its page's return, so there is no new
+    // creative to repaint, and rebuilding the platform view would only flash.
+    final ad = widget.ad;
+    if (ad is BannerAd && ad.keepsAdAcrossPages) {
+      return;
+    }
     final epoch = adInstanceManager.pageEpoch.value;
     if (epoch == _viewEpoch) {
       return;

@@ -490,6 +490,8 @@ final class AdInstanceManager {
           'resizeToPrebidCreative': ad.resizeToPrebidCreative,
           // Absent unless on, so an older plugin is unchanged.
           if (ad.includeFluid) 'includeFluid': true,
+          // Absent unless on, so an older plugin is unchanged.
+          if (ad.keepsAdAcrossPages) 'keepsAdAcrossPages': true,
           'isAdaptiveSize': ad.isAdaptiveSize,
           if (ad.adaptiveBannerConfig != null)
             'adaptiveBannerConfig': ad.adaptiveBannerConfig!.toJson(),

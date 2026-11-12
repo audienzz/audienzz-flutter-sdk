@@ -266,6 +266,25 @@ final class RunnerTests: XCTestCase {
         }
     }
 
+    func testGalleryAdsAskTheSdkToKeepTheirAdAcrossPages() throws {
+        for keeps in [false, true] {
+            let ad = FBannerAd(adUnitId: "/96628199/multi-size", auConfigId: "test",
+                sizes: [FAdSize(width: 300, height: 250)],
+                isAdaptiveSize: false, isLazyLoad: false,
+                smartRefresh: false, prefetchMarginPoints: 0, refreshTimeInterval: nil,
+                adFormat: .banner, apiParameters: [], videoProtocols: [], videoPlacement: .InBanner,
+                videoPlaybackMethods: [], videoBitrate: FVideoBitrate(min: 0, max: 0),
+                videoDuration: FVideoDuration(min: 0, max: 0), pbAdSlot: nil, gpId: nil,
+                customImpOrtbConfig: nil, pageKey: "route-1", rootViewController: UIViewController(),
+                adId: keeps ? 71 : 70, manager: manager, keepsAdAcrossPages: keeps)
+            defer { ad.dispose() }
+            ad.pauseAutoRefresh()
+            ad.loadGoogle = { _, _ in }
+            ad.load()
+            XCTAssertEqual(ad.auBannerView?.keepsAdAcrossPages, keeps)
+        }
+    }
+
     func testFluidCreativeReportsTheSlotWidthAndTheCreativeHeight() throws {
         let (ad, google) = fluidBanner(includeFluid: true, adId: 62)
         defer { ad.dispose() }

@@ -73,6 +73,11 @@ class BannerAd(
      * which only the creative knows, is measured and reported to Dart like any delivered size.
      */
     private val includeFluid: Boolean = false,
+    /**
+     * Keep the delivered ad across page transitions (gallery ads): paused while its page is away,
+     * resumed on return without a new auction. See [applyKeepsAdAcrossPages].
+     */
+    private val keepsAdAcrossPages: Boolean = false,
 ) : Ad(), FullScreenCoverableAd {
     /**
      * GAM is sized from [adSizes], Prebid from this — the split the native remote banner makes.
@@ -441,6 +446,8 @@ class BannerAd(
             // route key reported to pageImpression so it matches by value instead — this is what
             // makes page-scoped release/recreate work for Flutter at all.
             handler.setScreen(pageKey)
+            // Before handler.load(), which is where the ad joins its page.
+            if (keepsAdAcrossPages) applyKeepsAdAcrossPages(handler)
             // Before handler.load(): an eager banner requests inside that call, so a pause the
             // publisher installed before this ad existed has to be in place first.
             if (publisherPaused || fullScreenCovered) {
@@ -575,6 +582,27 @@ class BannerAd(
              field = PlatformViewWrapper(container)
              return field
          }
+
+    /**
+     * `AudienzzAdViewHandler.keepsAdAcrossPages` arrives with the next Android SDK release
+     * (audienzz/audienzz-android-sdk#29). Set it reflectively until the plugin is pinned to that
+     * release, so the plugin still builds against the published SDK; there, the property is
+     * missing and the ad keeps today's behaviour (reloaded on page return). Replace with
+     * `handler.keepsAdAcrossPages = true` once re-pinned.
+     */
+    internal fun applyKeepsAdAcrossPages(handler: AudienzzAdViewHandler): Boolean =
+        runCatching {
+            handler.javaClass
+                .getMethod("setKeepsAdAcrossPages", Boolean::class.javaPrimitiveType)
+                .invoke(handler, true)
+            true
+        }.getOrElse {
+            android.util.Log.w(
+                "AudienzzBannerAd",
+                "keepsAdAcrossPages needs a newer Audienzz Android SDK; this ad reloads on page return",
+            )
+            false
+        }
 
     private companion object {
         const val HB_SIZE_KEY = "hb_size"

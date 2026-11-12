@@ -46,5 +46,5 @@ export 'src/ppid_manager.dart';
 export 'src/remote_config/audienzz_remote_config.dart';
 export 'src/widgets/ad_widget.dart';
 export 'src/widgets/audienzz_banner.dart';
-export 'src/widgets/audienzz_pager_ads.dart';
+export 'src/widgets/audienzz_gallery_ads.dart';
 export 'src/widgets/sticky_ad_wrapper.dart';

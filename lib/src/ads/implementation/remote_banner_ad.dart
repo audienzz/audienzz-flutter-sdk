@@ -60,10 +60,10 @@ final class RemoteBannerAd extends BannerAd {
           smartRefresh: true,
         );
 
-  /// A banner for `AudienzzPagerAds`: everything comes from the ad config
+  /// A banner for `AudienzzGalleryAds`: everything comes from the ad config
   /// exactly as for the public constructor, except that it always loads
-  /// eagerly. A pager slot is requested ahead of time, while its tile is not
-  /// built, so there is no view for a viewport trigger to watch; the pager's
+  /// eagerly. A gallery slot is requested ahead of time, while its tile is not
+  /// built, so there is no view for a viewport trigger to watch; the gallery's
   /// page distance is the lazy rule instead.
   RemoteBannerAd._preload({
     required this.configId,
@@ -87,6 +87,10 @@ final class RemoteBannerAd extends BannerAd {
               _getConfig(configId)?.config.resizeToPrebidCreative ?? true,
           includeFluid: _getConfig(configId)?.gamConfig.includeFluid ?? false,
           smartRefresh: true,
+          // A reader leaves an ePaper for an article and comes back: the ad
+          // they had is still the right one, and reloading it would cost the
+          // slot its creative every time.
+          keepsAdAcrossPages: true,
         );
 
   final String configId;
@@ -190,7 +194,7 @@ final class RemoteBannerAd extends BannerAd {
   }
 }
 
-/// Creates the eager [RemoteBannerAd] an `AudienzzPagerAds` slot preloads.
+/// Creates the eager [RemoteBannerAd] an `AudienzzGalleryAds` slot preloads.
 /// SDK-internal: hidden from the package's public exports.
 RemoteBannerAd preloadRemoteBannerAd({
   required String configId,

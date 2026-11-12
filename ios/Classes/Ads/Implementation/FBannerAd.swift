@@ -31,6 +31,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     /// fluid GAM native styles). Prebid is unaffected. A fluid ad spans the slot; the SDK takes only
     /// its height from Google and reports it through `onAdSizeChanged`, like any delivered size.
     private let includeFluid: Bool
+    /// Keep the delivered ad across page transitions (gallery ads): paused while its page is away,
+    /// resumed on return without a new auction (`AUBannerView.keepsAdAcrossPages`).
+    internal let keepsAdAcrossPages: Bool
     /// Read-only, for tests.
     internal var resizesToPrebidCreative: Bool { resizeToPrebidCreative }
     private var prebidCreativeSize: CGSize?
@@ -288,10 +291,12 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         adId: NSNumber,
         manager: AdInstanceManager,
         resizeToPrebidCreative: Bool = true,
-        includeFluid: Bool = false
+        includeFluid: Bool = false,
+        keepsAdAcrossPages: Bool = false
     ) {
         self.resizeToPrebidCreative = resizeToPrebidCreative
         self.includeFluid = includeFluid
+        self.keepsAdAcrossPages = keepsAdAcrossPages
         self.adUnitId = adUnitId
         self.sizes = sizes
         self.prebidSizes = prebidSizes
@@ -388,6 +393,8 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         auBannerView?.backgroundColor = .clear
         // A fluid ad takes its width from Google's view, so that view spans the slot.
         auBannerView?.fillsWidthWithAdSubview = includeFluid
+        // Before createAd, which is where the ad joins its page.
+        auBannerView?.keepsAdAcrossPages = keepsAdAcrossPages
         // Flutter owns viewport/cover reporting: UIKit cannot see Flutter's scroll clips or
         // painted overlays. Keep the native viewport gate off and feed the SDK-owned refresh
         // controller through the host pause/resume API instead.

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// `AudienzzPagerAds`: ePaper ad slots preloaded by page distance.
+/// `AudienzzGalleryAds`: ePaper ad slots preloaded by page distance.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final messenger =
@@ -75,13 +75,13 @@ void main() {
   });
 
   const slots = [
-    AudienzzPagerAdSlot(slotKey: 'ad-1', adConfigId: 'a', pageIndex: 4),
-    AudienzzPagerAdSlot(slotKey: 'ad-2', adConfigId: 'b', pageIndex: 12),
+    AudienzzGalleryAdSlot(slotKey: 'ad-1', adConfigId: 'a', pageIndex: 4),
+    AudienzzGalleryAdSlot(slotKey: 'ad-2', adConfigId: 'b', pageIndex: 12),
   ];
 
   Widget epaper(
     PageController controller, {
-    List<AudienzzPagerAdSlot> pagerSlots = slots,
+    List<AudienzzGalleryAdSlot> gallerySlots = slots,
     bool active = true,
     void Function(String)? onAdLoaded,
     void Function(String, AdError?)? onAdFailedToLoad,
@@ -91,18 +91,18 @@ void main() {
           body: AudienzzPage(
             name: 'epaper',
             active: active,
-            child: AudienzzPagerAds(
+            child: AudienzzGalleryAds(
               controller: controller,
-              slots: pagerSlots,
+              slots: gallerySlots,
               onAdLoaded: onAdLoaded,
               onAdFailedToLoad: onAdFailedToLoad,
               child: PageView.builder(
                 controller: controller,
                 itemCount: 16,
                 itemBuilder: (context, index) {
-                  for (final slot in pagerSlots) {
+                  for (final slot in gallerySlots) {
                     if (slot.pageIndex == index) {
-                      return AudienzzPagerAd(
+                      return AudienzzGalleryAd(
                         key: ValueKey(slot.slotKey),
                         slotKey: slot.slotKey,
                       );
@@ -165,11 +165,11 @@ void main() {
         configJson('b', preloadDistancePages: 4),
         configJson('c', preloadDistancePages: 'x'),
       ]);
-      expect(AudienzzPagerAds.defaultPreloadDistancePages, 2);
-      expect(AudienzzPagerAds.preloadDistanceFor('a'), 2);
-      expect(AudienzzPagerAds.preloadDistanceFor('b'), 4);
-      expect(AudienzzPagerAds.preloadDistanceFor('c'), 2);
-      expect(AudienzzPagerAds.preloadDistanceFor('missing'), 2);
+      expect(AudienzzGalleryAds.defaultPreloadDistancePages, 2);
+      expect(AudienzzGalleryAds.preloadDistanceFor('a'), 2);
+      expect(AudienzzGalleryAds.preloadDistanceFor('b'), 4);
+      expect(AudienzzGalleryAds.preloadDistanceFor('c'), 2);
+      expect(AudienzzGalleryAds.preloadDistanceFor('missing'), 2);
     });
   });
 
@@ -254,7 +254,7 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(epaper(controller));
     await tester.pumpAndSettle();
-    final pager = Map<dynamic, dynamic>.of(loads().single);
+    final gallery = Map<dynamic, dynamic>.of(loads().single);
     calls.clear();
 
     // The same placement as a managed banner.
@@ -271,18 +271,26 @@ void main() {
     await tester.pumpAndSettle();
     final banner = Map<dynamic, dynamic>.of(loads().single);
 
-    expect(pager['isLazyLoad'], false);
+    expect(gallery['isLazyLoad'], false);
     expect(banner['isLazyLoad'], true);
-    for (final key in ['adId', 'requestSlot', 'pageKey', 'isLazyLoad']) {
-      pager.remove(key);
+    expect(gallery['keepsAdAcrossPages'], true);
+    expect(banner.containsKey('keepsAdAcrossPages'), false);
+    for (final key in [
+      'adId',
+      'requestSlot',
+      'pageKey',
+      'isLazyLoad',
+      'keepsAdAcrossPages',
+    ]) {
+      gallery.remove(key);
       banner.remove(key);
     }
     // Values without value equality (sizes, bitrate): compare as sent.
     final codec = AdMessageCodec();
-    expect(pager.keys.toSet(), banner.keys.toSet());
-    for (final key in pager.keys) {
+    expect(gallery.keys.toSet(), banner.keys.toSet());
+    for (final key in gallery.keys) {
       expect(
-        codec.encodeMessage(pager[key])!.buffer.asUint8List(),
+        codec.encodeMessage(gallery[key])!.buffer.asUint8List(),
         codec.encodeMessage(banner[key])!.buffer.asUint8List(),
         reason: '$key',
       );
@@ -318,9 +326,9 @@ void main() {
     await tester.pumpWidget(epaper(controller, onAdLoaded: loaded.add));
     await tester.pumpAndSettle();
     final adId = loads().single['adId'] as int;
-    final pagerAd = find.byKey(const ValueKey('ad-1'));
+    final galleryAd = find.byKey(const ValueKey('ad-1'));
     Size adSlot() => tester.getSize(
-          find.descendant(of: pagerAd, matching: find.byType(SizedBox)).first,
+          find.descendant(of: galleryAd, matching: find.byType(SizedBox)).first,
         );
     expect(adSlot().height, 250, reason: 'placeholder height');
 
@@ -351,27 +359,107 @@ void main() {
     expect(calls.where((c) => c.method == 'disposeAd'), isEmpty);
   });
 
-  testWidgets('an inactive page releases the ads; return requests near ones',
+  testWidgets('leaving the page and coming back keeps the ads, no reload',
       (tester) async {
     final controller = PageController(initialPage: 4);
     addTearDown(controller.dispose);
     await tester.pumpWidget(epaper(controller));
     await tester.pumpAndSettle();
-    await goTo(tester, controller, 11);
+    await goTo(tester, controller, 12);
     expect(loadedUnits(), ['/1234/a', '/1234/b']);
+    expect(find.byType(AdWidget), findsOneWidget);
 
+    // An article opened on top: the page is not active.
     await tester.pumpWidget(epaper(controller, active: false));
     await tester.pumpAndSettle();
-    expect(calls.where((c) => c.method == 'disposeAd'), hasLength(2));
-    expect(find.byType(AdWidget), findsNothing);
+    expect(calls.where((c) => c.method == 'disposeAd'), isEmpty);
 
     await tester.pumpWidget(epaper(controller));
     await tester.pumpAndSettle();
-    expect(
-      loadedUnits(),
-      ['/1234/a', '/1234/b', '/1234/b'],
-      reason: 'only the slot near page 11 comes back',
+    expect(loadedUnits(), ['/1234/a', '/1234/b'], reason: 'nothing reloaded');
+    expect(calls.where((c) => c.method == 'reloadBanner'), isEmpty);
+    expect(calls.where((c) => c.method == 'disposeAd'), isEmpty);
+    expect(find.byType(AdWidget), findsOneWidget);
+  });
+
+  testWidgets('nothing new is requested while the page is away',
+      (tester) async {
+    final controller = PageController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(epaper(controller, active: false));
+    await tester.pumpAndSettle();
+    await goTo(tester, controller, 4);
+    expect(loads(), isEmpty);
+
+    await tester.pumpWidget(epaper(controller));
+    await tester.pumpAndSettle();
+    expect(loadedUnits(), ['/1234/a'], reason: 'in range once it is back');
+  });
+
+  testWidgets('a native page re-report does not rebuild a kept ad view',
+      (tester) async {
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(epaper(controller));
+    await tester.pumpAndSettle();
+    Key? viewKey() => tester.widget(find.byType(PlatformViewLink)).key;
+    final before = viewKey();
+    final pageKey = loads().single['pageKey'] as String;
+
+    await messenger.handlePlatformMessage(
+      channel.name,
+      channel.codec.encodeMethodCall(
+        MethodCall('onPageImpression', {'name': pageKey}),
+      ),
+      (_) {},
     );
+    await tester.pumpAndSettle();
+    expect(viewKey(), before);
+  });
+
+  testWidgets('refresh comes from the ad config, as for a RemoteBanner',
+      (tester) async {
+    setConfigs([
+      configJson('a'),
+      {
+        ...configJson('b'),
+        'config': {'adType': 'banner'},
+      },
+    ]);
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(epaper(controller));
+    await tester.pumpAndSettle();
+    await goTo(tester, controller, 12);
+    final byUnit = {for (final a in loads()) a['adUnitId']: a};
+    expect(byUnit['/1234/a']!['refreshTimeInterval'], 30000);
+    expect(byUnit['/1234/a']!['smartRefresh'], true);
+    expect(
+      byUnit['/1234/b']!['refreshTimeInterval'],
+      0,
+      reason: 'no refreshTimeSeconds: no periodic refresh',
+    );
+  });
+
+  testWidgets('a placement without config is retried after a page return',
+      (tester) async {
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    const missing = [
+      AudienzzGalleryAdSlot(slotKey: 'x', adConfigId: 'late', pageIndex: 4),
+    ];
+    await tester.pumpWidget(epaper(controller, gallerySlots: missing));
+    await tester.pumpAndSettle();
+    expect(loads(), isEmpty);
+
+    setConfigs([configJson('late')]);
+    await tester.pumpWidget(
+      epaper(controller, gallerySlots: missing, active: false),
+    );
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(epaper(controller, gallerySlots: missing));
+    await tester.pumpAndSettle();
+    expect(loadedUnits(), ['/1234/late']);
   });
 
   testWidgets('a placement without config fails once, not on every scroll',
@@ -382,8 +470,8 @@ void main() {
     await tester.pumpWidget(
       epaper(
         controller,
-        pagerSlots: const [
-          AudienzzPagerAdSlot(slotKey: 'x', adConfigId: 'none', pageIndex: 4),
+        gallerySlots: const [
+          AudienzzGalleryAdSlot(slotKey: 'x', adConfigId: 'none', pageIndex: 4),
         ],
         onAdFailedToLoad: (key, _) => failed.add(key),
       ),
@@ -425,8 +513,8 @@ void main() {
     await tester.pumpWidget(
       epaper(
         controller,
-        pagerSlots: const [
-          AudienzzPagerAdSlot(slotKey: 'ad-1', adConfigId: 'a', pageIndex: 5),
+        gallerySlots: const [
+          AudienzzGalleryAdSlot(slotKey: 'ad-1', adConfigId: 'a', pageIndex: 5),
         ],
       ),
     );
@@ -436,8 +524,8 @@ void main() {
     await tester.pumpWidget(
       epaper(
         controller,
-        pagerSlots: const [
-          AudienzzPagerAdSlot(slotKey: 'ad-1', adConfigId: 'b', pageIndex: 5),
+        gallerySlots: const [
+          AudienzzGalleryAdSlot(slotKey: 'ad-1', adConfigId: 'b', pageIndex: 5),
         ],
       ),
     );
@@ -461,14 +549,14 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        home: AudienzzPagerAds(
+        home: AudienzzGalleryAds(
           controller: controller,
           slots: slots,
           child: PageView.builder(
             controller: controller,
             itemCount: 16,
             itemBuilder: (context, index) => index == 4
-                ? const AudienzzPagerAd(slotKey: 'ad-1')
+                ? const AudienzzGalleryAd(slotKey: 'ad-1')
                 : Text('tile $index'),
           ),
         ),

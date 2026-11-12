@@ -2,34 +2,34 @@ import 'package:audienzz_sdk_flutter/audienzz_sdk_flutter.dart';
 import 'package:flutter/material.dart';
 
 /// An ePaper: one tile per printed page, swiped horizontally, with two ad
-/// tiles. [AudienzzPagerAds] requests each ad tile's banner when the reader is
+/// tiles. [AudienzzGalleryAds] requests each ad tile's banner when the reader is
 /// within the ad config's `config.preloadDistancePages` (2 by default) of it,
 /// not when the ePaper opens and not when the tile is built.
 ///
-/// Turn diagnostics on to follow it: `AUDZ pager preload slot=… readerPage=…`
-/// when a slot requests, `AUDZ pager retire …` when it is released.
-class EpaperPagerExample extends StatefulWidget {
-  const EpaperPagerExample({required this.configId, super.key});
+/// Turn diagnostics on to follow it: `AUDZ gallery preload slot=… readerPage=…`
+/// when a slot requests, `AUDZ gallery retire …` when it is released.
+class EpaperGalleryExample extends StatefulWidget {
+  const EpaperGalleryExample({required this.configId, super.key});
 
   final String configId;
 
   @override
-  State<EpaperPagerExample> createState() => _EpaperPagerExampleState();
+  State<EpaperGalleryExample> createState() => _EpaperGalleryExampleState();
 }
 
-class _EpaperPagerExampleState extends State<EpaperPagerExample> {
+class _EpaperGalleryExampleState extends State<EpaperGalleryExample> {
   static const _tileCount = 16;
   final _controller = PageController();
   final _status = <String, String>{};
   int _page = 0;
 
-  late final List<AudienzzPagerAdSlot> _slots = [
-    AudienzzPagerAdSlot(
+  late final List<AudienzzGalleryAdSlot> _slots = [
+    AudienzzGalleryAdSlot(
       slotKey: 'epaper-1',
       adConfigId: widget.configId,
       pageIndex: 4,
     ),
-    AudienzzPagerAdSlot(
+    AudienzzGalleryAdSlot(
       slotKey: 'epaper-2',
       adConfigId: widget.configId,
       pageIndex: 12,
@@ -42,7 +42,7 @@ class _EpaperPagerExampleState extends State<EpaperPagerExample> {
     super.dispose();
   }
 
-  AudienzzPagerAdSlot? _slotAt(int index) {
+  AudienzzGalleryAdSlot? _slotAt(int index) {
     for (final slot in _slots) {
       if (slot.pageIndex == index) return slot;
     }
@@ -66,14 +66,14 @@ class _EpaperPagerExampleState extends State<EpaperPagerExample> {
                 padding: const EdgeInsets.all(8),
                 child: Text(
                   'Ads on pages 5 and 13. Preload distance: '
-                  '${AudienzzPagerAds.preloadDistanceFor(widget.configId)} '
+                  '${AudienzzGalleryAds.preloadDistanceFor(widget.configId)} '
                   'pages. ${_slots.map((s) => '${s.slotKey}: '
                       '${_status[s.slotKey] ?? 'not requested'}').join(' · ')}',
                   style: const TextStyle(fontSize: 12),
                 ),
               ),
               Expanded(
-                child: AudienzzPagerAds(
+                child: AudienzzGalleryAds(
                   controller: _controller,
                   slots: _slots,
                   onAdLoaded: (key) => _setStatus(key, 'loaded'),
@@ -86,7 +86,7 @@ class _EpaperPagerExampleState extends State<EpaperPagerExample> {
                     itemBuilder: (context, index) {
                       final slot = _slotAt(index);
                       if (slot != null) {
-                        return AudienzzPagerAd(
+                        return AudienzzGalleryAd(
                           slotKey: slot.slotKey,
                           placeholder: const Center(
                             child: Text('Ad not loaded yet'),

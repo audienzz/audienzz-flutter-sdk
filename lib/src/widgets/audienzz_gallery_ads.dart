@@ -11,17 +11,17 @@ import 'package:audienzz_sdk_flutter/src/widgets/ad_widget.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-/// One ad placement inside a [PageView], for [AudienzzPagerAds].
+/// One ad placement inside a [PageView], for [AudienzzGalleryAds].
 @immutable
-class AudienzzPagerAdSlot {
-  const AudienzzPagerAdSlot({
+class AudienzzGalleryAdSlot {
+  const AudienzzGalleryAdSlot({
     required this.slotKey,
     required this.adConfigId,
     required this.pageIndex,
   });
 
-  /// Stable identity of the slot within its pager. The tile shows it with
-  /// `AudienzzPagerAd(slotKey: …)`. Must be unique among the pager's slots.
+  /// Stable identity of the slot within its gallery. The tile shows it with
+  /// `AudienzzGalleryAd(slotKey: …)`. Must be unique among the gallery's slots.
   final String slotKey;
 
   /// Remote configuration id, as for `AudienzzBanner` / `RemoteBannerAd`: the
@@ -33,7 +33,7 @@ class AudienzzPagerAdSlot {
 
   @override
   bool operator ==(Object other) =>
-      other is AudienzzPagerAdSlot &&
+      other is AudienzzGalleryAdSlot &&
       other.slotKey == slotKey &&
       other.adConfigId == adConfigId &&
       other.pageIndex == pageIndex;
@@ -43,7 +43,7 @@ class AudienzzPagerAdSlot {
 
   @override
   String toString() =>
-      'AudienzzPagerAdSlot($slotKey, config: $adConfigId, page: $pageIndex)';
+      'AudienzzGalleryAdSlot($slotKey, config: $adConfigId, page: $pageIndex)';
 }
 
 /// Preloads the ads of a horizontally paged screen (an ePaper: one tile per
@@ -55,43 +55,49 @@ class AudienzzPagerAdSlot {
 /// slot when the screen opens buys ads for tiles most readers never reach.
 /// This widget owns the slots' ads instead of the tiles: each slot requests its
 /// ad once the reader is within its preload distance, keeps it while the tiles
-/// are built and disposed, and an [AudienzzPagerAd] in the tile shows it.
+/// are built and disposed, and an [AudienzzGalleryAd] in the tile shows it.
 ///
 /// The preload distance is the ad config's `config.preloadDistancePages`,
 /// [defaultPreloadDistancePages] when the ad config does not set it. Distance
 /// is counted in pages in both directions, from the page the reader is on
 /// (fractional while swiping).
 ///
-/// Like `AudienzzBanner` it must be built inside an [AudienzzPage]: ads are
-/// requested only while that page is active, released when it is not, and the
-/// slots within distance request again when it becomes active again. Swiping
-/// between tiles is not a page impression; the whole pager is one page.
+/// Refresh is the ad config's `refreshTimeSeconds`, as for a `RemoteBanner`,
+/// counted only while the ad's tile is on screen.
+///
+/// Like `AudienzzBanner` it must be built inside an [AudienzzPage], and ads are
+/// requested only while that page is active. Unlike `AudienzzBanner`, a gallery
+/// ad is not reloaded when the reader leaves the page and comes back (an
+/// article opened on top, the app sent to the background): it is paused while
+/// the page is away and shown again on return, with its refresh resuming where
+/// it stopped. Swiping between tiles is not a page impression; the whole
+/// gallery is one page.
 ///
 /// ```dart
 /// AudienzzPage(
 ///   name: 'epaper',
-///   child: AudienzzPagerAds(
+///   child: AudienzzGalleryAds(
 ///     controller: pageController,
 ///     slots: const [
-///       AudienzzPagerAdSlot(
+///       AudienzzGalleryAdSlot(
 ///           slotKey: 'epaper-1', adConfigId: '123', pageIndex: 4),
-///       AudienzzPagerAdSlot(
+///       AudienzzGalleryAdSlot(
 ///           slotKey: 'epaper-2', adConfigId: '124', pageIndex: 12),
 ///     ],
 ///     child: PageView.builder(
 ///       controller: pageController,
 ///       itemCount: tiles.length,
 ///       itemBuilder: (context, index) => switch (index) {
-///         4 => const AudienzzPagerAd(slotKey: 'epaper-1'),
-///         12 => const AudienzzPagerAd(slotKey: 'epaper-2'),
+///         4 => const AudienzzGalleryAd(slotKey: 'epaper-1'),
+///         12 => const AudienzzGalleryAd(slotKey: 'epaper-2'),
 ///         _ => EpaperTile(tiles[index]),
 ///       },
 ///     ),
 ///   ),
 /// )
 /// ```
-class AudienzzPagerAds extends StatefulWidget {
-  const AudienzzPagerAds({
+class AudienzzGalleryAds extends StatefulWidget {
+  const AudienzzGalleryAds({
     required this.controller,
     required this.slots,
     required this.child,
@@ -118,11 +124,11 @@ class AudienzzPagerAds extends StatefulWidget {
   /// slots are within their preload distance.
   final PageController controller;
 
-  /// The ad slots in the pager. Slots are matched by
-  /// [AudienzzPagerAdSlot.slotKey] across rebuilds: changing a slot's
+  /// The ad slots in the gallery. Slots are matched by
+  /// [AudienzzGalleryAdSlot.slotKey] across rebuilds: changing a slot's
   /// `adConfigId` replaces its ad, changing only its `pageIndex` keeps the ad
   /// already loaded.
-  final List<AudienzzPagerAdSlot> slots;
+  final List<AudienzzGalleryAdSlot> slots;
 
   /// The pager, usually the [PageView] driven by [controller].
   final Widget child;
@@ -140,11 +146,11 @@ class AudienzzPagerAds extends StatefulWidget {
   final void Function(String slotKey, AdError? error)? onAdFailedToLoad;
 
   @override
-  State<AudienzzPagerAds> createState() => _AudienzzPagerAdsState();
+  State<AudienzzGalleryAds> createState() => _AudienzzGalleryAdsState();
 }
 
-class _PagerSlotAd {
-  _PagerSlotAd({required this.identity, required this.ad});
+class _GallerySlotAd {
+  _GallerySlotAd({required this.identity, required this.ad});
 
   /// Page instance and ad config the ad was requested for. A change of either
   /// is a different ad; a change of page index is not.
@@ -152,9 +158,9 @@ class _PagerSlotAd {
   final RemoteBannerAd ad;
 }
 
-class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
+class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
   /// Ads by slot key.
-  final _ads = <String, _PagerSlotAd>{};
+  final _ads = <String, _GallerySlotAd>{};
 
   /// Stable request-slot owner per slot key, so analytics sees one slot across
   /// the ads it holds over time (page reactivation, config change).
@@ -164,6 +170,9 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
   /// configuration yet). Not retried on every scroll tick; cleared when the
   /// page becomes active again.
   final _setupFailed = <String>{};
+
+  /// Whether the page was active at the last sync, to notice a return.
+  bool _pageActive = false;
 
   AudienzzPageScope? _scope;
   PageController? _listening;
@@ -182,7 +191,7 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
       for (final slot in widget.slots) {
         if (!keys.add(slot.slotKey)) {
           throw FlutterError(
-            'AudienzzPagerAds: duplicate slotKey "${slot.slotKey}". Each slot '
+            'AudienzzGalleryAds: duplicate slotKey "${slot.slotKey}". Each slot '
             'needs its own key.',
           );
         }
@@ -207,7 +216,7 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
   }
 
   @override
-  void didUpdateWidget(AudienzzPagerAds oldWidget) {
+  void didUpdateWidget(AudienzzGalleryAds oldWidget) {
     super.didUpdateWidget(oldWidget);
     _listenTo(widget.controller);
     _sync();
@@ -234,7 +243,7 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
     if (scope == null) {
       assert(() {
         debugPrint(
-          '[Audienzz] AudienzzPagerAds is not inside an AudienzzPage. Its ads '
+          '[Audienzz] AudienzzGalleryAds is not inside an AudienzzPage. Its ads '
           'cannot be tied to a page and will not be requested. Wrap the route '
           'in AudienzzPage(name: …).',
         );
@@ -244,16 +253,23 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
       return;
     }
     if (!scope.isActive) {
-      if (_ads.isNotEmpty) {
-        AudienzzDiagnostics.log('pager', 'hold', {
+      // The ads stay: native pauses them while their page is away and resumes
+      // them on return without a new auction (`keepsAdAcrossPages`). Nothing
+      // new is requested meanwhile; `_evaluate` checks the page too.
+      if (_pageActive && _ads.isNotEmpty) {
+        AudienzzDiagnostics.log('gallery', 'hold', {
           'page': scope.page.id,
+          'slots': _ads.length,
           'reason': 'pageNotActive',
         });
       }
-      _retireAll(reason: 'pageNotActive');
+      _pageActive = false;
+      return;
+    }
+    if (!_pageActive) {
       // A placement without configuration gets another chance on return.
       _setupFailed.clear();
-      return;
+      _pageActive = true;
     }
     final slots = {for (final slot in widget.slots) slot.slotKey: slot};
     for (final key in _ads.keys.toList()) {
@@ -266,7 +282,7 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
     // A PageView attaches to its controller during its first layout, after
     // this build, and attaching notifies nobody. Until then the position read
     // is `initialPage`, but a page restored from PageStorage can differ: read
-    // it again once the pager exists.
+    // it again once the PageView exists.
     _scheduleEvaluate();
   }
 
@@ -283,7 +299,7 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
     });
   }
 
-  String _identity(AudienzzPageScope scope, AudienzzPagerAdSlot slot) =>
+  String _identity(AudienzzPageScope scope, AudienzzGalleryAdSlot slot) =>
       '${scope.page.id}:${slot.slotKey}:${slot.adConfigId}';
 
   /// The page the reader is on, fractional while swiping; `null` when the
@@ -315,7 +331,7 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
           _setupFailed.contains(_identity(scope, slot))) {
         continue;
       }
-      final distance = AudienzzPagerAds.preloadDistanceFor(slot.adConfigId);
+      final distance = AudienzzGalleryAds.preloadDistanceFor(slot.adConfigId);
       // A hair of tolerance: a settled PageView can report 3.9999999 for 4.
       if ((slot.pageIndex - page).abs() > distance + 1e-6) {
         continue;
@@ -330,13 +346,13 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
 
   void _create(
     AudienzzPageScope scope,
-    AudienzzPagerAdSlot slot, {
+    AudienzzGalleryAdSlot slot, {
     required double page,
     required int distance,
   }) {
     final key = slot.slotKey;
     final identity = _identity(scope, slot);
-    AudienzzDiagnostics.log('pager', 'preload', {
+    AudienzzDiagnostics.log('gallery', 'preload', {
       'slot': key,
       'config': slot.adConfigId,
       'pageIndex': slot.pageIndex,
@@ -381,7 +397,7 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
       ad,
       _requestOwners.putIfAbsent(key, Object.new),
     );
-    _ads[key] = _PagerSlotAd(identity: identity, ad: ad);
+    _ads[key] = _GallerySlotAd(identity: identity, ad: ad);
     unawaited(
       ad.load().then((_) {
         if (!current(ad)) {
@@ -430,7 +446,7 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
       return;
     }
     _version++;
-    AudienzzDiagnostics.log('pager', 'retire', {
+    AudienzzDiagnostics.log('gallery', 'retire', {
       'slot': key,
       'reason': reason,
     });
@@ -466,15 +482,15 @@ class _AudienzzPagerAdsState extends State<AudienzzPagerAds> {
   }
 
   @override
-  Widget build(BuildContext context) => _AudienzzPagerAdsScope(
+  Widget build(BuildContext context) => _AudienzzGalleryAdsScope(
         version: _version,
         ads: {for (final entry in _ads.entries) entry.key: entry.value.ad},
         child: widget.child,
       );
 }
 
-class _AudienzzPagerAdsScope extends InheritedWidget {
-  const _AudienzzPagerAdsScope({
+class _AudienzzGalleryAdsScope extends InheritedWidget {
+  const _AudienzzGalleryAdsScope({
     required this.version,
     required this.ads,
     required super.child,
@@ -483,29 +499,29 @@ class _AudienzzPagerAdsScope extends InheritedWidget {
   final int version;
   final Map<String, RemoteBannerAd> ads;
 
-  static _AudienzzPagerAdsScope? maybeOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<_AudienzzPagerAdsScope>();
+  static _AudienzzGalleryAdsScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_AudienzzGalleryAdsScope>();
 
   @override
-  bool updateShouldNotify(_AudienzzPagerAdsScope oldWidget) =>
+  bool updateShouldNotify(_AudienzzGalleryAdsScope oldWidget) =>
       oldWidget.version != version;
 }
 
-/// Shows the ad that [AudienzzPagerAds] preloaded for [slotKey]. Place it in
+/// Shows the ad that [AudienzzGalleryAds] preloaded for [slotKey]. Place it in
 /// the slot's [PageView] page (ePaper tile).
 ///
 /// The ad spans the tile's width, is as tall as its creative and is centered
 /// vertically in the tile. A fixed-size creative is centered by Google inside
 /// the full-width slot; a fluid one (`gamConfig.includeFluid`) fills it.
-class AudienzzPagerAd extends StatelessWidget {
-  const AudienzzPagerAd({
+class AudienzzGalleryAd extends StatelessWidget {
+  const AudienzzGalleryAd({
     required this.slotKey,
     this.placeholder,
     this.placeholderHeight = 250,
     super.key,
   });
 
-  /// The [AudienzzPagerAdSlot.slotKey] of the slot to show.
+  /// The [AudienzzGalleryAdSlot.slotKey] of the slot to show.
   final String slotKey;
 
   /// Shown while the slot has no ad: not yet within its preload distance, or
@@ -517,12 +533,12 @@ class AudienzzPagerAd extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scope = _AudienzzPagerAdsScope.maybeOf(context);
+    final scope = _AudienzzGalleryAdsScope.maybeOf(context);
     assert(() {
       if (scope == null) {
         debugPrint(
-          '[Audienzz] AudienzzPagerAd(slotKey: "$slotKey") is not inside an '
-          'AudienzzPagerAds. Wrap the PageView in AudienzzPagerAds.',
+          '[Audienzz] AudienzzGalleryAd(slotKey: "$slotKey") is not inside an '
+          'AudienzzGalleryAds. Wrap the PageView in AudienzzGalleryAds.',
         );
       }
       return true;

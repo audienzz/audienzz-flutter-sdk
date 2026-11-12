@@ -8,7 +8,7 @@ import 'package:audienzz_sdk_flutter_example/charles_proxy.dart';
 import 'package:audienzz_sdk_flutter_example/pages/banner_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/interstitial_ad_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/list_with_ads_example.dart';
-import 'package:audienzz_sdk_flutter_example/pages/epaper_pager_example.dart';
+import 'package:audienzz_sdk_flutter_example/pages/epaper_gallery_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/managed_banner_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/managed_flows_example.dart';
 import 'package:audienzz_sdk_flutter_example/pages/ppid_usage_example.dart';
@@ -381,9 +381,9 @@ final class AdsPages extends StatelessWidget {
                 bare: true,
               ),
               _NavigationTile(
-                title: 'ePaper (pager ads)',
+                title: 'ePaper (gallery ads)',
                 subtitle: 'PageView tiles; ads preloaded 2 pages ahead',
-                pageBuilder: (_) => const EpaperPagerExample(configId: '46'),
+                pageBuilder: (_) => const EpaperGalleryExample(configId: '46'),
                 bare: true,
               ),
               _NavigationTile(

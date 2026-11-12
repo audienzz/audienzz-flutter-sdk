@@ -58,8 +58,8 @@ class RemoteAdConfigData {
   final int? stickyTopOffset;
 
   /// How many pages (ePaper tiles) before the reader reaches it an
-  /// `AudienzzPagerAd` slot requests its ad. `null` when absent, negative or
-  /// not a whole number; `AudienzzPagerAds` then uses its local default (2).
+  /// `AudienzzGalleryAd` slot requests its ad. `null` when absent, negative or
+  /// not a whole number; `AudienzzGalleryAds` then uses its local default (2).
   final int? preloadDistancePages;
 
   static int? _nonNegativeInt(Object? value) {

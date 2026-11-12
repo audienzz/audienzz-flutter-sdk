@@ -54,6 +54,7 @@ class BannerAd extends AdWithView {
     this.startPublisherPaused = false,
     this.resizeToPrebidCreative = true,
     this.includeFluid = false,
+    this.keepsAdAcrossPages = false,
   }) : isLazyLoad = _resolveLazyLoad(isLazyLoad, smartRefresh);
 
   // On Flutter, lazy load relies on smartRefresh's Flutter-side visibility
@@ -136,6 +137,13 @@ class BannerAd extends AdWithView {
   /// any delivered size, so give the slot a width and let its height follow.
   /// A `RemoteBannerAd` takes it from the ad config's `gamConfig.includeFluid`.
   final bool includeFluid;
+
+  /// Keep the delivered ad when its page is left and returned to, instead of
+  /// releasing it and loading a new one. While the page is away the ad is
+  /// paused (no auction, nothing counted); on return its refresh resumes with
+  /// the remaining interval. Defaults to `false`: a page return reloads. An
+  /// `AudienzzGalleryAds` slot turns it on.
+  final bool keepsAdAcrossPages;
 
   /// The page this banner belongs to, when the caller knows it better than the
   /// SDK does.
@@ -289,6 +297,7 @@ class BannerAd extends AdWithView {
         prefetchMargin,
         resizeToPrebidCreative,
         includeFluid,
+        keepsAdAcrossPages,
         adFormat,
         apiParameters,
         protocols,

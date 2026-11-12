@@ -617,33 +617,33 @@ void dispose() {
 }
 ```
 
-## Pager ads (ePaper, `PageView`)
+## Gallery ads (ePaper, `PageView`)
 
 A `PageView` builds only the page on screen, so an `AudienzzBanner` in a tile further along does
 not exist until the reader swipes to it. Requesting then is too late (the reader swipes past
 before the ad arrives), and requesting every ad tile when the screen opens buys ads for tiles most
-readers never reach. `AudienzzPagerAds` owns the ads instead: each slot requests its ad once the
+readers never reach. `AudienzzGalleryAds` owns the ads instead: each slot requests its ad once the
 reader is within its preload distance, and keeps it while its tile is built and disposed.
-`AudienzzPagerAd` in the tile shows it.
+`AudienzzGalleryAd` in the tile shows it.
 
 ```dart
 final pageController = PageController();
 
 AudienzzPage(
   name: 'epaper',
-  child: AudienzzPagerAds(
+  child: AudienzzGalleryAds(
     controller: pageController,
     slots: const [
-      AudienzzPagerAdSlot(slotKey: 'epaper-1', adConfigId: '123', pageIndex: 4),
-      AudienzzPagerAdSlot(slotKey: 'epaper-2', adConfigId: '124', pageIndex: 12),
+      AudienzzGalleryAdSlot(slotKey: 'epaper-1', adConfigId: '123', pageIndex: 4),
+      AudienzzGalleryAdSlot(slotKey: 'epaper-2', adConfigId: '124', pageIndex: 12),
     ],
     onAdFailedToLoad: (slotKey, error) { /* e.g. drop the ad tile */ },
     child: PageView.builder(
       controller: pageController,
       itemCount: tiles.length,
       itemBuilder: (context, index) => switch (index) {
-        4 => const AudienzzPagerAd(slotKey: 'epaper-1'),
-        12 => const AudienzzPagerAd(slotKey: 'epaper-2'),
+        4 => const AudienzzGalleryAd(slotKey: 'epaper-1'),
+        12 => const AudienzzGalleryAd(slotKey: 'epaper-2'),
         _ => EpaperTile(tiles[index]),
       },
     ),
@@ -651,19 +651,25 @@ AudienzzPage(
 )
 ```
 
-- **Ad config:** each slot is a normal banner ad config (`gamConfig`, `prebidConfig`, refresh,
+- **Ad config:** each slot is a normal banner ad config (`gamConfig`, `prebidConfig`,
   `gamConfig.includeFluid` for fluid GAM native styles). The slot always loads eagerly when it is
   in range; `config.lazyLoad` and `config.prefetchDistanceDp` do not apply.
+- **Refresh:** `config.refreshTimeSeconds`, as for a `RemoteBanner` (absent or `0`: no periodic
+  refresh), counted only while the ad's tile is on screen.
 - **Preload distance:** `config.preloadDistancePages` in the ad config: a slot requests its ad when
   the reader is that many pages (tiles) away or closer, in either direction, counted from the
   fractional page while swiping. Absent or invalid (negative, not a whole number): **2**. `0`
   requests only on the slot's own page.
-- **One request per slot** while the page is active: swiping away and back reuses the ad. Until its
-  tile shows it, a preloaded ad is reported hidden, so refresh and viewability only count while
-  the tile is on screen.
-- **Page:** must be inside an `AudienzzPage`. Swiping between tiles is not a page impression; when
-  the page becomes inactive (e.g. an article opened on top) the ads are released, and on return
-  the slots within range request again.
+- **One request per slot:** swiping away and back reuses the ad. Until its tile shows it, a
+  preloaded ad is reported hidden, so refresh and viewability only count while the tile is on
+  screen.
+- **Leaving and coming back does not reload.** Must be inside an `AudienzzPage`; swiping between
+  tiles is not a page impression. When the reader leaves the page (an article opened on top, the
+  app sent to the background) the ads are paused, keeping their creative; on return they are shown
+  again and refresh resumes where it stopped. Nothing new is requested while the page is away.
+  (An `AudienzzBanner` instead gets a fresh ad on every return.) Needs the native SDKs'
+  `keepsAdAcrossPages` (audienzz-android-sdk#29, audienzz-ios-sdk#68); with an older Android SDK the
+  ad reloads on return as before.
 - **Tile:** the ad spans the tile's width, is as tall as its creative and is centered vertically.
   `placeholder` is shown while the slot has no ad.
 
