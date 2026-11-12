@@ -585,7 +585,7 @@ class BannerAd(
 
     /**
      * `AudienzzAdViewHandler.keepsAdAcrossPages` arrives with the next Android SDK release
-     * (audienzz-android-sdk branch `feature/keeps-ad-across-pages`). Set it reflectively until the plugin is pinned to that
+     * (audienzz-android-sdk branch `feature/gallery-ads`). Set it reflectively until the plugin is pinned to that
      * release, so the plugin still builds against the published SDK; there, the property is
      * missing and the ad keeps today's behaviour (reloaded on page return). Replace with
      * `handler.keepsAdAcrossPages = true` once re-pinned.

@@ -47,7 +47,7 @@ Gradle plugin versions. Remove the property to return to the published dependenc
 
 ## Unreleased: the example's iOS SDK comes from a pull request
 
-On this branch the example Podfile installs `AudienzziOSSDK` from `feature/keeps-ad-across-pages`:
+On this branch the example Podfile installs `AudienzziOSSDK` from `feature/gallery-ads`:
 `AUBannerView.keepsAdAcrossPages` (gallery ads) stacked on audienzz/audienzz-ios-sdk#68
 (`gamConfig.includeFluid`). Run `pod install` (with `LANG=en_US.UTF-8` if CocoaPods complains about
 the encoding) after pulling; `AUDIENZZ_IOS_SDK_PATH` still overrides it. Switch back to the released
@@ -56,7 +56,7 @@ version once both ship.
 Android uses the published SDK by default. Fluid needs nothing from audienzz/audienzz-android-sdk#29
 (the plugin builds its own Google view). Gallery ads set `AudienzzAdViewHandler.keepsAdAcrossPages`
 reflectively: with the published SDK they still reload on a page return. To test the full behaviour,
-publish the android-sdk `feature/keeps-ad-across-pages` branch locally (see above) and build with
+publish the android-sdk `feature/gallery-ads` branch locally (see above) and build with
 `-PaudienzzNativeVersion=0.3.3-local`. The example's ePaper screen needs an x86_64 or arm emulator:
 Flutter does not build for 32-bit x86 images.
 

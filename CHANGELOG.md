@@ -17,7 +17,7 @@
   Refresh is the ad config's `refreshTimeSeconds`, as for a `RemoteBanner`. Leaving the page (an
   article on top, background) and coming back does not reload: the ad is paused and kept
   (`BannerAd.keepsAdAcrossPages`, sent to native as `keepsAdAcrossPages`). Needs the native SDKs'
-  `keepsAdAcrossPages` (branch `feature/keeps-ad-across-pages` in both): iOS sets it directly; the
+  `keepsAdAcrossPages` (branch `feature/gallery-ads` in both): iOS sets it directly; the
   Android plugin sets it reflectively until it is pinned to that release, and with the published
   SDK the ad still reloads on return. On iOS the plugin embeds a kept ad through a container view:
   Flutter removes a platform view's root view when its tile is swiped out, and
