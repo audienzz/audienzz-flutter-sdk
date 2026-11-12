@@ -483,8 +483,28 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     // MARK: - FlutterPlatformView
 
     func view() -> UIView {
-        auBannerView!
+        guard keepsAdAcrossPages, let banner = auBannerView else { return auBannerView! }
+        // Flutter removes the platform view's root view from its superview whenever the AdWidget
+        // leaves the tree — a gallery tile swiped out of a PageView. AUBannerView treats
+        // `removeFromSuperview()` as its destructor, so handing it to Flutter directly destroyed a
+        // kept ad (deregistered from its page, refresh and events gone) the first time its tile was
+        // rebuilt. Flutter gets a container instead; the banner stays inside it, detached from the
+        // window while no tile shows it, and `dispose()` still destroys it explicitly.
+        if banner.superview !== keptAdHost {
+            keptAdHost.frame = banner.frame
+            banner.frame = keptAdHost.bounds
+            banner.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            keptAdHost.addSubview(banner)
+        }
+        return keptAdHost
     }
+
+    /// What Flutter embeds for a `keepsAdAcrossPages` banner; see `view()`.
+    internal private(set) lazy var keptAdHost: UIView = {
+        let host = UIView()
+        host.backgroundColor = .clear
+        return host
+    }()
 
     // MARK: - Size
 

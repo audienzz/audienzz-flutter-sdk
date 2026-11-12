@@ -285,6 +285,35 @@ final class RunnerTests: XCTestCase {
         }
     }
 
+    func testAKeptAdSurvivesItsPlatformViewBeingRemoved() throws {
+        let ad = FBannerAd(adUnitId: "/96628199/multi-size", auConfigId: "test",
+            sizes: [FAdSize(width: 300, height: 250)],
+            isAdaptiveSize: false, isLazyLoad: false,
+            smartRefresh: false, prefetchMarginPoints: 0, refreshTimeInterval: nil,
+            adFormat: .banner, apiParameters: [], videoProtocols: [], videoPlacement: .InBanner,
+            videoPlaybackMethods: [], videoBitrate: FVideoBitrate(min: 0, max: 0),
+            videoDuration: FVideoDuration(min: 0, max: 0), pbAdSlot: nil, gpId: nil,
+            customImpOrtbConfig: nil, pageKey: "route-1", rootViewController: UIViewController(),
+            adId: 72, manager: manager, keepsAdAcrossPages: true)
+        defer { ad.dispose() }
+        ad.pauseAutoRefresh()
+        ad.loadGoogle = { _, _ in }
+        ad.load()
+        let banner = try XCTUnwrap(ad.auBannerView)
+        let tile = UIView()
+
+        // A gallery tile shows it, is swiped away (Flutter removes the embedded view), and is
+        // built again.
+        tile.addSubview(ad.view())
+        XCTAssertFalse(ad.view() === banner, "Flutter embeds a container, not the banner")
+        ad.view().removeFromSuperview()
+        // `removeFromSuperview()` on the banner itself is AUBannerView's destructor; it must not
+        // have run, so the banner is still where it was.
+        XCTAssertTrue(banner.superview === ad.view(), "the banner was not removed, so not destroyed")
+        tile.addSubview(ad.view())
+        XCTAssertTrue(banner.superview === ad.view(), "the same banner is shown again")
+    }
+
     func testFluidCreativeReportsTheSlotWidthAndTheCreativeHeight() throws {
         let (ad, google) = fluidBanner(includeFluid: true, adId: 62)
         defer { ad.dispose() }

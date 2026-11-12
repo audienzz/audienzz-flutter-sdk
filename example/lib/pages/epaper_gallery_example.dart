@@ -6,6 +6,10 @@ import 'package:flutter/material.dart';
 /// within the ad config's `config.preloadDistancePages` (2 by default) of it,
 /// not when the ePaper opens and not when the tile is built.
 ///
+/// Tap a printed page to open its article on top, then go back: the gallery
+/// ads are kept, not reloaded (`AUDZ gallery hold` on the way out, no new
+/// request on the way back).
+///
 /// Turn diagnostics on to follow it: `AUDZ gallery preload slot=… readerPage=…`
 /// when a slot requests, `AUDZ gallery retire …` when it is released.
 class EpaperGalleryExample extends StatefulWidget {
@@ -93,7 +97,18 @@ class _EpaperGalleryExampleState extends State<EpaperGalleryExample> {
                           ),
                         );
                       }
-                      return _Tile(index: index);
+                      return _Tile(
+                        index: index,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            // Named, so the navigator observer reports it as
+                            // its own page, as a real article view would be.
+                            settings: const RouteSettings(name: 'ePaper article'),
+                            builder: (_) => _Article(page: index + 1),
+                          ),
+                        ),
+                      );
                     },
                   ),
                 ),
@@ -105,18 +120,42 @@ class _EpaperGalleryExampleState extends State<EpaperGalleryExample> {
 }
 
 class _Tile extends StatelessWidget {
-  const _Tile({required this.index});
+  const _Tile({required this.index, required this.onTap});
 
   final int index;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.all(12),
-        color: Colors.grey.shade200,
-        alignment: Alignment.center,
-        child: Text(
-          'Printed page ${index + 1}',
-          style: Theme.of(context).textTheme.headlineSmall,
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          color: Colors.grey.shade200,
+          alignment: Alignment.center,
+          child: Text(
+            'Printed page ${index + 1}\n(tap for the article)',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+        ),
+      );
+}
+
+/// The mobile article view opened from a printed page. Ad-free here; it is its
+/// own page, so opening it makes the ePaper page inactive.
+class _Article extends StatelessWidget {
+  const _Article({required this.page});
+
+  final int page;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text('Article from page $page')),
+        body: const Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'Go back: the ePaper ad you saw is still there, no new request.',
+          ),
         ),
       );
 }

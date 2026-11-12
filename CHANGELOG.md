@@ -19,7 +19,10 @@
   (`BannerAd.keepsAdAcrossPages`, sent to native as `keepsAdAcrossPages`). Needs the native SDKs'
   `keepsAdAcrossPages` (audienzz-android-sdk#29, audienzz-ios-sdk#68): iOS sets it directly; the
   Android plugin sets it reflectively until it is pinned to that release, and with the published
-  SDK the ad still reloads on return.
+  SDK the ad still reloads on return. On iOS the plugin embeds a kept ad through a container view:
+  Flutter removes a platform view's root view when its tile is swiped out, and
+  `AUBannerView.removeFromSuperview()` is the SDK's destructor, so the ad died with its first tile
+  rebuild.
 - **iOS requires the iOS SDK with `AUAdView.fillsWidthWithAdSubview`** (audienzz-ios-sdk#68). Until
   it is released, the example app installs it from that PR's branch; the plugin podspec must be
   bumped to the release before this ships. Android needs no native change.
