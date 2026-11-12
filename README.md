@@ -668,7 +668,7 @@ AudienzzPage(
   app sent to the background) the ads are paused, keeping their creative; on return they are shown
   again and refresh resumes where it stopped. Nothing new is requested while the page is away.
   (An `AudienzzBanner` instead gets a fresh ad on every return.) Needs the native SDKs'
-  `keepsAdAcrossPages` (audienzz-android-sdk#29, audienzz-ios-sdk#68); with an older Android SDK the
+  `keepsAdAcrossPages` (unreleased, branch `feature/keeps-ad-across-pages`); with an older Android SDK the
   ad reloads on return as before.
 - **Tile:** the ad spans the tile's width, is as tall as its creative and is centered vertically.
   `placeholder` is shown while the slot has no ad.
