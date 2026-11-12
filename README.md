@@ -1,6 +1,21 @@
 Audienzz SDK Flutter
 ========
 
+## What's new in 0.3.4
+
+- **Gallery ads for ePaper and other paged screens** (`AudienzzGalleryAds` + `AudienzzGalleryAd`):
+  an ad is preloaded once the reader is within `config.preloadDistancePages` pages of it
+  (default 2). It is kept when the reader opens an article and comes back, unless
+  `config.refreshOnBack` is `true`. Refresh follows `refreshTimeSeconds` and only counts while the
+  ad is on screen. See [Gallery ads](#gallery-ads-epaper-pageview).
+- **Fluid GAM size:** `gamConfig.includeFluid: true` also requests fluid creatives, such as GAM
+  native styles. The banner sizes itself to the creative's height; Prebid is unchanged.
+  See [Banner Ad (Remote Config)](#banner-ad-remote-config).
+- **Native SDKs:** iOS `0.4.6`, Android `0.3.6`.
+
+All new ad config fields are optional; without them the defaults apply. Full list:
+[CHANGELOG](CHANGELOG.md).
+
 > **Native dependencies:** Android `com.audienzz:sdk:0.3.6` (Maven Central) and
 > iOS `AudienzziOSSDK ~> 0.4.6` (CocoaPods). The library and examples use these published
 > releases by default, including analytics batching, foreground/interstitial page continuity,
