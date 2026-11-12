@@ -234,7 +234,13 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 adId: adId,
                 manager: manager,
                 // Absent from Dart unless the ad config turns it on.
-                resizeToPrebidCreative: args["resizeToPrebidCreative"] as? Bool ?? true
+                resizeToPrebidCreative: args["resizeToPrebidCreative"] as? Bool ?? true,
+                // Absent from Dart unless the ad config turns it on.
+                includeFluid: args["includeFluid"] as? Bool ?? false,
+                // Absent from Dart unless on (gallery ads).
+                keepsAdAcrossPages: args["keepsAdAcrossPages"] as? Bool ?? false,
+                // Absent from Dart unless on (gallery ads).
+                galleryMode: args["galleryMode"] as? Bool ?? false
             )
 
             // Before loadAd: an eager banner requests as soon as it loads, so a
@@ -246,7 +252,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 bannerAd.requestContext = AUAdRequestContext.forSlot(slot, pageKey: args["pageKey"] as? String)
             }
             manager.loadAd(ad: bannerAd)
-            result(nil)
+            // Whether the native SDK keeps the ad across page returns; Dart rebuilds the view on a
+            // return only when it does not.
+            result(["keepsAdAcrossPages": bannerAd.auBannerView?.keepsAdAcrossPages ?? false])
 
         case "loadRewardedAd":
             guard let args = call.arguments as? [String: Any],

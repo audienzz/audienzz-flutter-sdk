@@ -1,3 +1,29 @@
+## Unreleased
+
+- **Fluid GAM size for remote banners.** An ad config can set `gamConfig.includeFluid: true`. The
+  banner then also asks GAM for the fluid size next to its fixed `gamConfig.adSizes`, so fluid
+  creatives such as GAM native styles can serve into the same slot. Prebid is unaffected and keeps
+  bidding on `prebidConfig.adSizes`. A fluid ad spans the slot's width; its height is measured
+  (Android) or taken from Google (iOS) and reported through `onAdSizeChanged`, so `AudienzzBanner`
+  and `AdWidget` size to it. On Android, Google does not report a fluid creative as fluid (a 427 dp
+  creative came back as 320x50, a 303 dp one as 300x600), so with fluid on every delivery is sized
+  from its measured height; the size is held until then, falling back to Google's after 1 s. Off when absent or not a JSON boolean. Same behaviour as the native
+  SDKs (audienzz/audienzz-android-sdk#29, audienzz/audienzz-ios-sdk#68).
+- **Gallery ads for paged screens (ePaper).** New `AudienzzGalleryAds` (wraps a `PageView`, given
+  its `PageController` and the ad slots) and `AudienzzGalleryAd` (shows a slot's ad in its tile). A
+  slot requests its remote-config banner once the reader is within its preload distance of the
+  slot's page, instead of when the screen opens or when the tile is built, and keeps it across tile
+  rebuilds. The distance is the ad config's new `config.preloadDistancePages`, 2 when absent.
+  Refresh is the ad config's `refreshTimeSeconds`, as for a `RemoteBanner`. Leaving the page (an
+  article on top, background) and coming back does not reload: the ad is paused and kept
+  (`BannerAd.keepsAdAcrossPages`, sent to native as `keepsAdAcrossPages`), unless the ad config's
+  new `config.refreshOnBack` is `true` (default `false`), which reloads it on return. On iOS the plugin embeds a kept ad through a container view:
+  Flutter removes a platform view's root view when its tile is swiped out, and
+  `AUBannerView.removeFromSuperview()` is the SDK's destructor, so the ad died with its first tile
+  rebuild.
+- **Native SDKs updated to Android `0.3.6` and iOS `0.4.6`:** gallery ads' `keepsAdAcrossPages`
+  (set directly on both platforms) and fluid GAM sizes (`gamConfig.includeFluid`).
+
 ## 0.3.3
 
 - Native SDKs updated to Android `0.3.5` and iOS `0.4.5`: new `placementVisible` analytics event,

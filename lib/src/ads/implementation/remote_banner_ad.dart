@@ -54,9 +54,46 @@ final class RemoteBannerAd extends BannerAd {
           // config turns it on for this placement.
           resizeToPrebidCreative:
               _getConfig(configId)?.config.resizeToPrebidCreative ?? true,
+          includeFluid: _getConfig(configId)?.gamConfig.includeFluid ?? false,
           // Always enable smart refresh for remote-config banners: count refresh time only
           // while eligible, pausing off-screen and resuming the remainder on return.
           smartRefresh: true,
+        );
+
+  /// A banner for `AudienzzGalleryAds`: everything comes from the ad config
+  /// exactly as for the public constructor, except that it always loads
+  /// eagerly. A gallery slot is requested ahead of time, while its tile is not
+  /// built, so there is no view for a viewport trigger to watch; the gallery's
+  /// page distance is the lazy rule instead.
+  RemoteBannerAd._preload({
+    required this.configId,
+    required super.onAdLoaded,
+    required super.onAdFailedToLoad,
+    super.onAdSizeChanged,
+    super.pageKey,
+  }) : super(
+          sizes: _getSizes(configId),
+          prebidSizes: _getPrebidSizes(configId),
+          headerBidding: _getPrebidSizes(configId) != null,
+          adUnitId: _getAdUnitId(configId),
+          auConfigId: _getAuConfigId(configId),
+          refreshTimeInterval: _getRefreshTime(configId),
+          isAdaptiveSize: _getIsAdaptive(configId),
+          adaptiveBannerConfig:
+              _getConfig(configId)?.gamConfig.adaptiveBannerConfig,
+          isLazyLoad: false,
+          prefetchMargin: _getPrefetchMargin(configId),
+          resizeToPrebidCreative:
+              _getConfig(configId)?.config.resizeToPrebidCreative ?? true,
+          includeFluid: _getConfig(configId)?.gamConfig.includeFluid ?? false,
+          smartRefresh: true,
+          // A reader leaves an ePaper for an article and comes back: the ad
+          // they had is still the right one, and reloading it would cost the
+          // slot its creative every time — unless the ad config asks for a
+          // fresh one (`config.refreshOnBack`).
+          keepsAdAcrossPages:
+              !(_getConfig(configId)?.config.refreshOnBack ?? false),
+          galleryMode: true,
         );
 
   final String configId;
@@ -159,3 +196,20 @@ final class RemoteBannerAd extends BannerAd {
     return super.load();
   }
 }
+
+/// Creates the eager [RemoteBannerAd] an `AudienzzGalleryAds` slot preloads.
+/// SDK-internal: hidden from the package's public exports.
+RemoteBannerAd preloadRemoteBannerAd({
+  required String configId,
+  required void Function(BannerAd ad) onAdLoaded,
+  required void Function(BannerAd ad, AdError? error) onAdFailedToLoad,
+  void Function(BannerAd ad, AdSize size)? onAdSizeChanged,
+  String? pageKey,
+}) =>
+    RemoteBannerAd._preload(
+      configId: configId,
+      onAdLoaded: onAdLoaded,
+      onAdFailedToLoad: onAdFailedToLoad,
+      onAdSizeChanged: onAdSizeChanged,
+      pageKey: pageKey,
+    );

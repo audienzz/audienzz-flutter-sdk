@@ -57,7 +57,7 @@ target 'Runner' do
     Pod::UI.puts "[Audienzz] using LOCAL iOS SDK at #{audienzz_local_ios_sdk}".yellow
     pod 'AudienzziOSSDK', :path => audienzz_local_ios_sdk
   else
-    pod 'AudienzziOSSDK', '~> 0.4.5'
+    pod 'AudienzziOSSDK', '~> 0.4.6'
   end
 
   # AudienzziOSSDK 0.4.3 builds against STOCK PrebidMobile (no fork). Pin 3.3.1+

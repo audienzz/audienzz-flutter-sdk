@@ -123,6 +123,10 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     call.argument<Map<String, Any?>>("adaptiveBannerConfig"),
                     // Absent from Dart unless the ad config turns it on.
                     call.argument<Boolean>("resizeToPrebidCreative") ?: true,
+                    // Absent from Dart unless the ad config turns it on.
+                    call.argument<Boolean>("includeFluid") ?: false,
+                    // Absent from Dart unless on (gallery ads).
+                    call.argument<Boolean>("keepsAdAcrossPages") ?: false,
                 )
 
                 call.argument<String>("requestSlot")?.let {
@@ -135,7 +139,9 @@ class AudienzzSdkFlutterPlugin : FlutterPlugin, ActivityAware, MethodCallHandler
                     bannerAd.pauseAutoRefresh()
                 }
                 bannerAd.load()
-                result.success(null)
+                // Whether the native SDK keeps the ad across page returns; Dart rebuilds the view
+                // on a return only when it does not.
+                result.success(mapOf("keepsAdAcrossPages" to bannerAd.keepsAdAcrossPagesApplied))
             }
 
             "loadRewardedAd" -> {

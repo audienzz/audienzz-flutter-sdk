@@ -15,7 +15,7 @@ Flutter wrapper for Audienzz Mobile SDK
   # PrebidMobile's UserUniqueID(uniqueId:) (3.3.1+); GMAS 13 raises the min iOS
   # deployment target to 15. 0.4.3 builds against stock PrebidMobile (no fork).
   s.dependency 'Google-Mobile-Ads-SDK', '~> 13.0'
-  s.dependency 'AudienzziOSSDK', '~> 0.4.5'
+  s.dependency 'AudienzziOSSDK', '~> 0.4.6'
   s.platform = :ios, '15.0'
 
   # Flutter.framework does not contain a i386 slice.

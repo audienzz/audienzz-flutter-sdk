@@ -26,6 +26,17 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     // GAM's "Prebid" app event, and this load's delivered size. Never act on the event alone
     // before the load: the banner still holds the PREVIOUS creative's size then.
     private let resizeToPrebidCreative: Bool
+
+    /// Ad config `gamConfig.includeFluid`: also ask GAM for the fluid size, next to `sizes` (e.g.
+    /// fluid GAM native styles). Prebid is unaffected. A fluid ad spans the slot; the SDK takes only
+    /// its height from Google and reports it through `onAdSizeChanged`, like any delivered size.
+    private let includeFluid: Bool
+    /// Keep the delivered ad across page transitions (gallery ads): paused while its page is away,
+    /// resumed on return without a new auction (`AUBannerView.keepsAdAcrossPages`).
+    internal let keepsAdAcrossPages: Bool
+    /// A gallery slot: Flutter builds and disposes its platform view as the reader swipes, and the
+    /// ad must outlive that whether or not it is kept across pages (see `view()`).
+    internal let galleryMode: Bool
     /// Read-only, for tests.
     internal var resizesToPrebidCreative: Bool { resizeToPrebidCreative }
     private var prebidCreativeSize: CGSize?
@@ -282,9 +293,15 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         rootViewController: UIViewController,
         adId: NSNumber,
         manager: AdInstanceManager,
-        resizeToPrebidCreative: Bool = true
+        resizeToPrebidCreative: Bool = true,
+        includeFluid: Bool = false,
+        keepsAdAcrossPages: Bool = false,
+        galleryMode: Bool = false
     ) {
         self.resizeToPrebidCreative = resizeToPrebidCreative
+        self.includeFluid = includeFluid
+        self.keepsAdAcrossPages = keepsAdAcrossPages
+        self.galleryMode = galleryMode
         self.adUnitId = adUnitId
         self.sizes = sizes
         self.prebidSizes = prebidSizes
@@ -335,6 +352,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         for cgSize in cgSizes {
             validAdSizes.append(nsValue(for: adSizeFor(cgSize: cgSize)))
         }
+        if includeFluid {
+            validAdSizes.append(nsValue(for: AdSizeFluid))
+        }
 
         bannerViewInstance!.validAdSizes = validAdSizes
 
@@ -376,6 +396,10 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         if let pageKey { auBannerView?.setScreen(pageKey) }
         auBannerView?.frame = CGRect(origin: .zero, size: CGSize(width: mainSize.width, height: mainSize.height))
         auBannerView?.backgroundColor = .clear
+        // A fluid ad takes its width from Google's view, so that view spans the slot.
+        auBannerView?.fillsWidthWithAdSubview = includeFluid
+        // Before createAd, which is where the ad joins its page.
+        auBannerView?.keepsAdAcrossPages = keepsAdAcrossPages
         // Flutter owns viewport/cover reporting: UIKit cannot see Flutter's scroll clips or
         // painted overlays. Keep the native viewport gate off and feed the SDK-owned refresh
         // controller through the host pause/resume API instead.
@@ -464,8 +488,28 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     // MARK: - FlutterPlatformView
 
     func view() -> UIView {
-        auBannerView!
+        guard galleryMode || keepsAdAcrossPages, let banner = auBannerView else { return auBannerView! }
+        // Flutter removes the platform view's root view from its superview whenever the AdWidget
+        // leaves the tree — a gallery tile swiped out of a PageView. AUBannerView treats
+        // `removeFromSuperview()` as its destructor, so handing it to Flutter directly destroyed a
+        // kept ad (deregistered from its page, refresh and events gone) the first time its tile was
+        // rebuilt. Flutter gets a container instead; the banner stays inside it, detached from the
+        // window while no tile shows it, and `dispose()` still destroys it explicitly.
+        if banner.superview !== keptAdHost {
+            keptAdHost.frame = banner.frame
+            banner.frame = keptAdHost.bounds
+            banner.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            keptAdHost.addSubview(banner)
+        }
+        return keptAdHost
     }
+
+    /// What Flutter embeds for a gallery or `keepsAdAcrossPages` banner; see `view()`.
+    internal private(set) lazy var keptAdHost: UIView = {
+        let host = UIView()
+        host.backgroundColor = .clear
+        return host
+    }()
 
     // MARK: - Size
 
@@ -496,7 +540,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         // GAM takes the adaptive descriptor from adSize and reservation sizes from this list.
         banner.validAdSizes = sizes.map {
             nsValue(for: adSizeFor(cgSize: CGSize(width: $0.width, height: $0.height)))
-        }
+        } + (includeFluid ? [nsValue(for: AdSizeFluid)] : [])
     }
 
     // MARK: - resizeToPrebidCreative

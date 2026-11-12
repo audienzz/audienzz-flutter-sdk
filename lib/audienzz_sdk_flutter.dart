@@ -5,7 +5,8 @@ export 'src/ads/base/ad_with_view.dart';
 export 'src/ads/base/ad_without_view.dart';
 export 'src/ads/implementation/banner_ad.dart';
 export 'src/ads/implementation/interstitial_ad.dart';
-export 'src/ads/implementation/remote_banner_ad.dart';
+export 'src/ads/implementation/remote_banner_ad.dart'
+    hide preloadRemoteBannerAd;
 export 'src/ads/implementation/remote_interstitial_ad.dart';
 export 'src/ads/implementation/rewarded_ad.dart';
 export 'src/ads/interstitial_presentation_controller.dart';
@@ -45,4 +46,5 @@ export 'src/ppid_manager.dart';
 export 'src/remote_config/audienzz_remote_config.dart';
 export 'src/widgets/ad_widget.dart';
 export 'src/widgets/audienzz_banner.dart';
+export 'src/widgets/audienzz_gallery_ads.dart';
 export 'src/widgets/sticky_ad_wrapper.dart';

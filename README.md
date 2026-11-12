@@ -1,8 +1,8 @@
 Audienzz SDK Flutter
 ========
 
-> **Native dependencies:** Android `com.audienzz:sdk:0.3.5` (Maven Central) and
-> iOS `AudienzziOSSDK ~> 0.4.5` (CocoaPods). The library and examples use these published
+> **Native dependencies:** Android `com.audienzz:sdk:0.3.6` (Maven Central) and
+> iOS `AudienzziOSSDK ~> 0.4.6` (CocoaPods). The library and examples use these published
 > releases by default, including analytics batching, foreground/interstitial page continuity,
 > cold-start attribution and one `viewability.start` per creative.
 >
@@ -185,7 +185,7 @@ Flutter `SafeArea` protects app content, but cannot inset Google's separate full
 See the [system-bar checks](LOCAL_TESTING.md#interstitial-status-bar-and-close-button) for limits
 and device verification.
 
-**Android release dependency:** Android `0.3.3` and newer (this bridge selects `0.3.5`) include the native
+**Android release dependency:** Android `0.3.3` and newer (this bridge selects `0.3.6`) include the native
 foreground-tracking fix for translucent Google ad activities. See
 [verification steps](LOCAL_TESTING.md#android-interstitial-return-regression).
 
@@ -585,6 +585,11 @@ AudienzzBanner(
   `config.resizeToPrebidCreative: false` to keep GAM's size for a placement. The clean fix is still
   in GAM: creative-level targeting on `hb_size`. Flutter SDK only for now; the native and React
   Native SDKs keep GAM's size.
+- **Fluid GAM ads** (e.g. fluid GAM native styles): with `gamConfig.includeFluid: true` in the ad
+  config, the banner also asks GAM for the fluid size next to its fixed sizes; Prebid keeps its
+  fixed sizes. A fluid ad spans the slot's width and is as tall as its creative; that height arrives
+  through `onAdSizeChanged` like any delivered size, so give the slot a width (`AudienzzBanner`
+  already spans it) and keep `sizeToCreative` on, or size your wrapper from the callback.
 
 To verify sizing, call `AudienzzSdkFlutter.instance.setDiagnosticsEnabled(true)`. Every banner
 (`AudienzzBanner` or `RemoteBannerAd`) logs `AUDZ banner size adId=… unit=… size=320x50
@@ -611,6 +616,64 @@ void dispose() {
   super.dispose();
 }
 ```
+
+## Gallery ads (ePaper, `PageView`)
+
+A `PageView` builds only the page on screen, so an `AudienzzBanner` in a tile further along does
+not exist until the reader swipes to it. Requesting then is too late (the reader swipes past
+before the ad arrives), and requesting every ad tile when the screen opens buys ads for tiles most
+readers never reach. `AudienzzGalleryAds` owns the ads instead: each slot requests its ad once the
+reader is within its preload distance, and keeps it while its tile is built and disposed.
+`AudienzzGalleryAd` in the tile shows it.
+
+```dart
+final pageController = PageController();
+
+AudienzzPage(
+  name: 'epaper',
+  child: AudienzzGalleryAds(
+    controller: pageController,
+    slots: const [
+      AudienzzGalleryAdSlot(slotKey: 'epaper-1', adConfigId: '123', pageIndex: 4),
+      AudienzzGalleryAdSlot(slotKey: 'epaper-2', adConfigId: '124', pageIndex: 12),
+    ],
+    onAdFailedToLoad: (slotKey, error) { /* e.g. drop the ad tile */ },
+    child: PageView.builder(
+      controller: pageController,
+      itemCount: tiles.length,
+      itemBuilder: (context, index) => switch (index) {
+        4 => const AudienzzGalleryAd(slotKey: 'epaper-1'),
+        12 => const AudienzzGalleryAd(slotKey: 'epaper-2'),
+        _ => EpaperTile(tiles[index]),
+      },
+    ),
+  ),
+)
+```
+
+- **Ad config:** each slot is a normal banner ad config (`gamConfig`, `prebidConfig`,
+  `gamConfig.includeFluid` for fluid GAM native styles). The slot always loads eagerly when it is
+  in range; `config.lazyLoad` and `config.prefetchDistanceDp` do not apply.
+- **Refresh:** `config.refreshTimeSeconds`, as for a `RemoteBanner` (absent or `0`: no periodic
+  refresh), counted only while the ad's tile is on screen.
+- **Preload distance:** `config.preloadDistancePages` in the ad config: a slot requests its ad when
+  the reader is that many pages (tiles) away or closer, in either direction, counted from the
+  fractional page while swiping. Absent or invalid (negative, not a whole number): **2**. `0`
+  requests only on the slot's own page.
+- **One request per slot:** swiping away and back reuses the ad. Until its tile shows it, a
+  preloaded ad is reported hidden, so refresh and viewability only count while the tile is on
+  screen.
+- **Leaving and coming back does not reload.** Must be inside an `AudienzzPage`; swiping between
+  tiles is not a page impression. When the reader leaves the page (an article opened on top, the
+  app sent to the background) the ads are paused, keeping their creative; on return they are shown
+  again and refresh resumes where it stopped. Nothing new is requested while the page is away.
+  (An `AudienzzBanner` instead gets a fresh ad on every return.) Uses the native SDKs'
+  `keepsAdAcrossPages` (Android 0.3.6, iOS 0.4.6).
+- **Refresh on back:** `config.refreshOnBack: true` in the slot's ad config reloads its ad when the
+  reader comes back instead, like an `AudienzzBanner`. Default `false` (kept); only a JSON boolean
+  `true` turns it on. The slot is still preloaded by page distance.
+- **Tile:** the ad spans the tile's width, is as tall as its creative and is centered vertically.
+  `placeholder` is shown while the slot has no ad.
 
 ## Interstitial Ad (Remote Config)
 
@@ -1144,7 +1207,7 @@ License
 
 `AdWidget` sends its visibility/overlay/unmount state through a separate internal channel operation (`setBannerViewportVisible`). Publishers should let `AdWidget` manage visibility and use the public pause API only for their own pause policy. Both native plugin implementations preserve these independent reasons.
 
-Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.3 and iOS 0.4.3 or newer; this bridge selects Android 0.3.5 and iOS 0.4.5.
+Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.3 and iOS 0.4.3 or newer; this bridge selects Android 0.3.6 and iOS 0.4.6.
 
 
 ## Interstitial lifecycle and migration

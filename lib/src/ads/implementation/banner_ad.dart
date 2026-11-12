@@ -53,6 +53,9 @@ class BannerAd extends AdWithView {
     this.pageKey,
     this.startPublisherPaused = false,
     this.resizeToPrebidCreative = true,
+    this.includeFluid = false,
+    this.keepsAdAcrossPages = false,
+    this.galleryMode = false,
   }) : isLazyLoad = _resolveLazyLoad(isLazyLoad, smartRefresh);
 
   // On Flutter, lazy load relies on smartRefresh's Flutter-side visibility
@@ -128,6 +131,26 @@ class BannerAd extends AdWithView {
   /// keeps GAM's size. On by default; a `RemoteBannerAd` turns it off only
   /// when the ad config sets `resizeToPrebidCreative: false`.
   final bool resizeToPrebidCreative;
+
+  /// Also ask GAM for the fluid size, next to [sizes] (e.g. fluid GAM native
+  /// styles); Prebid keeps [prebidSizes]. A fluid ad spans the slot's width
+  /// and is as tall as its creative, reported through [onAdSizeChanged] like
+  /// any delivered size, so give the slot a width and let its height follow.
+  /// A `RemoteBannerAd` takes it from the ad config's `gamConfig.includeFluid`.
+  final bool includeFluid;
+
+  /// Keep the delivered ad when its page is left and returned to, instead of
+  /// releasing it and loading a new one. While the page is away the ad is
+  /// paused (no auction, nothing counted); on return its refresh resumes with
+  /// the remaining interval. Defaults to `false`: a page return reloads. An
+  /// `AudienzzGalleryAds` slot turns it on unless its ad config sets
+  /// `config.refreshOnBack`.
+  final bool keepsAdAcrossPages;
+
+  /// A gallery slot (`AudienzzGalleryAds`): the native ad outlives its
+  /// `AdWidget`, which a pager builds and disposes as the reader swipes, until
+  /// the ad itself is disposed.
+  final bool galleryMode;
 
   /// The page this banner belongs to, when the caller knows it better than the
   /// SDK does.
@@ -280,6 +303,9 @@ class BannerAd extends AdWithView {
         smartRefresh,
         prefetchMargin,
         resizeToPrebidCreative,
+        includeFluid,
+        keepsAdAcrossPages,
+        galleryMode,
         adFormat,
         apiParameters,
         protocols,

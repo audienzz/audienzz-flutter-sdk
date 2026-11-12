@@ -7,6 +7,8 @@ class RemoteAdConfigData {
     this.resizeToPrebidCreative,
     this.stickyMaxHeight,
     this.stickyTopOffset,
+    this.preloadDistancePages,
+    this.refreshOnBack = false,
   });
 
   factory RemoteAdConfigData.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,12 @@ class RemoteAdConfigData {
       resizeToPrebidCreative: json['resizeToPrebidCreative'] as bool?,
       stickyMaxHeight: json['stickyMaxHeight'] as int?,
       stickyTopOffset: json['stickyTopOffset'] as int?,
+      // Lenient: anything but a non-negative whole number is treated as absent
+      // and never fails the ad config, so a malformed value only costs the
+      // backend override, not the placement.
+      preloadDistancePages: _nonNegativeInt(json['preloadDistancePages']),
+      // Only a JSON boolean `true` turns it on.
+      refreshOnBack: json['refreshOnBack'] == true,
     );
   }
 
@@ -52,6 +60,35 @@ class RemoteAdConfigData {
   /// `null` falls back to 0 (or the scroll view's safe-area padding on iOS).
   final int? stickyTopOffset;
 
+  /// How many pages (ePaper tiles) before the reader reaches it an
+  /// `AudienzzGalleryAd` slot requests its ad. `null` when absent, negative or
+  /// not a whole number; `AudienzzGalleryAds` then uses its local default (2).
+  final int? preloadDistancePages;
+
+  /// Gallery ads: reload the slot's ad when the reader comes back to the
+  /// gallery (an article closed, the app back from the background), like every
+  /// other banner. `false` (the default, and anything but a JSON `true`) keeps
+  /// the ad across leaving and returning.
+  final bool refreshOnBack;
+
+  /// Same bounds as the native SDKs (a 32-bit Int): a larger number, or a
+  /// non-finite one (`1e309` decodes to infinity), is treated as absent.
+  static const _maxInt32 = 2147483647;
+
+  static int? _nonNegativeInt(Object? value) {
+    if (value is int) {
+      return value >= 0 && value <= _maxInt32 ? value : null;
+    }
+    if (value is double &&
+        value.isFinite &&
+        value >= 0 &&
+        value <= _maxInt32 &&
+        value == value.roundToDouble()) {
+      return value.toInt();
+    }
+    return null;
+  }
+
   Map<String, dynamic> toJson() => {
         'adType': adType,
         if (refreshTimeSeconds != null) 'refreshTimeSeconds': refreshTimeSeconds,
@@ -61,5 +98,8 @@ class RemoteAdConfigData {
           'resizeToPrebidCreative': resizeToPrebidCreative,
         if (stickyMaxHeight != null) 'stickyMaxHeight': stickyMaxHeight,
         if (stickyTopOffset != null) 'stickyTopOffset': stickyTopOffset,
+        if (preloadDistancePages != null)
+          'preloadDistancePages': preloadDistancePages,
+        if (refreshOnBack) 'refreshOnBack': true,
       };
 }

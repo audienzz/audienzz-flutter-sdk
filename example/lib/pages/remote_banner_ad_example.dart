@@ -211,9 +211,10 @@ class _RemoteBannerAdExampleState extends State<RemoteBannerAdExample> {
 
     final isLoaded = loader.isLoaded;
     final adSize = loader.adSize;
-    // Keep the available width for adaptive requests, including later refreshes.
-    // A fixed creative returned by GAM must not shrink the next adaptive request.
-    final width = ad.isAdaptiveSize
+    // Keep the available width for adaptive and fluid-capable requests,
+    // including later refreshes: a fluid ad is as wide as its slot, so a fixed
+    // creative returned by GAM must not shrink the slot the next one gets.
+    final width = ad.isAdaptiveSize || ad.includeFluid
         ? double.infinity
         : adSize?.width.toDouble() ?? ad.sizes.first.width.toDouble();
     final height = adSize?.height.toDouble() ?? ad.sizes.first.height.toDouble();
