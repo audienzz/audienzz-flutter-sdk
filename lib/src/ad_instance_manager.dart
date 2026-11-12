@@ -492,6 +492,7 @@ final class AdInstanceManager {
           if (ad.includeFluid) 'includeFluid': true,
           // Absent unless on, so an older plugin is unchanged.
           if (ad.keepsAdAcrossPages) 'keepsAdAcrossPages': true,
+          if (ad.galleryMode) 'galleryMode': true,
           'isAdaptiveSize': ad.isAdaptiveSize,
           if (ad.adaptiveBannerConfig != null)
             'adaptiveBannerConfig': ad.adaptiveBannerConfig!.toJson(),

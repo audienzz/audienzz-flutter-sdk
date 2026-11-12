@@ -89,8 +89,11 @@ final class RemoteBannerAd extends BannerAd {
           smartRefresh: true,
           // A reader leaves an ePaper for an article and comes back: the ad
           // they had is still the right one, and reloading it would cost the
-          // slot its creative every time.
-          keepsAdAcrossPages: true,
+          // slot its creative every time — unless the ad config asks for a
+          // fresh one (`config.refreshOnBack`).
+          keepsAdAcrossPages:
+              !(_getConfig(configId)?.config.refreshOnBack ?? false),
+          galleryMode: true,
         );
 
   final String configId;

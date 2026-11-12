@@ -34,6 +34,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     /// Keep the delivered ad across page transitions (gallery ads): paused while its page is away,
     /// resumed on return without a new auction (`AUBannerView.keepsAdAcrossPages`).
     internal let keepsAdAcrossPages: Bool
+    /// A gallery slot: Flutter builds and disposes its platform view as the reader swipes, and the
+    /// ad must outlive that whether or not it is kept across pages (see `view()`).
+    internal let galleryMode: Bool
     /// Read-only, for tests.
     internal var resizesToPrebidCreative: Bool { resizeToPrebidCreative }
     private var prebidCreativeSize: CGSize?
@@ -292,11 +295,13 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         manager: AdInstanceManager,
         resizeToPrebidCreative: Bool = true,
         includeFluid: Bool = false,
-        keepsAdAcrossPages: Bool = false
+        keepsAdAcrossPages: Bool = false,
+        galleryMode: Bool = false
     ) {
         self.resizeToPrebidCreative = resizeToPrebidCreative
         self.includeFluid = includeFluid
         self.keepsAdAcrossPages = keepsAdAcrossPages
+        self.galleryMode = galleryMode
         self.adUnitId = adUnitId
         self.sizes = sizes
         self.prebidSizes = prebidSizes
@@ -483,7 +488,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     // MARK: - FlutterPlatformView
 
     func view() -> UIView {
-        guard keepsAdAcrossPages, let banner = auBannerView else { return auBannerView! }
+        guard galleryMode || keepsAdAcrossPages, let banner = auBannerView else { return auBannerView! }
         // Flutter removes the platform view's root view from its superview whenever the AdWidget
         // leaves the tree — a gallery tile swiped out of a PageView. AUBannerView treats
         // `removeFromSuperview()` as its destructor, so handing it to Flutter directly destroyed a
@@ -499,7 +504,7 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         return keptAdHost
     }
 
-    /// What Flutter embeds for a `keepsAdAcrossPages` banner; see `view()`.
+    /// What Flutter embeds for a gallery or `keepsAdAcrossPages` banner; see `view()`.
     internal private(set) lazy var keptAdHost: UIView = {
         let host = UIView()
         host.backgroundColor = .clear

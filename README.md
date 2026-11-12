@@ -670,6 +670,9 @@ AudienzzPage(
   (An `AudienzzBanner` instead gets a fresh ad on every return.) Needs the native SDKs'
   `keepsAdAcrossPages` (unreleased, branch `feature/gallery-ads`); with an older Android SDK the
   ad reloads on return as before.
+- **Refresh on back:** `config.refreshOnBack: true` in the slot's ad config reloads its ad when the
+  reader comes back instead, like an `AudienzzBanner`. Default `false` (kept); only a JSON boolean
+  `true` turns it on. The slot is still preloaded by page distance.
 - **Tile:** the ad spans the tile's width, is as tall as its creative and is centered vertically.
   `placeholder` is shown while the slot has no ad.
 

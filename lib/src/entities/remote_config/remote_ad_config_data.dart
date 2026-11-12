@@ -8,6 +8,7 @@ class RemoteAdConfigData {
     this.stickyMaxHeight,
     this.stickyTopOffset,
     this.preloadDistancePages,
+    this.refreshOnBack = false,
   });
 
   factory RemoteAdConfigData.fromJson(Map<String, dynamic> json) {
@@ -25,6 +26,8 @@ class RemoteAdConfigData {
       // and never fails the ad config, so a malformed value only costs the
       // backend override, not the placement.
       preloadDistancePages: _nonNegativeInt(json['preloadDistancePages']),
+      // Only a JSON boolean `true` turns it on.
+      refreshOnBack: json['refreshOnBack'] == true,
     );
   }
 
@@ -62,6 +65,12 @@ class RemoteAdConfigData {
   /// not a whole number; `AudienzzGalleryAds` then uses its local default (2).
   final int? preloadDistancePages;
 
+  /// Gallery ads: reload the slot's ad when the reader comes back to the
+  /// gallery (an article closed, the app back from the background), like every
+  /// other banner. `false` (the default, and anything but a JSON `true`) keeps
+  /// the ad across leaving and returning.
+  final bool refreshOnBack;
+
   static int? _nonNegativeInt(Object? value) {
     if (value is int) {
       return value >= 0 ? value : null;
@@ -83,5 +92,6 @@ class RemoteAdConfigData {
         if (stickyTopOffset != null) 'stickyTopOffset': stickyTopOffset,
         if (preloadDistancePages != null)
           'preloadDistancePages': preloadDistancePages,
+        if (refreshOnBack) 'refreshOnBack': true,
       };
 }

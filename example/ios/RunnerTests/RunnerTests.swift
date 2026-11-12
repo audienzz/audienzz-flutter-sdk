@@ -285,6 +285,31 @@ final class RunnerTests: XCTestCase {
         }
     }
 
+    func testAGalleryAdThatReloadsOnReturnStillSurvivesItsPlatformViewBeingRemoved() throws {
+        // `config.refreshOnBack`: not kept across pages, but still a gallery slot whose tile
+        // Flutter builds and disposes as the reader swipes.
+        let ad = FBannerAd(adUnitId: "/96628199/multi-size", auConfigId: "test",
+            sizes: [FAdSize(width: 300, height: 250)],
+            isAdaptiveSize: false, isLazyLoad: false,
+            smartRefresh: false, prefetchMarginPoints: 0, refreshTimeInterval: nil,
+            adFormat: .banner, apiParameters: [], videoProtocols: [], videoPlacement: .InBanner,
+            videoPlaybackMethods: [], videoBitrate: FVideoBitrate(min: 0, max: 0),
+            videoDuration: FVideoDuration(min: 0, max: 0), pbAdSlot: nil, gpId: nil,
+            customImpOrtbConfig: nil, pageKey: "route-1", rootViewController: UIViewController(),
+            adId: 73, manager: manager, keepsAdAcrossPages: false, galleryMode: true)
+        defer { ad.dispose() }
+        ad.pauseAutoRefresh()
+        ad.loadGoogle = { _, _ in }
+        ad.load()
+        let banner = try XCTUnwrap(ad.auBannerView)
+        XCTAssertFalse(banner.keepsAdAcrossPages)
+        let tile = UIView()
+        tile.addSubview(ad.view())
+        XCTAssertFalse(ad.view() === banner, "Flutter embeds a container, not the banner")
+        ad.view().removeFromSuperview()
+        XCTAssertTrue(banner.superview === ad.view(), "the banner was not removed, so not destroyed")
+    }
+
     func testAKeptAdSurvivesItsPlatformViewBeingRemoved() throws {
         let ad = FBannerAd(adUnitId: "/96628199/multi-size", auConfigId: "test",
             sizes: [FAdSize(width: 300, height: 250)],

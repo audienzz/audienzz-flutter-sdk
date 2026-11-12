@@ -70,8 +70,9 @@ class AudienzzGalleryAdSlot {
 /// ad is not reloaded when the reader leaves the page and comes back (an
 /// article opened on top, the app sent to the background): it is paused while
 /// the page is away and shown again on return, with its refresh resuming where
-/// it stopped. Swiping between tiles is not a page impression; the whole
-/// gallery is one page.
+/// it stopped — unless the slot's ad config sets `config.refreshOnBack: true`,
+/// which reloads it on return like an `AudienzzBanner`. Swiping between tiles
+/// is not a page impression; the whole gallery is one page.
 ///
 /// ```dart
 /// AudienzzPage(

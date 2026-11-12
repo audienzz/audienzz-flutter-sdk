@@ -16,7 +16,8 @@
   rebuilds. The distance is the ad config's new `config.preloadDistancePages`, 2 when absent.
   Refresh is the ad config's `refreshTimeSeconds`, as for a `RemoteBanner`. Leaving the page (an
   article on top, background) and coming back does not reload: the ad is paused and kept
-  (`BannerAd.keepsAdAcrossPages`, sent to native as `keepsAdAcrossPages`). Needs the native SDKs'
+  (`BannerAd.keepsAdAcrossPages`, sent to native as `keepsAdAcrossPages`), unless the ad config's
+  new `config.refreshOnBack` is `true` (default `false`), which reloads it on return. Needs the native SDKs'
   `keepsAdAcrossPages` (branch `feature/gallery-ads` in both): iOS sets it directly; the
   Android plugin sets it reflectively until it is pinned to that release, and with the published
   SDK the ad still reloads on return. On iOS the plugin embeds a kept ad through a container view:

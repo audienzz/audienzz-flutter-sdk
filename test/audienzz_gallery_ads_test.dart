@@ -275,12 +275,15 @@ void main() {
     expect(banner['isLazyLoad'], true);
     expect(gallery['keepsAdAcrossPages'], true);
     expect(banner.containsKey('keepsAdAcrossPages'), false);
+    expect(gallery['galleryMode'], true);
+    expect(banner.containsKey('galleryMode'), false);
     for (final key in [
       'adId',
       'requestSlot',
       'pageKey',
       'isLazyLoad',
       'keepsAdAcrossPages',
+      'galleryMode',
     ]) {
       gallery.remove(key);
       banner.remove(key);
@@ -415,6 +418,75 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(viewKey(), before);
+  });
+
+  group('config.refreshOnBack', () {
+    test('only a JSON true turns it on, and it is cached', () {
+      bool parse(Object? value) => RemoteAdConfigData.fromJson({
+            'adType': 'banner',
+            if (value != null) 'refreshOnBack': value,
+          }).refreshOnBack;
+      expect(parse(null), false);
+      expect(parse(false), false);
+      expect(parse(true), true);
+      expect(parse('true'), false);
+      expect(parse(1), false);
+      final json = RemoteAdConfigData.fromJson(
+        {'adType': 'banner', 'refreshOnBack': true},
+      ).toJson();
+      expect(RemoteAdConfigData.fromJson(json).refreshOnBack, true);
+      expect(
+        RemoteAdConfigData.fromJson({'adType': 'banner'})
+            .toJson()
+            .containsKey('refreshOnBack'),
+        false,
+      );
+    });
+
+    testWidgets('on: the slot reloads on return, still preloaded eagerly',
+        (tester) async {
+      setConfigs([
+        {
+          ...configJson('a'),
+          'config': {
+            'adType': 'banner',
+            'refreshTimeSeconds': 30,
+            'refreshOnBack': true,
+          },
+        },
+        configJson('b'),
+      ]);
+      final controller = PageController(initialPage: 4);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(epaper(controller));
+      await tester.pumpAndSettle();
+      final args = loads().single;
+      expect(args['isLazyLoad'], false);
+      expect(
+        args.containsKey('keepsAdAcrossPages'),
+        false,
+        reason: 'native releases it on leave and reloads it on return',
+      );
+      expect(
+        args['galleryMode'],
+        true,
+        reason: 'the native ad still outlives its tile',
+      );
+
+      // On return native re-auctions in place, so the view must be rebuilt
+      // to show the new creative.
+      Key? viewKey() => tester.widget(find.byType(PlatformViewLink)).key;
+      final before = viewKey();
+      await messenger.handlePlatformMessage(
+        channel.name,
+        channel.codec.encodeMethodCall(
+          MethodCall('onPageImpression', {'name': args['pageKey']}),
+        ),
+        (_) {},
+      );
+      await tester.pumpAndSettle();
+      expect(viewKey(), isNot(before));
+    });
   });
 
   testWidgets('refresh comes from the ad config, as for a RemoteBanner',

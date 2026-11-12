@@ -238,7 +238,9 @@ public class AudienzzSdkFlutterPlugin: NSObject, FlutterPlugin {
                 // Absent from Dart unless the ad config turns it on.
                 includeFluid: args["includeFluid"] as? Bool ?? false,
                 // Absent from Dart unless on (gallery ads).
-                keepsAdAcrossPages: args["keepsAdAcrossPages"] as? Bool ?? false
+                keepsAdAcrossPages: args["keepsAdAcrossPages"] as? Bool ?? false,
+                // Absent from Dart unless on (gallery ads).
+                galleryMode: args["galleryMode"] as? Bool ?? false
             )
 
             // Before loadAd: an eager banner requests as soon as it loads, so a
