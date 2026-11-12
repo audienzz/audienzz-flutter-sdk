@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.4
 
 - **Fluid GAM size for remote banners.** An ad config can set `gamConfig.includeFluid: true`. The
   banner then also asks GAM for the fluid size next to its fixed `gamConfig.adSizes`, so fluid
