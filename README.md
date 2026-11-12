@@ -1,8 +1,8 @@
 Audienzz SDK Flutter
 ========
 
-> **Native dependencies:** Android `com.audienzz:sdk:0.3.5` (Maven Central) and
-> iOS `AudienzziOSSDK ~> 0.4.5` (CocoaPods). The library and examples use these published
+> **Native dependencies:** Android `com.audienzz:sdk:0.3.6` (Maven Central) and
+> iOS `AudienzziOSSDK ~> 0.4.6` (CocoaPods). The library and examples use these published
 > releases by default, including analytics batching, foreground/interstitial page continuity,
 > cold-start attribution and one `viewability.start` per creative.
 >
@@ -185,7 +185,7 @@ Flutter `SafeArea` protects app content, but cannot inset Google's separate full
 See the [system-bar checks](LOCAL_TESTING.md#interstitial-status-bar-and-close-button) for limits
 and device verification.
 
-**Android release dependency:** Android `0.3.3` and newer (this bridge selects `0.3.5`) include the native
+**Android release dependency:** Android `0.3.3` and newer (this bridge selects `0.3.6`) include the native
 foreground-tracking fix for translucent Google ad activities. See
 [verification steps](LOCAL_TESTING.md#android-interstitial-return-regression).
 
@@ -667,9 +667,8 @@ AudienzzPage(
   tiles is not a page impression. When the reader leaves the page (an article opened on top, the
   app sent to the background) the ads are paused, keeping their creative; on return they are shown
   again and refresh resumes where it stopped. Nothing new is requested while the page is away.
-  (An `AudienzzBanner` instead gets a fresh ad on every return.) Needs the native SDKs'
-  `keepsAdAcrossPages` (unreleased, branch `feature/gallery-ads`); with an older Android SDK the
-  ad reloads on return as before.
+  (An `AudienzzBanner` instead gets a fresh ad on every return.) Uses the native SDKs'
+  `keepsAdAcrossPages` (Android 0.3.6, iOS 0.4.6).
 - **Refresh on back:** `config.refreshOnBack: true` in the slot's ad config reloads its ad when the
   reader comes back instead, like an `AudienzzBanner`. Default `false` (kept); only a JSON boolean
   `true` turns it on. The slot is still preloaded by page distance.
@@ -1208,7 +1207,7 @@ License
 
 `AdWidget` sends its visibility/overlay/unmount state through a separate internal channel operation (`setBannerViewportVisible`). Publishers should let `AdWidget` manage visibility and use the public pause API only for their own pause policy. Both native plugin implementations preserve these independent reasons.
 
-Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.3 and iOS 0.4.3 or newer; this bridge selects Android 0.3.5 and iOS 0.4.5.
+Original banner refresh is owned by the native Audienzz SDK and completes at the Google load result. Configure the GAM ad unit with its own refresh rate unset. The required native releases are Android 0.3.3 and iOS 0.4.3 or newer; this bridge selects Android 0.3.6 and iOS 0.4.6.
 
 
 ## Interstitial lifecycle and migration

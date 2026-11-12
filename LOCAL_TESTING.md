@@ -1,6 +1,6 @@
 # Testing the examples and optional local native SDKs
 
-The library and examples default to published Android `0.3.5` and iOS `~> 0.4.5`.
+The library and examples default to published Android `0.3.6` and iOS `~> 0.4.6`.
 No sibling checkout is required. These releases include analytics batching, foreground/interstitial
 page continuity, cold-start attribution, Android bridge page recovery, and one `viewability.start`
 per creative. Local native testing is an explicit opt-in described below.
@@ -23,7 +23,7 @@ recovery separately from periodic timing.
 
 ## Android — optional local Maven build
 
-Published Android `0.3.5` is the default. To test native edits, publish the sibling checkout:
+Published Android `0.3.6` is the default. To test native edits, publish the sibling checkout:
 
 ```bash
 cd ../audienzz-android-sdk
@@ -32,12 +32,12 @@ cd ../audienzz-android-sdk
 cd ../audienzz-flutter-sdk/example/android
 ./gradlew :app:dependencyInsight --dependency com.audienzz:sdk \
   --configuration debugRuntimeClasspath --refresh-dependencies \
-  -PaudienzzNativeVersion=0.3.5-local
+  -PaudienzzNativeVersion=0.3.6-local
 ```
 
 The init script changes only the local publication coordinate and disables signing for that
 local build. It does not edit the native release version or publish anything remotely. Resolution
-must show `com.audienzz:sdk:0.3.5-local`. Supply the same Gradle property when building, or temporarily
+must show `com.audienzz:sdk:0.3.6-local`. Supply the same Gradle property when building, or temporarily
 uncomment it in `example/android/gradle.properties` for Flutter/React Native CLI builds. Do not
 commit that override. Republish and use `--refresh-dependencies` after native edits; hot reload
 does not replace native code. A missing local artifact fails dependency resolution.
@@ -45,24 +45,14 @@ does not replace native code. A missing local artifact fails dependency resoluti
 Direct Gradle source substitution is not used: native and wrapper builds use different Android
 Gradle plugin versions. Remove the property to return to the published dependency.
 
-## Unreleased: the example's iOS SDK comes from a pull request
+## Gallery ads (ePaper example)
 
-On this branch the example Podfile installs `AudienzziOSSDK` from `feature/gallery-ads`:
-`AUBannerView.keepsAdAcrossPages` (gallery ads) stacked on audienzz/audienzz-ios-sdk#68
-(`gamConfig.includeFluid`). Run `pod install` (with `LANG=en_US.UTF-8` if CocoaPods complains about
-the encoding) after pulling; `AUDIENZZ_IOS_SDK_PATH` still overrides it. Switch back to the released
-version once both ship.
-
-Android uses the published SDK by default. Fluid needs nothing from audienzz/audienzz-android-sdk#29
-(the plugin builds its own Google view). Gallery ads set `AudienzzAdViewHandler.keepsAdAcrossPages`
-reflectively: with the published SDK they still reload on a page return. To test the full behaviour,
-publish the android-sdk `feature/gallery-ads` branch locally (see above) and build with
-`-PaudienzzNativeVersion=0.3.3-local`. The example's ePaper screen needs an x86_64 or arm emulator:
-Flutter does not build for 32-bit x86 images.
+The example's ePaper screen needs an x86_64 or arm Android emulator: Flutter does not build for
+32-bit x86 images.
 
 ## iOS — optional local development pod
 
-The example Podfile defaults to the published `AudienzziOSSDK ~> 0.4.5`. To test native edits:
+The example Podfile defaults to the published `AudienzziOSSDK ~> 0.4.6`. To test native edits:
 
 ```bash
 cd example/ios

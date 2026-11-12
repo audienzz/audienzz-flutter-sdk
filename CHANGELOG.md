@@ -17,16 +17,12 @@
   Refresh is the ad config's `refreshTimeSeconds`, as for a `RemoteBanner`. Leaving the page (an
   article on top, background) and coming back does not reload: the ad is paused and kept
   (`BannerAd.keepsAdAcrossPages`, sent to native as `keepsAdAcrossPages`), unless the ad config's
-  new `config.refreshOnBack` is `true` (default `false`), which reloads it on return. Needs the native SDKs'
-  `keepsAdAcrossPages` (branch `feature/gallery-ads` in both): iOS sets it directly; the
-  Android plugin sets it reflectively until it is pinned to that release, and with the published
-  SDK the ad still reloads on return. On iOS the plugin embeds a kept ad through a container view:
+  new `config.refreshOnBack` is `true` (default `false`), which reloads it on return. On iOS the plugin embeds a kept ad through a container view:
   Flutter removes a platform view's root view when its tile is swiped out, and
   `AUBannerView.removeFromSuperview()` is the SDK's destructor, so the ad died with its first tile
   rebuild.
-- **iOS requires the iOS SDK with `AUAdView.fillsWidthWithAdSubview`** (audienzz-ios-sdk#68). Until
-  it is released, the example app installs it from that PR's branch; the plugin podspec must be
-  bumped to the release before this ships. Android needs no native change.
+- **Native SDKs updated to Android `0.3.6` and iOS `0.4.6`:** gallery ads' `keepsAdAcrossPages`
+  (set directly on both platforms) and fluid GAM sizes (`gamConfig.includeFluid`).
 
 ## 0.3.3
 

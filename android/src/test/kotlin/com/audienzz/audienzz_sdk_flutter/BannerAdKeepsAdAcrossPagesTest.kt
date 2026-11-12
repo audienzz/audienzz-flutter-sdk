@@ -20,10 +20,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/**
- * Gallery ads ask the SDK to keep their ad across page transitions. The property arrives with the
- * next Android SDK release, so the plugin sets it reflectively and must keep working without it.
- */
+/** Gallery ads ask the SDK to keep their ad across page transitions; ordinary banners do not. */
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = "mdpi")
 class BannerAdKeepsAdAcrossPagesTest {
@@ -77,31 +74,20 @@ class BannerAdKeepsAdAcrossPagesTest {
     }
 
     @Test
-    fun `a gallery banner still loads when the SDK has no keepsAdAcrossPages yet`() {
+    fun `a gallery banner asks the SDK to keep its ad and reports it`() {
         val ad = banner(keeps = true)
         ad.load()
+        verify(exactly = 1) { anyConstructed<AudienzzAdViewHandler>().keepsAdAcrossPages = true }
         verify(exactly = 1) { anyConstructed<AudienzzAdViewHandler>().load(any(), any(), any(), any()) }
-        val supported = runCatching {
-            AudienzzAdViewHandler::class.java.getMethod("setKeepsAdAcrossPages", Boolean::class.javaPrimitiveType)
-        }.isSuccess
-        assertEquals("reported to Dart as applied only if the SDK took it", supported, ad.keepsAdAcrossPagesApplied)
-    }
-
-    @Test
-    fun `setting it reports whether the SDK supports it, never throws`() {
-        val handler = mockk<AudienzzAdViewHandler>(relaxed = true)
-        val supported = runCatching {
-            AudienzzAdViewHandler::class.java.getMethod(
-                "setKeepsAdAcrossPages",
-                Boolean::class.javaPrimitiveType,
-            )
-        }.isSuccess
-        assertEquals(supported, banner(keeps = true).applyKeepsAdAcrossPages(handler))
+        assertEquals("reported to Dart", true, ad.keepsAdAcrossPagesApplied)
     }
 
     @Test
     fun `an ordinary banner loads unchanged`() {
-        banner(keeps = false).load()
+        val ad = banner(keeps = false)
+        ad.load()
+        verify(exactly = 0) { anyConstructed<AudienzzAdViewHandler>().keepsAdAcrossPages = true }
         verify(exactly = 1) { anyConstructed<AudienzzAdViewHandler>().load(any(), any(), any(), any()) }
+        assertEquals(false, ad.keepsAdAcrossPagesApplied)
     }
 }

@@ -5,7 +5,7 @@ This app also contains lower-level and legacy examples for regression testing.
 
 ## Run
 
-The example defaults to published **Android 0.3.5 / iOS 0.4.5**; no sibling checkout is needed.
+The example defaults to published **Android 0.3.6 / iOS 0.4.6**; no sibling checkout is needed.
 Optional local native testing is documented in [LOCAL_TESTING.md](../LOCAL_TESTING.md).
 Run from the repository root:
 
