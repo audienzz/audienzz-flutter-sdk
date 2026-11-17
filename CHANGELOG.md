@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.5
 
 - **`onAdRendered` for gallery ads and banners.** New `AudienzzGalleryAds.onAdRendered(slotKey,
   size)` and `BannerAd.onAdRendered(ad, size)` (also on `RemoteBannerAd`): once per delivery,
