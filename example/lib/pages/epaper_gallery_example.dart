@@ -80,7 +80,21 @@ class _EpaperGalleryExampleState extends State<EpaperGalleryExample> {
                 child: AudienzzGalleryAds(
                   controller: _controller,
                   slots: _slots,
-                  onAdLoaded: (key) => _setStatus(key, 'loaded'),
+                  onAdLoaded: (key) {
+                    debugPrint('EPAPER loaded slot=$key '
+                        't=${DateTime.now().millisecondsSinceEpoch}');
+                    _setStatus(key, 'loaded');
+                  },
+                  onAdSizeChanged: (key, size) =>
+                      debugPrint('EPAPER sizeChanged slot=$key '
+                          'size=${size.width}x${size.height}'),
+                  // The size each delivery shows at, e.g. for logging.
+                  onAdRendered: (key, size) {
+                    debugPrint('EPAPER rendered slot=$key '
+                        'size=${size.width}x${size.height} '
+                        't=${DateTime.now().millisecondsSinceEpoch}');
+                    _setStatus(key, 'rendered ${size.width}x${size.height}');
+                  },
                   onAdFailedToLoad: (key, error) =>
                       _setStatus(key, 'failed (${error?.message ?? ''})'),
                   child: PageView.builder(
@@ -104,7 +118,8 @@ class _EpaperGalleryExampleState extends State<EpaperGalleryExample> {
                           MaterialPageRoute<void>(
                             // Named, so the navigator observer reports it as
                             // its own page, as a real article view would be.
-                            settings: const RouteSettings(name: 'ePaper article'),
+                            settings:
+                                const RouteSettings(name: 'ePaper article'),
                             builder: (_) => _Article(page: index + 1),
                           ),
                         ),
