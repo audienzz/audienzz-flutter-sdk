@@ -88,6 +88,7 @@ void main() {
     bool active = true,
     void Function(String)? onAdLoaded,
     void Function(String, AdError?)? onAdFailedToLoad,
+    void Function(String, AdSize)? onAdRendered,
   }) =>
       MaterialApp(
         home: Scaffold(
@@ -99,6 +100,7 @@ void main() {
               slots: gallerySlots,
               onAdLoaded: onAdLoaded,
               onAdFailedToLoad: onAdFailedToLoad,
+              onAdRendered: onAdRendered,
               child: PageView.builder(
                 controller: controller,
                 itemCount: 16,
@@ -352,6 +354,44 @@ void main() {
     await nativeEvent(adId, 'onAdSizeChanged', height: 250);
     await tester.pumpAndSettle();
     expect(adSlot().height, 250);
+  });
+
+  testWidgets('onAdRendered follows onAdLoaded with the size, every delivery',
+      (tester) async {
+    final controller = PageController(initialPage: 4);
+    addTearDown(controller.dispose);
+    final events = <String>[];
+    await tester.pumpWidget(
+      epaper(
+        controller,
+        onAdLoaded: (key) => events.add('loaded $key'),
+        onAdRendered: (key, size) =>
+            events.add('rendered $key ${size.width}x${size.height}'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final adId = loads().single['adId'] as int;
+
+    // The plugin's order: size (when it changed), loaded, then rendered —
+    // the last one late when the Prebid creative check is still running.
+    await nativeEvent(adId, 'onAdSizeChanged', height: 600);
+    await nativeEvent(adId, 'onAdLoaded');
+    await tester.pumpAndSettle();
+    expect(events, ['loaded ad-1']);
+    await nativeEvent(adId, 'onAdRendered', height: 600);
+    await tester.pumpAndSettle();
+    expect(events, ['loaded ad-1', 'rendered ad-1 300x600']);
+
+    // A refresh at the same size: no size event, rendered still comes.
+    await nativeEvent(adId, 'onAdLoaded');
+    await nativeEvent(adId, 'onAdRendered', height: 600);
+    await tester.pumpAndSettle();
+    expect(events.skip(2), ['loaded ad-1', 'rendered ad-1 300x600']);
+
+    // A malformed size is not a creative size.
+    await nativeEvent(adId, 'onAdRendered', height: 0);
+    await tester.pumpAndSettle();
+    expect(events, hasLength(4));
   });
 
   testWidgets('the ad outlives its tile: swiping away and back requests none',

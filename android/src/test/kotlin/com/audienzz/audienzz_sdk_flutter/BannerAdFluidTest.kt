@@ -186,4 +186,17 @@ class BannerAdFluidTest {
         assertEquals(AdSize(300, 250), ad.getPlatformAdSize())
         assertEquals(1, reports)
     }
+
+    @Test
+    fun `rendered waits for the measured height of a fluid creative`() {
+        val ad = banner(includeFluid = true).apply { load() }
+        val rendered = mutableListOf<AdSize>()
+        ad.onRendered = { rendered += it }
+        ad.delivered(AdSize(320, 50), contentPx = 427)
+        ad.onAdLoadedReported()
+        assertEquals("not Google's 320x50", emptyList<AdSize>(), rendered)
+        ad.layOut(360, 50)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(listOf(AdSize(320, 427)), rendered)
+    }
 }

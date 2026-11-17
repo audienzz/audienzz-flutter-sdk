@@ -1,3 +1,14 @@
+## Unreleased
+
+- **`onAdRendered` for gallery ads and banners.** New `AudienzzGalleryAds.onAdRendered(slotKey,
+  size)` and `BannerAd.onAdRendered(ad, size)` (also on `RemoteBannerAd`): once per delivery,
+  refreshes included, always after `onAdLoaded`, with the size the delivered creative shows at. It
+  waits for what can still change that size after the load: the Prebid creative check of
+  `resizeToPrebidCreative` (up to about 1 s) and a fluid creative's height. `onAdLoaded` may come
+  before either, and `onAdSizeChanged` only fires when the size changes, so neither gave the size
+  of every delivery. Sent by both plugins as a new `onAdRendered` event; a later size correction
+  still arrives through `onAdSizeChanged` only.
+
 ## 0.3.4
 
 - **Fluid GAM size for remote banners.** An ad config can set `gamConfig.includeFluid: true`. The

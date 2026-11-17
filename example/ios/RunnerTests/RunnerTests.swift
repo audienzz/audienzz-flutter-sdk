@@ -537,6 +537,73 @@ final class RunnerTests: XCTestCase {
         XCTAssertEqual(reportedHeights(), [250])
     }
 
+    // MARK: onAdRendered — once per load, after onAdLoaded, with the size that load shows
+
+    /// The ad events Dart received, in order: `onAdRendered` / `onAdSizeChanged` with their height.
+    private func adEvents() -> [String] {
+        messenger.calls.compactMap { call in
+            guard let args = call.arguments as? [String: Any],
+                  let name = args["eventName"] as? String,
+                  ["onAdLoaded", "onAdSizeChanged", "onAdRendered"].contains(name) else { return nil }
+            if name == "onAdLoaded" { return name }
+            return "\(name) \(args["width"] as? Int ?? 0)x\(args["height"] as? Int ?? 0)"
+        }
+    }
+
+    func testRenderedFollowsLoadedOncePerLoadWithThatLoadsSize() throws {
+        let ad = prebidResizeBanner(enabled: false, adId: 80)
+        defer { ad.dispose() }
+        let native = try XCTUnwrap(ad.auBannerView)
+        let google = AdManagerBannerView(adSize: adSizeFor(cgSize: CGSize(width: 300, height: 600)))
+        messenger.calls.removeAll()
+        try XCTUnwrap(native.onLoadRequest)(AdManagerRequest())
+        try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 300, height: 600))
+        ad.bannerViewDidReceiveAd(google)
+        XCTAssertEqual(adEvents(), ["onAdSizeChanged 300x600", "onAdLoaded", "onAdRendered 300x600"])
+
+        // A refresh at the same size: no size change, but a new delivery.
+        messenger.calls.removeAll()
+        try XCTUnwrap(native.onLoadRequest)(AdManagerRequest())
+        try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 300, height: 600))
+        ad.bannerViewDidReceiveAd(google)
+        try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 300, height: 600)) // a repeat callback
+        XCTAssertEqual(adEvents(), ["onAdLoaded", "onAdRendered 300x600"])
+    }
+
+    func testRenderedWaitsForTheProbeAndCarriesThePrebidSize() throws {
+        let ad = prebidResizeBanner(enabled: true, adId: 81)
+        defer { ad.dispose() }
+        let native = try XCTUnwrap(ad.auBannerView)
+        let google = AdManagerBannerView(adSize: adSizeFor(cgSize: CGSize(width: 300, height: 600)))
+        probes.removeAll()
+        messenger.calls.removeAll()
+        try XCTUnwrap(native.onLoadRequest)(AdManagerRequest())
+        try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 300, height: 600))
+        ad.bannerViewDidReceiveAd(google)
+        XCTAssertEqual(adEvents(), ["onAdLoaded"], "held while the probe decides")
+        probes[0](CGSize(width: 300, height: 250))
+        XCTAssertEqual(adEvents(), ["onAdLoaded", "onAdSizeChanged 300x250", "onAdRendered 300x250"])
+    }
+
+    func testAFluidRefreshRendersOnlyOnceItsOwnHeightArrives() throws {
+        let (ad, google) = fluidBanner(includeFluid: true, adId: 82)
+        defer { ad.dispose() }
+        let native = try XCTUnwrap(ad.auBannerView)
+        native.frame = CGRect(x: 0, y: 0, width: 390, height: 250)
+        try XCTUnwrap(native.onLoadRequest)(AdManagerRequest())
+        let view = try XCTUnwrap(google())
+        try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 390, height: 410))
+        ad.bannerViewDidReceiveAd(view)
+
+        // The refresh: Google's load completes before the fluid creative reports its height.
+        messenger.calls.removeAll()
+        try XCTUnwrap(native.onLoadRequest)(AdManagerRequest())
+        ad.bannerViewDidReceiveAd(view)
+        XCTAssertEqual(adEvents(), ["onAdLoaded"], "not the previous creative's 410")
+        try XCTUnwrap(native.onAdSizeChanged)(CGSize(width: 390, height: 300))
+        XCTAssertEqual(adEvents(), ["onAdLoaded", "onAdSizeChanged 390x300", "onAdRendered 390x300"])
+    }
+
     func testPublisherAndInterstitialPausesCannotClearEachOther() throws {
         let realBanner = FBannerAd(adUnitId: "/test", auConfigId: "test",
             sizes: [FAdSize(width: 300, height: 250)], isAdaptiveSize: false, isLazyLoad: true,

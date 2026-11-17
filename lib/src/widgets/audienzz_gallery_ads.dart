@@ -104,6 +104,7 @@ class AudienzzGalleryAds extends StatefulWidget {
     required this.child,
     this.onAdLoaded,
     this.onAdSizeChanged,
+    this.onAdRendered,
     this.onAdFailedToLoad,
     super.key,
   });
@@ -140,6 +141,14 @@ class AudienzzGalleryAds extends StatefulWidget {
 
   /// A slot's delivered creative size changed, in logical pixels.
   final void Function(String slotKey, AdSize size)? onAdSizeChanged;
+
+  /// A slot's creative is shown, with the size it shows at, in logical pixels.
+  ///
+  /// Once per delivery (each refresh too), always after [onAdLoaded]: at once
+  /// when the size is already known, otherwise as soon as it is (the Prebid
+  /// creative check, up to about 1 s, or a fluid creative's height). For
+  /// logging that needs the size with the delivery.
+  final void Function(String slotKey, AdSize size)? onAdRendered;
 
   /// A slot failed to load: a no-fill or transport error, or a placement
   /// without a remote configuration (that slot then waits until the page is
@@ -412,6 +421,15 @@ class _AudienzzGalleryAdsState extends State<AudienzzGalleryAds> {
         if (current(ad)) {
           _notify(ad, stillDescribes,
               () => widget.onAdSizeChanged?.call(key, size));
+        }
+      },
+      onAdRendered: (ad, size) {
+        if (current(ad)) {
+          _notify(
+            ad,
+            stillDescribes,
+            () => widget.onAdRendered?.call(key, size),
+          );
         }
       },
       onAdLoaded: (ad) {

@@ -16,6 +16,7 @@ import com.audienzz.audienzz_sdk_flutter.ads.implementation.BannerAd
 import com.audienzz.audienzz_sdk_flutter.ads.implementation.InterstitialAd
 import com.audienzz.audienzz_sdk_flutter.ads.implementation.RewardAd
 import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.OnUserEarnedRewardListener
 import com.google.android.gms.ads.admanager.AdManagerInterstitialAd
@@ -118,6 +119,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
 
         ads[adId] = ad
         (ad as? BannerAd)?.onSizeAdjusted = { reportBannerSize(adId) }
+        (ad as? BannerAd)?.onRendered = { size -> onAdRendered(adId, size) }
         if (interstitialPresentations.isNotEmpty() || pendingReturn) {
             (ad as? FullScreenCoverableAd)?.setFullScreenCovered(true)
         }
@@ -173,6 +175,21 @@ class AdInstanceManager(private val channel: MethodChannel) {
         )
 
         invokeOnAdEvent(args)
+    }
+
+    /**
+     * Once per delivery, after `onAdLoaded`: the size the delivered creative shows, once it is
+     * known (after the Prebid markup probe or the fluid measurement, when either applies).
+     */
+    private fun onAdRendered(adId: Int, size: AdSize) {
+        invokeOnAdEvent(
+            mapOf<String, Any?>(
+                AD_ID_KEY to adId,
+                EVENT_NAME_KEY to ON_AD_RENDERED_EVENT,
+                "width" to size.width,
+                "height" to size.height,
+            )
+        )
     }
 
     fun onAdFailedToLoad(adId: Int, adError: AdError) {
@@ -271,6 +288,8 @@ class AdInstanceManager(private val channel: MethodChannel) {
                 (ads[adId] as? BannerAd)?.onGoogleAdLoaded()
                 reportBannerSize(adId)
                 onAdLoaded(adId)
+                // After onAdLoaded: the size this load shows, now or once it is settled.
+                (ads[adId] as? BannerAd)?.onAdLoadedReported()
                 super.onAdLoaded()
             }
 
@@ -370,6 +389,7 @@ class AdInstanceManager(private val channel: MethodChannel) {
 
         private const val ON_AD_LOADED_EVENT = "onAdLoaded"
         private const val ON_AD_SIZE_CHANGED_EVENT = "onAdSizeChanged"
+        private const val ON_AD_RENDERED_EVENT = "onAdRendered"
         private const val ON_AD_FAILED_TO_LOAD_EVENT = "onAdFailedToLoad"
         private const val ON_AD_CLICKED_EVENT = "onAdClicked"
         private const val ON_AD_OPENED_EVENT = "onAdOpened"

@@ -64,6 +64,12 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     private var probePending = false
     /// GAM's size for this load, held back until it is known whether it is the one to show.
     private var heldSize: CGSize?
+    /// The size this Google load shows, once reported (nil until then: a fluid creative's height
+    /// arrives after the load, a held size after the probe).
+    private var loadSize: CGSize?
+    /// This load's `onAdLoaded` reached Dart / its `onAdRendered` was sent.
+    private var loadedReported = false
+    private var renderedReported = false
     private let isLazyLoad: Bool
     private let smartRefresh: Bool
     /// The viewport gate resolved by Dart. v2 is the directional rule; v1 is
@@ -545,10 +551,24 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
 
     // MARK: - resizeToPrebidCreative
 
-    private func report(size: CGSize) {
-        guard renderedSize != size else { return }
-        renderedSize = size
-        manager?.onAdSizeChanged(ad: self, size: size)
+    private func report(size: CGSize, ownLoad: Bool = true) {
+        if ownLoad { loadSize = size }
+        if renderedSize != size {
+            renderedSize = size
+            manager?.onAdSizeChanged(ad: self, size: size)
+        }
+        reportRenderedIfSettled()
+    }
+
+    /// Once per Google load, after `onAdLoaded`: the size that load shows, as soon as neither the
+    /// markup probe nor a fluid creative's pending height holds it back. A later correction (a
+    /// Prebid app event after the probe gave up, an inline adaptive resize) is reported through
+    /// `onAdSizeChanged` alone.
+    private func reportRenderedIfSettled() {
+        guard loadedReported, !renderedReported, !probePending, auBannerView != nil,
+              let size = loadSize, size.width > 0, size.height > 0 else { return }
+        renderedReported = true
+        manager?.onAdRendered(ad: self, size: size)
     }
 
     /// A new Google request is starting: forget the previous delivery's signals.
@@ -556,6 +576,9 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
         loadGeneration += 1
         probePending = false
         heldSize = nil
+        loadSize = nil
+        loadedReported = false
+        renderedReported = false
         prebidRendered = false
         googleLoaded = false
         prebidCreativeSize = resizeToPrebidCreative ? currentPrebidCreativeSize() : nil
@@ -603,6 +626,8 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
             settleHeldSize()
         }
         manager?.onAdLoaded(ad: self)
+        loadedReported = true
+        reportRenderedIfSettled()
     }
 
     /// GAM's size for this load is held back while it is not known whether the Prebid creative
@@ -615,8 +640,11 @@ class FBannerAd: FBaseAd, FAd, FDisposableAd, FFullScreenCoverableAd, FlutterPla
     private func settleHeldSize() {
         let held = heldSize
         heldSize = nil
-        guard let delivered = held ?? renderedSize ?? bannerViewInstance?.adSize.size else { return }
-        report(size: prebidAdjusted(delivered) ?? delivered)
+        // Without a size of this load's own (a fluid creative's height is still to come), the
+        // previous creative's size is re-reported for layout only, never as this load's size.
+        let own = held ?? loadSize
+        guard let delivered = own ?? renderedSize ?? bannerViewInstance?.adSize.size else { return }
+        report(size: prebidAdjusted(delivered) ?? delivered, ownLoad: own != nil)
     }
 
     /// Without the app event: is this load's creative Prebid's? See `findPrebidCreativeSize`. The
