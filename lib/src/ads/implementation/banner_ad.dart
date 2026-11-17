@@ -44,6 +44,7 @@ class BannerAd extends AdWithView {
     this.onAdOpened,
     this.onAdImpression,
     this.onAdSizeChanged,
+    this.onAdRendered,
     this.isAdaptiveSize = false,
     this.adaptiveBannerConfig,
     this.refreshTimeInterval,
@@ -220,6 +221,17 @@ class BannerAd extends AdWithView {
   /// a fixed-height parent resizes itself.
   final void Function(BannerAd ad, AdSize size)? onAdSizeChanged;
 
+  /// The delivered creative is shown, with the size it shows at, in logical
+  /// pixels.
+  ///
+  /// Once per delivery (refreshes included, even at an unchanged size), always
+  /// after [onAdLoaded]: right after it when the size is already known, or once
+  /// it is — after the Prebid creative check of `resizeToPrebidCreative` (up to
+  /// about 1 s) or the height of a fluid creative. Use it where the size has to
+  /// come with the delivery, such as logging. A rare later correction (a
+  /// resizing creative) arrives through [onAdSizeChanged] only.
+  final void Function(BannerAd ad, AdSize size)? onAdRendered;
+
   /// A callback triggered when an ad request failed.
   final void Function(BannerAd ad, AdError? error) onAdFailedToLoad;
 
@@ -292,6 +304,7 @@ class BannerAd extends AdWithView {
         headerBidding,
         onAdLoaded,
         onAdSizeChanged,
+        onAdRendered,
         onAdFailedToLoad,
         onAdImpression,
         onAdOpened,

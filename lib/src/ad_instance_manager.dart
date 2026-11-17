@@ -279,6 +279,7 @@ final class AdInstanceManager {
     return switch (eventName) {
       'onAdLoaded' => _invokeOnAdLoaded(ad, eventName),
       'onAdSizeChanged' => _invokeOnAdSizeChanged(ad, arguments),
+      'onAdRendered' => _invokeOnAdRendered(ad, arguments),
       'onAdFailedToLoad' => _invokeOnAdFailedToLoad(ad, eventName, arguments),
       'onAdClicked' => _invokeOnAdClicked(ad, eventName),
       'onAdOpened' => _invokeOnAdOpened(ad, eventName),
@@ -329,6 +330,28 @@ final class AdInstanceManager {
     _bannerSizes[id] = size;
     _recordDeliveredSize(ad, size, 'push');
     ad.onAdSizeChanged?.call(ad, size);
+  }
+
+  /// Once per delivery, after `onAdLoaded`: the size the creative shows once
+  /// both plugins know it (after the Prebid markup check or a fluid creative's
+  /// measurement). Sent by the plugin after any `onAdSizeChanged` for it.
+  void _invokeOnAdRendered(Ad ad, Map<dynamic, dynamic>? arguments) {
+    if (ad is! BannerAd) {
+      return;
+    }
+    final width = arguments?['width'] as num?;
+    final height = arguments?['height'] as num?;
+    if (width == null || height == null || width <= 0 || height <= 0) {
+      return;
+    }
+    final size = AdSize(width: width.toInt(), height: height.toInt());
+    _recordDeliveredSize(ad, size, 'rendered');
+    AudienzzDiagnostics.log('banner', 'rendered', {
+      'adId': adIdFor(ad),
+      'unit': ad.adUnitId,
+      'size': '${size.width}x${size.height}',
+    });
+    ad.onAdRendered?.call(ad, size);
   }
 
   void _invokeOnAdClicked(Ad ad, String eventName) {

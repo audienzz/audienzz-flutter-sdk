@@ -689,6 +689,18 @@ AudienzzPage(
   `true` turns it on. The slot is still preloaded by page distance.
 - **Tile:** the ad spans the tile's width, is as tall as its creative and is centered vertically.
   `placeholder` is shown while the slot has no ad.
+- **Callbacks** (all per `slotKey`): `onAdLoaded` on every delivery, refreshes included;
+  `onAdFailedToLoad`; `onAdSizeChanged` when the delivered size changes; and `onAdRendered(slotKey,
+  size)`, once per delivery, always after `onAdLoaded`, with the size the creative shows at (logical
+  pixels). Use `onAdRendered` where the size has to come with the delivery, such as logging:
+  `onAdLoaded` can come before the final size is known (the Prebid creative check runs up to about
+  1 s, a fluid creative's height is measured after the load), and `onAdSizeChanged` does not fire
+  for a refresh at the same size.
+
+  ```dart
+  onAdRendered: (slotKey, size) =>
+      log('ad shown', {'slot': slotKey, 'size': '${size.width}x${size.height}'}),
+  ```
 
 ## Interstitial Ad (Remote Config)
 

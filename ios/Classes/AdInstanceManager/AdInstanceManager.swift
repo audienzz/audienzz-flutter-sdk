@@ -128,6 +128,12 @@ class AdInstanceManager : NSObject {
             "eventName": "onAdSizeChanged", "width": Int(size.width), "height": Int(size.height)])
     }
     
+    /// Once per delivery, after `onAdLoaded`: the size the delivered creative shows, once known.
+    func onAdRendered(ad: FAd, size: CGSize) {
+        channel.invokeMethod("onAdEvent", arguments: ["adId": ad.adId,
+            "eventName": "onAdRendered", "width": Int(size.width), "height": Int(size.height)])
+    }
+
     func onAdFailedToLoad(ad: FAd, error: FAdError, domain: String? = nil) {
         var arguments: [String: Any] = [
             "adId":ad.adId,

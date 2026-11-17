@@ -341,4 +341,74 @@ class BannerAdResizeToPrebidTest {
         assertEquals("300x50", ad.size())
         ad.dispose()
     }
+
+    // ── onRendered: once per load, after onAdLoaded, with the size the load shows ────────────
+
+    /** The instance manager's order: the load completes, onAdLoaded goes out, then this. */
+    private fun BannerAd.loadedAndReported(width: Int, height: Int) {
+        googleDelivered(width, height)
+        onAdLoadedReported()
+    }
+
+    @Test
+    fun `rendered fires once, after onAdLoaded, with this load's size`() {
+        val ad = banner(resize = false)
+        val rendered = mutableListOf<String>()
+        ad.onRendered = { rendered += "${it.width}x${it.height}" }
+        ad.load()
+        requireNotNull(handoff)(request(null), null)
+        ad.googleDelivered(300, 600)
+        assertEquals("not before onAdLoaded reached Dart", emptyList<String>(), rendered)
+        ad.onAdLoadedReported()
+        ad.onAdLoadedReported()
+        assertEquals(listOf("300x600"), rendered)
+
+        // A refresh at the same size is a new delivery: rendered again.
+        requireNotNull(handoff)(request(null), null)
+        ad.loadedAndReported(300, 600)
+        assertEquals(listOf("300x600", "300x600"), rendered)
+        ad.dispose()
+    }
+
+    @Test
+    fun `rendered waits for the markup probe and carries the Prebid size`() {
+        val ad = banner(resize = true)
+        val rendered = mutableListOf<String>()
+        ad.onRendered = { rendered += "${it.width}x${it.height}" }
+        ad.load()
+        requireNotNull(handoff)(request("300x250"), null)
+        ad.loadedAndReported(300, 600)
+        assertEquals("held while the probe decides", emptyList<String>(), rendered)
+
+        probes.single()(AdSize(300, 250))
+        assertEquals(listOf("300x250"), rendered)
+        ad.dispose()
+    }
+
+    @Test
+    fun `rendered after a late app event carries the Prebid size, and only once`() {
+        val ad = banner(resize = true)
+        val rendered = mutableListOf<String>()
+        ad.onRendered = { rendered += "${it.width}x${it.height}" }
+        ad.load()
+        requireNotNull(handoff)(request("300x250"), null)
+        ad.loadedAndReported(300, 600)
+        ad.prebidAppEvent()
+        probes.single()(AdSize(300, 250)) // the probe answers late: ignored
+        assertEquals(listOf("300x250"), rendered)
+        ad.dispose()
+    }
+
+    @Test
+    fun `a probe that never answers renders GAM's size after the timeout`() {
+        val ad = banner(resize = true).apply { probeTimeoutMs = 50 }
+        val rendered = mutableListOf<String>()
+        ad.onRendered = { rendered += "${it.width}x${it.height}" }
+        ad.load()
+        requireNotNull(handoff)(request("300x250"), null)
+        ad.loadedAndReported(300, 600)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+        assertEquals(listOf("300x600"), rendered)
+        ad.dispose()
+    }
 }

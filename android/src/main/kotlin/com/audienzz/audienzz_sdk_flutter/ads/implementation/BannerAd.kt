@@ -159,7 +159,7 @@ class BannerAd(
             contentHeightPx = creative
             // Not from inside a layout pass: reporting resizes the slot. Not View.post, which waits
             // for an attach that may not have happened yet.
-            android.os.Handler(android.os.Looper.getMainLooper()).post { onSizeAdjusted?.invoke() }
+            android.os.Handler(android.os.Looper.getMainLooper()).post { sizeAdjusted() }
         }
     }
 
@@ -215,6 +215,38 @@ class BannerAd(
 
     /** Called by the instance manager after a resize that happened after onAdLoaded. */
     internal var onSizeAdjusted: (() -> Unit)? = null
+
+    /**
+     * Called once per Google load, after `onAdLoaded`, with the size that load shows: as soon as
+     * neither the markup probe nor the fluid measurement holds it back any more. A later
+     * correction (a Prebid app event after the probe gave up, a fluid creative that grows) still
+     * arrives through [onSizeAdjusted] alone.
+     */
+    internal var onRendered: ((AdSize) -> Unit)? = null
+
+    /** The load whose `onAdLoaded` reached Dart, and the load already reported as rendered. */
+    private var loadedReportedGeneration = -1
+    private var renderedGeneration = -1
+
+    /** A resize after this load's first report: report it, then the rendered size if now known. */
+    private fun sizeAdjusted() {
+        onSizeAdjusted?.invoke()
+        reportRenderedIfSettled()
+    }
+
+    /** Called by the instance manager right after it sent this load's `onAdLoaded`. */
+    internal fun onAdLoadedReported() {
+        loadedReportedGeneration = loadGeneration
+        reportRenderedIfSettled()
+    }
+
+    private fun reportRenderedIfSettled() {
+        if (!googleLoaded || adView == null) return
+        if (loadedReportedGeneration != loadGeneration || renderedGeneration == loadGeneration) return
+        val size = getPlatformAdSize()?.takeIf { it.width > 0 && it.height > 0 } ?: return
+        renderedGeneration = loadGeneration
+        onRendered?.invoke(size)
+    }
 
     /**
      * The fallback when this load ended without the "Prebid" app event: the Prebid line item's
@@ -279,7 +311,7 @@ class BannerAd(
                 sampleFluidHeight()
                 if (contentHeightPx > 0) return@postDelayed
                 measureTimedOut = true
-                onSizeAdjusted?.invoke()
+                sizeAdjusted()
             }, probeTimeoutMs)
         }
         val resized = applyPrebidSize()
@@ -344,7 +376,7 @@ class BannerAd(
                 applyPrebidSize()
             }
             fitToDeliveredWidth()
-            onSizeAdjusted?.invoke()
+            sizeAdjusted()
         }
         // Not view.postDelayed: on a view that is not attached yet it waits for the attach.
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ settle(null) }, probeTimeoutMs)
@@ -357,7 +389,7 @@ class BannerAd(
         probePending = false
         if (applyPrebidSize() || wasPending) {
             fitToDeliveredWidth()
-            onSizeAdjusted?.invoke()
+            sizeAdjusted()
         }
     }
 

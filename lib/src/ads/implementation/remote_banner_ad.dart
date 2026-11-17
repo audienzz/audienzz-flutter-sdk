@@ -27,6 +27,7 @@ final class RemoteBannerAd extends BannerAd {
     super.onAdOpened,
     super.onAdImpression,
     super.onAdSizeChanged,
+    super.onAdRendered,
     // Lazy loading and the prefetch margin are deliberately not arguments:
     // they come from the ad config's `lazyLoad` and `prefetchDistanceDp`
     // alone, so a placement behaves the same in every app and on every
@@ -70,6 +71,7 @@ final class RemoteBannerAd extends BannerAd {
     required super.onAdLoaded,
     required super.onAdFailedToLoad,
     super.onAdSizeChanged,
+    super.onAdRendered,
     super.pageKey,
   }) : super(
           sizes: _getSizes(configId),
@@ -204,6 +206,7 @@ RemoteBannerAd preloadRemoteBannerAd({
   required void Function(BannerAd ad) onAdLoaded,
   required void Function(BannerAd ad, AdError? error) onAdFailedToLoad,
   void Function(BannerAd ad, AdSize size)? onAdSizeChanged,
+  void Function(BannerAd ad, AdSize size)? onAdRendered,
   String? pageKey,
 }) =>
     RemoteBannerAd._preload(
@@ -211,5 +214,6 @@ RemoteBannerAd preloadRemoteBannerAd({
       onAdLoaded: onAdLoaded,
       onAdFailedToLoad: onAdFailedToLoad,
       onAdSizeChanged: onAdSizeChanged,
+      onAdRendered: onAdRendered,
       pageKey: pageKey,
     );
