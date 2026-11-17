@@ -21,6 +21,18 @@ It adds `TEST=1` targeting; ad-ops configuration determines which creatives matc
 The startup flow requests iOS ATT when needed and handles initialization failures/retry before
 enabling ads. Publisher apps must integrate their own CMP; ATT does not replace consent setup.
 
+## Run on an iOS device
+
+The project ships without a signing team, so it builds on the simulator as is. For a device:
+
+1. `cd example/ios && pod install`, then open `Runner.xcworkspace` in Xcode.
+2. Select the **Runner** target → **Signing & Capabilities** and choose your team.
+3. If Xcode reports the bundle id (`com.audienzz.audienzzSdkFlutter`) as unavailable, change it to
+   one your team owns. `Info.plist` reads it from `PRODUCT_BUNDLE_IDENTIFIER`.
+4. Run `flutter run` in `example` with the device connected.
+
+Keep your team and bundle id out of commits that you send back to this repository.
+
 ## Screens
 
 - **Regular example:** fixed and adaptive RemoteBanners, scrolling content, and the separate
